@@ -1,6 +1,7 @@
 package com.back.letter.dto;
 
 import com.back.letter.entity.Letter;
+import com.back.letter.entity.LetterStatus;
 
 import java.time.LocalDateTime;
 
@@ -9,9 +10,9 @@ public record LetterInfoRes(
         String title,
         String content,
         String replyContent,
-        String status,
+        LetterStatus status,
         LocalDateTime createdDate,
-        LocalDateTime replyCreateDate
+        LocalDateTime replyCreatedDate
 ) {
     public static LetterInfoRes from(Letter letter){
         return new LetterInfoRes(

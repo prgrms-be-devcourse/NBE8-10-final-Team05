@@ -1,8 +1,10 @@
 package com.back.letter.service;
 
 
+import com.back.global.exception.ServiceException;
 import com.back.letter.dto.*;
 import com.back.letter.entity.Letter;
+import com.back.letter.entity.LetterStatus;
 import com.back.letter.repository.LetterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,7 +40,7 @@ public class LetterService {
                 .content(req.content())
                 .senderId(senderId)
                 .receiverId(randomReceiverId)
-                .status("SENT")
+                .status(LetterStatus.SENT)
                 .build();
 
         // 3. 저장 후 생성된 편지의 고유 ID 반환
@@ -52,7 +54,7 @@ public class LetterService {
      */
     public LetterInfoRes getLetter(int id){
         Letter letter = letterRepository.findById(id)
-                .orElseThrow(()->new IllegalArgumentException("편지를 찾을 수 없습니다."));
+                .orElseThrow(()->new ServiceException("404-1","편지를 찾을 수 없습니다."));
 
         return LetterInfoRes.from(letter);
     }
@@ -64,7 +66,7 @@ public class LetterService {
     @Transactional
     public void replyLetter(int id, ReplyLetterReq req) {
         Letter letter = letterRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("편지를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ServiceException("404-1","편지를 찾을 수 없습니다."));
 
         // Entity 내부의 비즈니스 로직(reply)을 호출하여 데이터 변경 및 상태 업데이트
         letter.reply(req.replyContent());

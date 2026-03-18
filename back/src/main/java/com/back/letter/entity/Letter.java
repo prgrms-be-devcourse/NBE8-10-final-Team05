@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
@@ -23,23 +22,18 @@ public class Letter extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String replyContent;
 
-    private String status;
-
     private String senderId;
     private String receiverId;
 
     private LocalDateTime replyCreatedDate;
 
+    @Enumerated(EnumType.STRING)
+    private LetterStatus status;
 
-    public Letter(String title, String content){
-        this.title = title;
-        this.content = content;
-        this.status = "SENT";
-    }
 
     public void reply(String replyContent){
         this.replyContent = replyContent;
-        this.status = "REPLIED";
+        this.status = LetterStatus.REPLIED;
         this.replyCreatedDate = LocalDateTime.now();
     }
 

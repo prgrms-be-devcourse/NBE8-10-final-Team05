@@ -1,6 +1,7 @@
 package com.back.global.initData;
 
 import com.back.letter.entity.Letter;
+import com.back.letter.entity.LetterStatus;
 import com.back.letter.repository.LetterRepository;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +20,7 @@ public class BaseInitData {
                     .content("벌써 50번째 탈락이네요. 저만 뒤처지는 기분이에요.")
                     .senderId("user_alpha")
                     .receiverId(null)
-                    .status("SENT")
+                    .status(LetterStatus.SENT)
                     .build());
 
             letterRepository.save(Letter.builder()
@@ -27,7 +28,7 @@ public class BaseInitData {
                     .content("친한 친구를 좋아하게 됐는데 고백하면 멀어질까 봐 무서워요.")
                     .senderId("user_beta")
                     .receiverId(null)
-                    .status("SENT")
+                    .status(LetterStatus.SENT)
                     .build());
 
             letterRepository.save(Letter.builder()
@@ -35,7 +36,7 @@ public class BaseInitData {
                     .content("믿었던 친구에게 실망했어요. 다들 겉으로만 친한 척하는 걸까요?")
                     .senderId("user_gamma")
                     .receiverId("user_test")
-                    .status("SENT")
+                    .status(LetterStatus.SENT)
                     .build());
 
             letterRepository.save(Letter.builder()
@@ -44,7 +45,7 @@ public class BaseInitData {
                     .senderId("user_delta")
                     .receiverId("user_epsilon")
                     .replyContent("우와, 저도 산책 가고 싶어지네요!")
-                    .status("REPLIED")
+                    .status(LetterStatus.REPLIED)
                     .build());
         };
     }
