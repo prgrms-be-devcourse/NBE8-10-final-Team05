@@ -33,10 +33,10 @@ public class MemberService {
       throw new ServiceException("409-1", "Member email already exists.");
     }
 
-    // 비밀번호는 반드시 해시(BCrypt) 후 저장한다.
-    String password = normalizePassword(request.password());
-    String encodedPassword = passwordEncoder.encode(password);
-    Member member = Member.create(email, encodedPassword, request.nickname());
+    // 비밀번호 원문은 저장하지 않고, 해시값만 저장한다.
+    String rawPassword = normalizeRawPassword(request.password());
+    String passwordHash = passwordEncoder.encode(rawPassword);
+    Member member = Member.create(email, passwordHash, request.nickname());
     return MemberResponse.from(memberRepository.save(member));
   }
 
@@ -67,7 +67,7 @@ public class MemberService {
     return email.trim().toLowerCase();
   }
 
-  private String normalizePassword(String password) {
+  private String normalizeRawPassword(String password) {
     // 비밀번호 공백/NULL 방지. 실제 보안 처리는 createMember에서 인코딩한다.
     if (password == null || password.isBlank()) {
       throw new ServiceException("400-1", "password must not be blank.");

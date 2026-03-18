@@ -8,6 +8,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Getter
 @Entity
@@ -20,24 +21,28 @@ public class Member extends BaseEntity {
   @Column(nullable = false, length = 120)
   private String email;
 
-  @Column(nullable = false, length = 255)
-  private String password;
+  @Column(name = "password_hash", nullable = false, length = 255)
+  private String passwordHash;
 
   @Column(nullable = false, length = 30)
   private String nickname;
 
-  private Member(String email, String password, String nickname) {
+  private Member(String email, String passwordHash, String nickname) {
     this.email = email;
-    this.password = password;
+    this.passwordHash = passwordHash;
     this.nickname = nickname;
   }
 
-  public static Member create(String email, String password, String nickname) {
-    return new Member(email, password, normalizeNickname(nickname));
+  public static Member create(String email, String passwordHash, String nickname) {
+    return new Member(email, passwordHash, normalizeNickname(nickname));
   }
 
   public void updateNickname(String nickname) {
     this.nickname = normalizeNickname(nickname);
+  }
+
+  public boolean matchesPassword(String rawPassword, PasswordEncoder passwordEncoder) {
+    return passwordEncoder.matches(rawPassword, passwordHash);
   }
 
   private static String normalizeNickname(String nickname) {
