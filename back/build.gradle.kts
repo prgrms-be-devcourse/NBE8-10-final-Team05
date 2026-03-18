@@ -9,6 +9,8 @@ group = "com"
 version = "0.0.1-SNAPSHOT"
 description = "back"
 val testcontainersVersion = "1.21.4"
+val jwtVersion = "0.12.7"
+val postgresqlVersion = "42.7.10"
 
 java {
     toolchain {
@@ -27,19 +29,37 @@ repositories {
 }
 
 dependencies {
+    // Spring Boot 핵심 스타터
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-web")
+
+    // JWT (토큰 생성/검증)
+    implementation("io.jsonwebtoken:jjwt-api:$jwtVersion")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:$jwtVersion")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:$jwtVersion")
+
+    // Lombok
     compileOnly("org.projectlombok:lombok")
-    developmentOnly("org.springframework.boot:spring-boot-devtools")
     annotationProcessor("org.projectlombok:lombok")
+
+    // dev 전용
+    developmentOnly("org.springframework.boot:spring-boot-devtools")
+
+    // DB 드라이버
+    runtimeOnly("org.postgresql:postgresql:$postgresqlVersion")
+
+    // 테스트: 스프링
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+
+    // Test
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:junit-jupiter:$testcontainersVersion")
     testImplementation("org.testcontainers:postgresql:$testcontainersVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    runtimeOnly("org.postgresql:postgresql:42.7.10")
     implementation ("org.springframework.boot:spring-boot-starter-validation")
 }
 

@@ -3,3 +3,9 @@ spring:
     name: back
   profiles:
     active: dev
+
+custom:
+  jwt:
+    issuer: ${JWT_ISSUER:maum-on}
+    secret-key: ${JWT_SECRET_KEY:maum-on-default-secret-key-change-this-in-production-1234567890}
+    access-token-expire-seconds: ${JWT_ACCESS_TOKEN_EXPIRE_SECONDS:3600}
