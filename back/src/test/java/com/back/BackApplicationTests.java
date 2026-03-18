@@ -1,5 +1,6 @@
 package com.back;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -11,6 +12,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @SpringBootTest
 @ActiveProfiles("test")
+@DisplayName("애플리케이션 부팅 통합 테스트")
 class BackApplicationTests {
 
   @Container @ServiceConnection
@@ -21,5 +23,6 @@ class BackApplicationTests {
           .withPassword("test");
 
   @Test
+  @DisplayName("스프링 컨텍스트가 정상적으로 로드된다")
   void contextLoads() {}
 }
