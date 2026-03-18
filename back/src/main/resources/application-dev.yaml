@@ -7,4 +7,4 @@ spring:
     password: ${DEV_DB_PASSWORD:maum_on}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
