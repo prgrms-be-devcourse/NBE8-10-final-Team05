@@ -1,7 +1,7 @@
 package com.back.global.initData;
 
-import com.back.domain.letter.entity.Letter;
-import com.back.domain.letter.repository.LetterRepository;
+import com.back.letter.entity.Letter;
+import com.back.letter.repository.LetterRepository;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

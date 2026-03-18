@@ -1,15 +1,14 @@
-package com.back.domain.letter.service;
+package com.back.letter.service;
 
 
-import com.back.domain.letter.dto.*;
-import com.back.domain.letter.entity.Letter;
-import com.back.domain.letter.repository.LetterRepository;
+import com.back.letter.dto.*;
+import com.back.letter.entity.Letter;
+import com.back.letter.repository.LetterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

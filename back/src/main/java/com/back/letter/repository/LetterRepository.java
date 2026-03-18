@@ -1,6 +1,6 @@
-package com.back.domain.letter.repository;
+package com.back.letter.repository;
 
-import com.back.domain.letter.entity.Letter;
+import com.back.letter.entity.Letter;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

@@ -1,10 +1,11 @@
-package com.back.domain.letter.controller;
+package com.back.letter.controller;
 
 
-import com.back.domain.letter.dto.*;
-import com.back.domain.letter.entity.Letter;
-import com.back.domain.letter.service.LetterService;
-import jakarta.persistence.criteria.CriteriaBuilder;
+import com.back.letter.dto.CreateLetterReq;
+import com.back.letter.dto.LetterInfoRes;
+import com.back.letter.dto.LetterListRes;
+import com.back.letter.dto.ReplyLetterReq;
+import com.back.letter.service.LetterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

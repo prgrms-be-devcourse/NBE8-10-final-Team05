@@ -1,6 +1,6 @@
-package com.back.domain.letter.dto;
+package com.back.letter.dto;
 
-import com.back.domain.letter.entity.Letter;
+import com.back.letter.entity.Letter;
 
 import java.time.LocalDateTime;
 

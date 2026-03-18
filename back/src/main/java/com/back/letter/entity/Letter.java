@@ -1,4 +1,4 @@
-package com.back.domain.letter.entity;
+package com.back.letter.entity;
 
 
 import com.back.global.jpa.entity.BaseEntity;
