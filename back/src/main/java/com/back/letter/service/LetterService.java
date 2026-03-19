@@ -6,6 +6,8 @@ import com.back.letter.dto.*;
 import com.back.letter.entity.Letter;
 import com.back.letter.entity.LetterStatus;
 import com.back.letter.repository.LetterRepository;
+import com.back.member.domain.Member;
+import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import java.util.List;
 public class LetterService {
 
     private final LetterRepository letterRepository;
+    private final MemberRepository memberRepository;
 
 
     /*
@@ -25,21 +28,24 @@ public class LetterService {
       작성자가 편지를 쓰는 순간, 시스템이 작성자를 제외한 유저 중 한 명을 골라 즉시 보냄
      */
     @Transactional
-    public int createLetterAndDirectSendLetter(CreateLetterReq req, String senderId){
+    public int createLetterAndDirectSendLetter(CreateLetterReq req, int senderId){
 
         // 1. 기존에 편지를 썼던 유저들(senderId 모음) 중 나를 제외한 랜덤 1인 추출
         // 만약 첫 유저라 보낼 대상이 없다면 null이 할당
 
-        String randomReceiverId = letterRepository.findRandomUserExceptMe(senderId)
-                .orElse(null);
+        Member sender = memberRepository.findById(senderId)
+                .orElseThrow(()-> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
+
+        Member randomReceiverId = letterRepository.findRandomMemberExceptMe(sender.getId())
+                .orElseThrow(()->new ServiceException("404-2", "배송 가능한 유저가 없습니다."));
 
         // 2. 빌더 패턴을 사용하여 편지 엔티티 생성
         // 수신자(receiverId)를 생성 시점에 바로 할당하여 배송
         Letter letter = Letter.builder()
                 .title(req.title())
                 .content(req.content())
-                .senderId(senderId)
-                .receiverId(randomReceiverId)
+                .sender(sender)
+                .receiver(randomReceiverId)
                 .status(LetterStatus.SENT)
                 .build();
 
@@ -78,10 +84,10 @@ public class LetterService {
      내가 수신자(receiverId)로 지정된 모든 편지 목록을 최신순으로 가져옴
      */
     @Transactional(readOnly = true)
-    public LetterListRes getMyInbox(String userId) {
+    public LetterListRes getMyInbox(Member userId) {
 
         // 1. 리포지토리를 통해 나에게 온 편지 엔티티 리스트 조회
-        List<Letter> letters = letterRepository.findByReceiverIdOrderByCreateDateDesc(userId);
+        List<Letter> letters = letterRepository.findByReceiverOrderByCreateDateDesc(userId);
 
 
         // 2. 엔티티 리스트를 클라이언트 응답용 DTO(LetterItem) 리스트로 변환
