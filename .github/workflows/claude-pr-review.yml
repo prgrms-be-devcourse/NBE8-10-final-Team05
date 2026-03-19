@@ -33,5 +33,5 @@ jobs:
           MAX_PATCH_LINES_PER_FILE: "500"
           MAX_FINDINGS: "20"
           MIN_SEVERITY: "MEDIUM"
-          MIN_CONFIDENCE: "0.78"
+          MIN_CONFIDENCE: "0.85"
         run: node .github/scripts/claude-pr-review.mjs

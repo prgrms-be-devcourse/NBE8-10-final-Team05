@@ -28,8 +28,9 @@ const maxFiles = Number(MAX_FILES || 80);
 const maxTotalPatchLines = Number(MAX_TOTAL_PATCH_LINES || 3500);
 const maxPatchLinesPerFile = Number(MAX_PATCH_LINES_PER_FILE || 500);
 const maxFindings = Number(MAX_FINDINGS || 20);
-const minConfidence = Number(MIN_CONFIDENCE || 0.78);
+const minConfidence = Number(MIN_CONFIDENCE || 0.85);
 const minSeverity = normalizeSeverity(MIN_SEVERITY || "MEDIUM");
+const inlineMinSeverity = "HIGH";
 
 const summaryMarker = "<!-- claude-pr-review-summary -->";
 const inlineMarker = "<!-- claude-ai-review -->";
@@ -62,6 +63,10 @@ function severityPasses(severity) {
   return (severityRank[severity] || 1) >= (severityRank[minSeverity] || 2);
 }
 
+function inlineSeverityPasses(severity) {
+  return (severityRank[severity] || 1) >= (severityRank[inlineMinSeverity] || 3);
+}
+
 function normalizeText(text) {
   return String(text || "")
     .toLowerCase()
@@ -69,28 +74,31 @@ function normalizeText(text) {
     .trim();
 }
 
-function parseAddedLines(patch) {
+function parseAddedLineEntries(patch) {
   if (!patch) return [];
 
   const added = [];
   let newLine = null;
 
-  for (const line of patch.split("\n")) {
-    if (line.startsWith("@@")) {
-      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+  for (const raw of String(patch).split("\n")) {
+    if (raw.startsWith("@@")) {
+      const match = raw.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
       newLine = match ? Number(match[1]) : null;
       continue;
     }
 
     if (newLine == null) continue;
 
-    if (line.startsWith("+") && !line.startsWith("+++")) {
-      added.push(newLine);
+    if (raw.startsWith("+") && !raw.startsWith("+++")) {
+      added.push({
+        line: newLine,
+        text: raw.slice(1),
+      });
       newLine += 1;
       continue;
     }
 
-    if (line.startsWith("-") && !line.startsWith("---")) {
+    if (raw.startsWith("-") && !raw.startsWith("---")) {
       continue;
     }
 
@@ -100,13 +108,46 @@ function parseAddedLines(patch) {
   return added;
 }
 
-function nearestLine(lines, target) {
-  if (!lines.length) return null;
-  if (!Number.isFinite(target)) return lines[0];
+function normalizeSnippet(snippet) {
+  return String(snippet || "")
+    .replace(/\r/g, "")
+    .replace(/^\+/, "")
+    .replace(/^`+|`+$/g, "")
+    .trim();
+}
 
-  return lines.reduce((best, current) =>
-    Math.abs(current - target) < Math.abs(best - target) ? current : best
-  );
+function resolveInlineAnchor(target, reportedLine, snippet) {
+  if (!Number.isInteger(reportedLine)) {
+    return {anchoredLine: null, reason: "reported_line missing_or_invalid"};
+  }
+
+  const addedText = target?.added_line_map?.get(reportedLine);
+  if (addedText == null) {
+    return {anchoredLine: null, reason: "reported_line_not_added_line"};
+  }
+
+  const normalizedSnippet = normalizeSnippet(snippet);
+  if (!normalizedSnippet || normalizedSnippet.includes("\n")) {
+    return {anchoredLine: null, reason: "snippet_missing_or_not_single_line"};
+  }
+
+  if (addedText.trimEnd() !== normalizedSnippet.trimEnd()) {
+    return {anchoredLine: null, reason: "snippet_not_exact_match"};
+  }
+
+  return {anchoredLine: reportedLine, reason: null};
+}
+
+function formatAnchorReason(reason) {
+  const map = {
+    "reported_line missing_or_invalid": "reported_line이 없거나 숫자 형식이 아님",
+    reported_line_not_added_line: "reported_line이 PR 추가 라인이 아님",
+    snippet_missing_or_not_single_line: "snippet이 없거나 단일 라인이 아님",
+    snippet_not_exact_match: "snippet이 reported_line 코드와 정확히 일치하지 않음",
+    anchor_unavailable: "인라인 앵커를 계산할 수 없음",
+    inline_policy_severity_below_high: "인라인 정책상 HIGH 미만은 summary-only 처리",
+  };
+  return map[reason] || String(reason || "알 수 없는 앵커 실패");
 }
 
 function extractJson(text) {
@@ -262,13 +303,15 @@ function buildReviewPrompt(pr, files) {
       min_severity: minSeverity,
       min_confidence: minConfidence,
       max_findings: maxFindings,
-      line_rule: "line must be one of valid_added_lines for that file",
+      line_rule:
+        "reported_line must be one of valid_added_lines, and snippet must exactly match the code text at reported_line (without leading '+')",
       quality_rule: "각 이슈는 실패 시나리오와 영향이 명확해야 함",
       output_rule: "Return ONLY JSON array",
       output_schema: [
         {
           file: "string",
-          line: "number",
+          reported_line: "number",
+          snippet: "string(exact single added line text)",
           severity: "CRITICAL|HIGH|MEDIUM|LOW",
           category: "bug|security|regression|performance",
           confidence: "number(0~1)",
@@ -301,6 +344,9 @@ function buildInlineBody(f) {
     severityLabelMap[f.severity] || String(f.severity || "").toLowerCase(),
     "",
     bodyParagraph,
+    "",
+    `Reported line: ${Number.isInteger(f.reportedLine) ? f.reportedLine : "N/A"}`,
+    `Anchored line: ${Number.isInteger(f.line) ? f.line : "N/A"}`,
   ];
 
   if (f.fixHint) {
@@ -358,6 +404,7 @@ function buildSummaryBody(summary) {
   const highlights = [
     `리뷰 범위: 총 변경 파일 중 ${reviewedScope}개 파일 분석`,
     `핵심 기준: ${minSeverity}+ severity, confidence ${minConfidence}+`,
+    `인라인 정책: ${inlineMinSeverity}+만 인라인, MEDIUM 이하는 summary-only`,
     `주요 변경 영역: ${areasText}`,
   ];
 
@@ -393,8 +440,9 @@ function buildSummaryBody(summary) {
 
   if (summary.keyFindings?.length) {
     summary.keyFindings.forEach((f, idx) => {
+      const lineForDisplay = f.line ?? f.reportedLine ?? "N/A";
       lines.push(
-        `${idx + 1}. [${f.severity}] \`${f.path}:${f.line}\` - ${f.comment}`
+        `${idx + 1}. [${f.severity}] \`${f.path}:${lineForDisplay}\` - ${f.comment}`
       );
     });
   } else {
@@ -403,6 +451,15 @@ function buildSummaryBody(summary) {
 
   if (summary.note) {
     lines.push("", `- 비고: ${summary.note}`);
+  }
+
+  if (Array.isArray(summary.summaryOnlyFindings) && summary.summaryOnlyFindings.length > 0) {
+    lines.push("", "#### Summary-only Findings (Unanchored)");
+    summary.summaryOnlyFindings.slice(0, 10).forEach((f, idx) => {
+      lines.push(
+        `${idx + 1}. [${f.severity}] \`${f.path}:${f.reportedLine ?? "N/A"}\` - ${f.comment} (${formatAnchorReason(f.anchorReason)})`
+      );
+    });
   }
 
   lines.push(
@@ -488,14 +545,18 @@ async function main() {
   }
 
   const targets = bounded
-    .map((f) => ({
-      file: f.filename,
-      status: f.status,
-      additions: f.additions,
-      deletions: f.deletions,
-      valid_added_lines: parseAddedLines(f.patch),
-      patch: truncatePatch(f.patch, maxPatchLinesPerFile),
-    }))
+    .map((f) => {
+      const addedEntries = parseAddedLineEntries(f.patch);
+      return {
+        file: f.filename,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        valid_added_lines: addedEntries.map((entry) => entry.line),
+        added_line_map: new Map(addedEntries.map((entry) => [entry.line, entry.text])),
+        patch: truncatePatch(f.patch, maxPatchLinesPerFile),
+      };
+    })
     .filter((f) => f.valid_added_lines.length > 0);
 
   if (!targets.length) {
@@ -513,7 +574,16 @@ async function main() {
     return;
   }
 
-  const prompt = buildReviewPrompt(pr, targets);
+  const promptTargets = targets.map((t) => ({
+    file: t.file,
+    status: t.status,
+    additions: t.additions,
+    deletions: t.deletions,
+    valid_added_lines: t.valid_added_lines,
+    patch: t.patch,
+  }));
+
+  const prompt = buildReviewPrompt(pr, promptTargets);
   const responseText = await callClaude({
     system:
       "당신은 시니어 코드리뷰어다. 한국어로 작성하고, 근거가 약한 지적은 절대 하지 않는다. 실제 결함 가능성이 높은 항목만 반환한다.",
@@ -530,14 +600,11 @@ async function main() {
 
   const targetByFile = new Map(targets.map((t) => [t.file, t]));
 
-  const normalized = findingsRaw
+  const normalizedCandidates = findingsRaw
     .map((f) => {
       const file = String(f?.file || f?.path || "").trim();
       const target = targetByFile.get(file);
       if (!target) return null;
-
-      const line = nearestLine(target.valid_added_lines, Number(f?.line));
-      if (!line) return null;
 
       const severity = normalizeSeverity(f?.severity);
       if (!severityPasses(severity)) return null;
@@ -548,11 +615,13 @@ async function main() {
       const comment = String(f?.comment_ko || f?.comment || "").trim();
       const evidence = String(f?.evidence_ko || f?.evidence || "").trim();
       const fixHint = String(f?.fix_hint_ko || f?.fix_hint || "").trim();
+      const rawReportedLine = Number(f?.reported_line ?? f?.line);
+      const reportedLine = Number.isInteger(rawReportedLine) ? rawReportedLine : null;
+      const snippet = String(f?.snippet || f?.line_snippet || f?.code_snippet || "").trim();
       if (!comment || !evidence) return null;
 
       return {
         path: file,
-        line,
         side: "RIGHT",
         severity,
         category: normalizeCategory(f?.category),
@@ -560,18 +629,59 @@ async function main() {
         comment,
         evidence,
         fixHint,
+        reportedLine,
+        snippet,
       };
     })
     .filter(Boolean)
     .slice(0, maxFindings);
 
-  if (!normalized.length) {
+  const inlineFindings = [];
+  const summaryOnlyFindings = [];
+
+  for (const finding of normalizedCandidates) {
+    const target = targetByFile.get(finding.path);
+    if (!target) continue;
+
+    if (!inlineSeverityPasses(finding.severity)) {
+      summaryOnlyFindings.push({
+        ...finding,
+        line: finding.reportedLine,
+        anchorReason: "inline_policy_severity_below_high",
+      });
+      continue;
+    }
+
+    const {anchoredLine, reason} = resolveInlineAnchor(
+      target,
+      finding.reportedLine,
+      finding.snippet
+    );
+
+    if (!anchoredLine) {
+      summaryOnlyFindings.push({
+        ...finding,
+        line: finding.reportedLine,
+        anchorReason: reason || "anchor_unavailable",
+      });
+      continue;
+    }
+
+    inlineFindings.push({
+      ...finding,
+      line: anchoredLine,
+      anchorReason: null,
+    });
+  }
+
+  if (!inlineFindings.length && !summaryOnlyFindings.length) {
     const body = buildSummaryBody({
       analyzedFiles: targets.length,
       totalFindings: 0,
       publishedComments: 0,
       counts: {CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0},
       keyFindings: [],
+      summaryOnlyFindings: [],
       changedPaths: targets.map((t) => t.file),
       note: "임계치 이상(심각도/신뢰도)의 이슈가 없어 코멘트를 남기지 않았습니다.",
     });
@@ -588,7 +698,7 @@ async function main() {
   const queued = [];
   const queuedKeys = new Set();
 
-  for (const finding of normalized) {
+  for (const finding of inlineFindings) {
     const body = buildInlineBody(finding);
     const key = `${finding.path}:${finding.line}:${normalizeText(body)}`;
     if (existingKeys.has(key) || queuedKeys.has(key)) continue;
@@ -629,19 +739,23 @@ async function main() {
     }
   }
 
-  const {counts, keyFindings} = summarizeFindings(normalized);
+  const allFindings = [...inlineFindings, ...summaryOnlyFindings];
+  const {counts, keyFindings} = summarizeFindings(allFindings);
   const body = buildSummaryBody({
     analyzedFiles: targets.length,
-    totalFindings: normalized.length,
+    totalFindings: allFindings.length,
     publishedComments: published,
     counts,
     keyFindings,
+    summaryOnlyFindings,
     changedPaths: targets.map((t) => t.file),
     note,
   });
   await upsertSummaryComment(prNumber, body);
 
-  console.log(`Done. analyzed=${targets.length}, published=${published}`);
+  console.log(
+    `Done. analyzed=${targets.length}, published=${published}, summary_only=${summaryOnlyFindings.length}`
+  );
 }
 
 main().catch((error) => {
