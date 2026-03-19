@@ -2,11 +2,12 @@ name: Claude PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   claude-review:
@@ -27,10 +28,10 @@ jobs:
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          MAX_FILES: "30"
-          MAX_TOTAL_PATCH_LINES: "1200"
-          MAX_PATCH_LINES_PER_FILE: "250"
-          MAX_FINDINGS: "12"
-          INLINE_SEVERITIES: "high"
-          SUMMARY_SEVERITIES: "medium,low"
+          MAX_FILES: "80"
+          MAX_TOTAL_PATCH_LINES: "3500"
+          MAX_PATCH_LINES_PER_FILE: "500"
+          MAX_FINDINGS: "20"
+          MIN_SEVERITY: "MEDIUM"
+          MIN_CONFIDENCE: "0.78"
         run: node .github/scripts/claude-pr-review.mjs
