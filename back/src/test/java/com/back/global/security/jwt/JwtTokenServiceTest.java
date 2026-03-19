@@ -1,8 +1,15 @@
 package com.back.global.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
+import java.util.Date;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -52,5 +59,30 @@ class JwtTokenServiceTest {
     assertThat(refreshSubject.memberId()).isEqualTo(11);
     assertThat(refreshSubject.jti()).isEqualTo("jti-11");
     assertThat(refreshSubject.familyId()).isEqualTo("family-11");
+  }
+
+  @Test
+  @DisplayName("만료된 액세스 토큰은 validate에서 false를 반환하고 파싱에 실패한다")
+  void expiredAccessTokenReturnsFalseOnValidate() {
+    JwtProperties jwtProperties =
+        new JwtProperties("maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken");
+    JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
+    Instant now = Instant.now();
+
+    String expiredToken =
+        Jwts.builder()
+            .issuer("maum-on-test")
+            .subject("12")
+            .claim("tokenType", "access")
+            .claim("email", "member12@test.com")
+            .claim("roles", List.of("ROLE_USER"))
+            .issuedAt(Date.from(now.minusSeconds(120)))
+            .expiration(Date.from(now.minusSeconds(1)))
+            .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)))
+            .compact();
+
+    assertThat(jwtTokenService.validate(expiredToken)).isFalse();
+    assertThatThrownBy(() -> jwtTokenService.parseAccessToken(expiredToken))
+        .isInstanceOf(JwtException.class);
   }
 }

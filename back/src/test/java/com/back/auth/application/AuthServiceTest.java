@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import com.back.auth.adapter.in.web.dto.AuthLoginRequest;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
@@ -83,6 +84,29 @@ class AuthServiceTest {
   }
 
   @Test
+  @DisplayName("로그인 시 비밀번호가 일치하지 않으면 401-2 예외를 반환한다")
+  void loginFailsWhenPasswordDoesNotMatch() {
+    Member member = Member.create("member2@test.com", "$2a$10$stored", "member2");
+    given(memberRepository.findByEmail("member2@test.com")).willReturn(Optional.of(member));
+    given(passwordEncoder.matches("wrong-pass", "$2a$10$stored")).willReturn(false);
+
+    assertThatThrownBy(() -> authService.login(new AuthLoginRequest("member2@test.com", "wrong-pass")))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> {
+              ServiceException serviceException = (ServiceException) exception;
+              assertThat(serviceException.getRsData().resultCode()).isEqualTo("401-2");
+              assertThat(serviceException.getRsData().msg())
+                  .isEqualTo("Invalid email or password.");
+            });
+
+    then(refreshTokenDomainService)
+        .should(never())
+        .saveIssuedToken(
+            any(Member.class), anyString(), anyString(), any(LocalDateTime.class), anyString());
+  }
+
+  @Test
   @DisplayName("refresh는 기존 토큰이 활성 상태면 회전하고 새 access를 반환한다")
   void refreshRotatesTokenWhenCurrentTokenIsActive() {
     Member member = Member.create("member3@test.com", "$2a$10$stored", "member3");
@@ -147,6 +171,43 @@ class AuthServiceTest {
             });
 
     then(refreshTokenDomainService).should().revokeFamily(anyString(), any(LocalDateTime.class));
+  }
+
+  @Test
+  @DisplayName("만료된 refresh 토큰은 401-4 예외를 반환하고 회전하지 않는다")
+  void refreshFailsWhenStoredTokenExpired() {
+    Member member = Member.create("member6@test.com", "$2a$10$stored", "member6");
+    RefreshToken expiredToken =
+        RefreshToken.issue(
+            member,
+            "jti-expired",
+            "$2a$10$refresh-hash",
+            LocalDateTime.now().minusSeconds(1),
+            "family-expired");
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
+        .willReturn(new JwtRefreshSubject(member.getId(), "jti-expired", "family-expired"));
+    given(refreshTokenDomainService.findByJti("jti-expired")).willReturn(Optional.of(expiredToken));
+    given(passwordEncoder.matches("raw-refresh-token", "$2a$10$refresh-hash")).willReturn(true);
+
+    assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> {
+              ServiceException serviceException = (ServiceException) exception;
+              assertThat(serviceException.getRsData().resultCode()).isEqualTo("401-4");
+              assertThat(serviceException.getRsData().msg())
+                  .isEqualTo("Refresh token is invalid.");
+            });
+
+    then(refreshTokenDomainService)
+        .should(never())
+        .rotate(
+            anyString(),
+            anyString(),
+            anyString(),
+            any(LocalDateTime.class),
+            any(LocalDateTime.class));
   }
 
   @Test

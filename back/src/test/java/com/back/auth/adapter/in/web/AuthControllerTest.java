@@ -17,6 +17,7 @@ import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.RefreshTokenCookieService;
 import com.back.global.aspect.ResponseAspect;
+import com.back.global.exception.ServiceException;
 import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.global.security.config.SecurityConfig;
 import com.back.global.security.handler.SecurityAccessDeniedHandler;
@@ -93,6 +94,23 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.data.accessToken").value("access-token"));
 
     then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
+  }
+
+  @Test
+  @DisplayName("로그인 API는 인증 실패 시 401-2 응답을 반환한다")
+  void loginReturns401WhenCredentialsInvalid() throws Exception {
+    AuthLoginRequest request = new AuthLoginRequest("member2@test.com", "wrong-pass");
+    given(authService.login(any(AuthLoginRequest.class)))
+        .willThrow(new ServiceException("401-2", "Invalid email or password."));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/login")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-2"))
+        .andExpect(jsonPath("$.msg").value("Invalid email or password."));
   }
 
   @Test

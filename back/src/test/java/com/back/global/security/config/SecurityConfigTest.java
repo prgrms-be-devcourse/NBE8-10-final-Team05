@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -78,5 +79,19 @@ class SecurityConfigTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.resultCode").value("403-1"))
         .andExpect(jsonPath("$.msg").value("You do not have permission."));
+  }
+
+  @Test
+  @DisplayName("만료된 액세스 토큰으로 보호 API를 호출하면 401을 반환한다")
+  void expiredAccessTokenReturns401() throws Exception {
+    given(jwtTokenService.validate("expired-access-token")).willReturn(false);
+
+    mockMvc
+        .perform(
+            get("/api/v1/members/{memberId}", 1)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer expired-access-token"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-1"))
+        .andExpect(jsonPath("$.msg").value("Authentication is required."));
   }
 }
