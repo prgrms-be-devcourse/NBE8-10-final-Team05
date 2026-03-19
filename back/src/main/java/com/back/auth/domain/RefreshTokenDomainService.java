@@ -29,6 +29,11 @@ public class RefreshTokenDomainService {
     return refreshTokenRepository.findByJtiAndRevokedAtIsNullAndExpiresAtAfter(jti, now);
   }
 
+  /** jti 기준으로 토큰을 상태와 무관하게 조회한다(재사용 탐지용). */
+  public Optional<RefreshToken> findByJti(String jti) {
+    return refreshTokenRepository.findByJti(jti);
+  }
+
   /** 리프레시 토큰 회전: 기존 토큰 폐기 후 같은 familyId로 새 토큰을 저장한다. */
   @Transactional
   public RefreshToken rotate(
@@ -63,5 +68,13 @@ public class RefreshTokenDomainService {
             .orElseThrow(() -> new ServiceException("404-2", "Refresh token not found."));
 
     refreshToken.revoke(revokedAt, null);
+  }
+
+  /** 같은 familyId 체인에 속한 토큰들을 일괄 폐기한다(재사용 탐지 대응). */
+  @Transactional
+  public void revokeFamily(String familyId, LocalDateTime revokedAt) {
+    refreshTokenRepository
+        .findAllByFamilyIdOrderByIdAsc(familyId)
+        .forEach(token -> token.revoke(revokedAt, null));
   }
 }
