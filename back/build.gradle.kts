@@ -29,6 +29,9 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("com.google.genai:google-genai:1.0.0")
+    implementation ("com.fasterxml.jackson.core:jackson-databind")
+    implementation("io.github.cdimascio:dotenv-java:3.0.0")
     compileOnly("org.projectlombok:lombok")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     annotationProcessor("org.projectlombok:lombok")
