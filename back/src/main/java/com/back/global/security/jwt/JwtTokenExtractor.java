@@ -12,7 +12,8 @@ public final class JwtTokenExtractor {
 
   /** "Bearer {token}" 형식이면 토큰을 반환하고, 아니면 Optional.empty()를 반환한다. */
   public static Optional<String> extractBearerToken(String authorizationHeader) {
-    if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith(BEARER_PREFIX)) {
+    if (!StringUtils.hasText(authorizationHeader)
+        || !authorizationHeader.startsWith(BEARER_PREFIX)) {
       return Optional.empty();
     }
 

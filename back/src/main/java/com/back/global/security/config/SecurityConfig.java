@@ -1,9 +1,11 @@
 package com.back.global.security.config;
 
+import com.back.global.security.adapter.in.JwtAuthenticationFilter;
 import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtProperties;
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,10 +19,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.cors.CorsUtils;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Spring Security 전역 설정.
@@ -42,15 +45,18 @@ public class SecurityConfig {
   @Bean
   SecurityFilterChain securityFilterChain(
       HttpSecurity http,
+      ObjectProvider<JwtAuthenticationFilter> jwtAuthenticationFilterProvider,
       SecurityAuthenticationEntryPoint authenticationEntryPoint,
       SecurityAccessDeniedHandler accessDeniedHandler)
       throws Exception {
+    JwtAuthenticationFilter jwtAuthenticationFilter =
+        jwtAuthenticationFilterProvider.getIfAvailable();
+
     // API 중심 보안 체인 구성:
     // - 브라우저 폼 기반 기능 비활성화
     // - 커스텀 401/403 핸들러 사용
     // - 경로별 인가 규칙 정의
-    http
-        .csrf(AbstractHttpConfigurer::disable)
+    http.csrf(AbstractHttpConfigurer::disable)
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         // JWT 기반 API는 서버 세션을 생성/사용하지 않는다.
         .sessionManagement(
@@ -62,8 +68,13 @@ public class SecurityConfig {
             handling ->
                 handling
                     .authenticationEntryPoint(authenticationEntryPoint)
-                    .accessDeniedHandler(accessDeniedHandler))
-        .authorizeHttpRequests(
+                    .accessDeniedHandler(accessDeniedHandler));
+
+    if (jwtAuthenticationFilter != null) {
+      http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+    }
+
+    http.authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(CorsUtils::isPreFlightRequest)
                     .permitAll()

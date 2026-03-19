@@ -36,7 +36,8 @@ class MemberServiceTest {
 
     given(memberRepository.existsByEmail("member1@test.com")).willReturn(false);
     given(passwordEncoder.encode(rawPassword)).willReturn(passwordHash);
-    given(memberRepository.save(any(Member.class))).willAnswer(invocation -> invocation.getArgument(0));
+    given(memberRepository.save(any(Member.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
 
     memberService.createMember(request);
 

@@ -20,7 +20,8 @@ class TestDisplayNameConventionTest {
   private static final Pattern TEST_METHOD_ANNOTATION_PATTERN =
       Pattern.compile("^@(Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)(\\b|\\()");
   private static final Pattern CLASS_DECLARATION_PATTERN =
-      Pattern.compile("^(public\\s+|protected\\s+|private\\s+)?(abstract\\s+|final\\s+)?class\\s+\\w+.*");
+      Pattern.compile(
+          "^(public\\s+|protected\\s+|private\\s+)?(abstract\\s+|final\\s+)?class\\s+\\w+.*");
 
   @Test
   @DisplayName("모든 테스트 클래스에는 @DisplayName이 있어야 한다")
@@ -76,7 +77,9 @@ class TestDisplayNameConventionTest {
   }
 
   private static boolean containsAnyTestMethod(List<String> lines) {
-    return lines.stream().map(String::trim).anyMatch(TestDisplayNameConventionTest::isTestMethodAnnotation);
+    return lines.stream()
+        .map(String::trim)
+        .anyMatch(TestDisplayNameConventionTest::isTestMethodAnnotation);
   }
 
   private static int findClassDeclarationLine(List<String> lines) {
