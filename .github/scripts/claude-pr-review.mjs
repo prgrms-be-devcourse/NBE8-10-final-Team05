@@ -17,7 +17,12 @@ const {
   MIN_CONFIDENCE,
 } = process.env;
 
-const model = ANTHROPIC_MODEL?.trim() || "claude-3-5-sonnet-latest";
+const configuredModel = ANTHROPIC_MODEL?.trim();
+const modelCandidates = [...new Set(
+  [configuredModel, "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219"]
+    .filter((m) => Boolean(m && m.trim()))
+)];
+let selectedModel = modelCandidates[0];
 const [owner, repo] = String(GITHUB_REPOSITORY || "").split("/");
 const maxFiles = Number(MAX_FILES || 80);
 const maxTotalPatchLines = Number(MAX_TOTAL_PATCH_LINES || 3500);
@@ -176,40 +181,53 @@ async function ghPaginate(path) {
 }
 
 async function callClaude({system, user, maxTokens}) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      temperature: 0,
-      system,
-      messages: [{role: "user", content: user}],
-    }),
-  });
+  let lastError = null;
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  for (const model of modelCandidates) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0,
+        system,
+        messages: [{role: "user", content: user}],
+      }),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Anthropic API failed (${res.status}): ${text || "no body"}`);
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+
+    if (!res.ok) {
+      const isModelNotFound = res.status === 404 && String(text).includes("model:");
+      if (isModelNotFound) {
+        lastError = new Error(`Anthropic API failed (${res.status}): ${text || "no body"}`);
+        console.log(`Model not found: ${model}. Trying next model.`);
+        continue;
+      }
+      throw new Error(`Anthropic API failed (${res.status}): ${text || "no body"}`);
+    }
+
+    const merged = (Array.isArray(data?.content) ? data.content : [])
+      .filter((item) => item?.type === "text")
+      .map((item) => item.text)
+      .join("\n")
+      .trim();
+
+    if (!merged) {
+      throw new Error("Anthropic API returned empty content.");
+    }
+
+    selectedModel = model;
+    return merged;
   }
 
-  const merged = (Array.isArray(data?.content) ? data.content : [])
-    .filter((item) => item?.type === "text")
-    .map((item) => item.text)
-    .join("\n")
-    .trim();
-
-  if (!merged) {
-    throw new Error("Anthropic API returned empty content.");
-  }
-
-  return merged;
+  throw lastError || new Error("No available Anthropic model.");
 }
 
 async function loadEventPayload() {
@@ -536,7 +554,7 @@ async function main() {
       await ghRequest("POST", `/repos/${owner}/${repo}/pulls/${prNumber}/reviews`, {
         commit_id: pr.head.sha,
         event: "COMMENT",
-        body: `Claude automated review (${model})`,
+        body: `Claude automated review (${selectedModel})`,
         comments: queued,
       });
       published = queued.length;
