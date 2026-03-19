@@ -3,6 +3,7 @@ package com.back.member.adapter.in.web;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -10,16 +11,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
 import com.back.member.application.MemberService;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -64,13 +69,13 @@ class MemberControllerTest {
   }
 
   @Test
-  @DisplayName("회원 조회 API는 회원 정보를 반환한다")
+  @DisplayName("관리자는 memberId 기반 회원 조회 API를 사용할 수 있다")
   void getMember() throws Exception {
     MemberResponse response = new MemberResponse(2, "member2@test.com", "member2");
     given(memberService.getMember(2)).willReturn(response);
 
     mockMvc
-        .perform(get("/api/v1/members/{memberId}", 2).with(user("member")))
+        .perform(get("/api/v1/members/{memberId}", 2).with(user("admin").roles("ADMIN")))
         .andExpect(status().is2xxSuccessful())
         .andExpect(jsonPath("$.resultCode").value("200-1"))
         .andExpect(jsonPath("$.msg").value("Member fetched."))
@@ -80,17 +85,16 @@ class MemberControllerTest {
   }
 
   @Test
-  @DisplayName("회원 프로필 수정 API는 닉네임을 변경한다")
+  @DisplayName("본인 프로필 수정 API는 인증된 사용자 기준으로 닉네임을 변경한다")
   void updateProfile() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
     MemberResponse response = new MemberResponse(3, "member3@test.com", "updatedMember");
-    given(memberService.updateProfile(any(Integer.class), any(UpdateMemberProfileRequest.class)))
-        .willReturn(response);
+    given(memberService.updateProfile(3, request)).willReturn(response);
 
     mockMvc
         .perform(
-            patch("/api/v1/members/{memberId}/profile", 3)
-                .with(user("member"))
+            patch("/api/v1/members/me/profile")
+                .with(authentication(authenticatedMember(3, "member3@test.com")))
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().is2xxSuccessful())
@@ -99,5 +103,27 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.data.id").value(3))
         .andExpect(jsonPath("$.data.email").value("member3@test.com"))
         .andExpect(jsonPath("$.data.nickname").value("updatedMember"));
+  }
+
+  @Test
+  @DisplayName("일반 사용자는 memberId 기반 타인 프로필 수정 API에 접근하면 403을 받는다")
+  void updateOtherProfileWithUserRoleReturns403() throws Exception {
+    UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/{memberId}/profile", 3)
+                .with(user("member").roles("USER"))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.resultCode").value("403-1"))
+        .andExpect(jsonPath("$.msg").value("You do not have permission."));
+  }
+
+  private UsernamePasswordAuthenticationToken authenticatedMember(Integer memberId, String email) {
+    AuthenticatedMember principal = new AuthenticatedMember(memberId, email, List.of("ROLE_USER"));
+    return new UsernamePasswordAuthenticationToken(
+        principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
   }
 }
