@@ -286,29 +286,25 @@ function buildReviewPrompt(pr, files) {
 
 function buildInlineBody(f) {
   const severityLabelMap = {
-    CRITICAL: "Critical",
-    HIGH: "High",
-    MEDIUM: "Medium",
-    LOW: "Low",
+    CRITICAL: "critical",
+    HIGH: "high",
+    MEDIUM: "medium",
+    LOW: "low",
   };
-  const categoryLabelMap = {
-    bug: "Correctness",
-    security: "Security",
-    regression: "Regression",
-    performance: "Performance",
-  };
+
+  const summary = String(f.comment || "").trim();
+  const evidence = String(f.evidence || "").trim();
+  const bodyParagraph = evidence ? `${summary}\n\n${evidence}` : summary;
 
   const lines = [
     inlineMarker,
-    `**Severity:** ${severityLabelMap[f.severity] || f.severity}`,
-    `**Category:** ${categoryLabelMap[f.category] || f.category}`,
-    `**Issue:** ${f.comment}`,
-    `**Why it matters:** ${f.evidence}`,
-    `**Location:** \`${f.path}:${f.line}\``,
+    severityLabelMap[f.severity] || String(f.severity || "").toLowerCase(),
+    "",
+    bodyParagraph,
   ];
 
   if (f.fixHint) {
-    lines.push(`**Suggested fix:** ${f.fixHint}`);
+    lines.push("", "Suggested change", String(f.fixHint).trim());
   }
 
   return lines.join("\n");
@@ -331,24 +327,68 @@ function summarizeFindings(findings) {
   return {counts, keyFindings};
 }
 
+function topChangedAreas(paths, limit = 4) {
+  const areaCount = new Map();
+  for (const path of paths) {
+    const segments = String(path).split("/");
+    const key = segments.length >= 2 ? `${segments[0]}/${segments[1]}` : segments[0];
+    areaCount.set(key, (areaCount.get(key) || 0) + 1);
+  }
+
+  return [...areaCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([area]) => area);
+}
+
 function buildSummaryBody(summary) {
+  const areas = topChangedAreas(summary.changedPaths || []);
+  const findingsExists = (summary.totalFindings ?? 0) > 0;
+  const reviewedScope = summary.analyzedFiles ?? 0;
+
+  const areasText = areas.length ? areas.map((a) => `\`${a}\``).join(", ") : "핵심 변경 경로 없음";
+  const overview = findingsExists
+    ? `이 Pull Request는 ${areasText} 영역 중심으로 변경이 발생했고, 자동 리뷰 결과 임계치를 통과한 이슈 ${summary.totalFindings}건이 확인되었습니다.`
+    : `이 Pull Request는 ${areasText} 영역 중심으로 변경이 발생했으며, 자동 리뷰 기준(심각도 ${minSeverity}, 신뢰도 ${minConfidence})에서 즉시 조치가 필요한 이슈는 확인되지 않았습니다.`;
+
+  const reviewNarrative = findingsExists
+    ? "이번 변경은 보안/인증 흐름 및 런타임 안정성에 영향을 줄 수 있어, 근거가 명확한 리스크만 인라인 코멘트로 남겼습니다. 특히, Critical/High/Medium 순서로 우선 확인해 주세요."
+    : "전반적으로 기준 충족 수준의 변경으로 판단되었습니다. 현재 설정된 임계치 기준에서는 별도 인라인 코멘트가 필요한 항목이 없었습니다.";
+
+  const highlights = [
+    `리뷰 범위: 총 변경 파일 중 ${reviewedScope}개 파일 분석`,
+    `핵심 기준: ${minSeverity}+ severity, confidence ${minConfidence}+`,
+    `주요 변경 영역: ${areasText}`,
+  ];
+
+  if (summary.publishedComments > 0) {
+    highlights.push(`등록된 인라인 리뷰 코멘트: ${summary.publishedComments}개`);
+  }
+
   const lines = [
     summaryMarker,
-    `### 코드 리뷰 요약 (Claude)`,
-    `- 상태: ${summary.status || "완료"}`,
-    `- 분석 대상 파일: ${summary.analyzedFiles}`,
-    `- 임계치 통과 이슈: ${summary.totalFindings ?? 0}`,
-    `- 생성 코멘트: ${summary.publishedComments}`,
-    `- 최소 심각도: ${minSeverity}`,
-    `- 최소 신뢰도: ${minConfidence}`,
+    "## Summary of Changes",
+    "Hello, I'm Claude PR Review bot! I'm currently reviewing this pull request and will post my feedback shortly. In the meantime, here's a summary to help you and other reviewers quickly get up to speed!",
     "",
-    `#### 심각도 분포`,
+    overview,
+    "",
+    "### Highlights",
+    ...highlights.map((item) => `- ${item}`),
+    "",
+    "### Code Review",
+    reviewNarrative,
+    "",
+    "- 분석 대상 파일: " + reviewedScope,
+    "- 임계치 통과 이슈: " + (summary.totalFindings ?? 0),
+    "- 생성 코멘트: " + summary.publishedComments,
+    "",
+    "#### Severity Distribution",
     `- Critical: ${summary.counts?.CRITICAL ?? 0}`,
     `- High: ${summary.counts?.HIGH ?? 0}`,
     `- Medium: ${summary.counts?.MEDIUM ?? 0}`,
     `- Low: ${summary.counts?.LOW ?? 0}`,
     "",
-    `#### 주요 이슈`,
+    "#### Review Comments",
   ];
 
   if (summary.keyFindings?.length) {
@@ -365,7 +405,19 @@ function buildSummaryBody(summary) {
     lines.push("", `- 비고: ${summary.note}`);
   }
 
-  lines.push("", "- 참고: 추측성 지적은 제외하고 근거가 명확한 항목만 코멘트합니다.");
+  lines.push(
+    "",
+    "### Using Claude PR Review",
+    "- This review focuses on bug, security, regression, and performance risks.",
+    "- Claude can make mistakes, so double-check findings before merging.",
+    "",
+    "### Review Metadata",
+    `- 상태: ${summary.status || "완료"}`,
+    `- 생성 코멘트: ${summary.publishedComments}`,
+    `- 최소 심각도: ${minSeverity}`,
+    `- 최소 신뢰도: ${minConfidence}`,
+    `- 필터링된 민감 파일 제외 여부: 적용`
+  );
   return lines.join("\n");
 }
 
@@ -427,6 +479,7 @@ async function main() {
       publishedComments: 0,
       counts: {CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0},
       keyFindings: [],
+      changedPaths: [],
       note: `PR 변경량이 설정(${maxTotalPatchLines} lines)을 초과해 분석을 생략했습니다.`,
     });
     await upsertSummaryComment(prNumber, body);
@@ -452,6 +505,7 @@ async function main() {
       publishedComments: 0,
       counts: {CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0},
       keyFindings: [],
+      changedPaths: bounded.map((b) => b.filename),
       note: "추가된 코드 라인이 없어 인라인 리뷰를 생략했습니다.",
     });
     await upsertSummaryComment(prNumber, body);
@@ -518,6 +572,7 @@ async function main() {
       publishedComments: 0,
       counts: {CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0},
       keyFindings: [],
+      changedPaths: targets.map((t) => t.file),
       note: "임계치 이상(심각도/신뢰도)의 이슈가 없어 코멘트를 남기지 않았습니다.",
     });
     await upsertSummaryComment(prNumber, body);
@@ -581,6 +636,7 @@ async function main() {
     publishedComments: published,
     counts,
     keyFindings,
+    changedPaths: targets.map((t) => t.file),
     note,
   });
   await upsertSummaryComment(prNumber, body);
