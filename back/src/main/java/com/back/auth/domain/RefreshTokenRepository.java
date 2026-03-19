@@ -12,7 +12,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Inte
   Optional<RefreshToken> findByJti(String jti);
 
   /** 활성 조건(미폐기 + 미만료)을 만족하는 토큰 조회. */
-  Optional<RefreshToken> findByJtiAndRevokedAtIsNullAndExpiresAtAfter(String jti, LocalDateTime now);
+  Optional<RefreshToken> findByJtiAndRevokedAtIsNullAndExpiresAtAfter(
+      String jti, LocalDateTime now);
 
   /** 동일 familyId(회전 체인) 토큰 목록 조회. */
   List<RefreshToken> findAllByFamilyIdOrderByIdAsc(String familyId);

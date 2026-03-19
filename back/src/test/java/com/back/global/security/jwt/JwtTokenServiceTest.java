@@ -9,16 +9,17 @@ import org.junit.jupiter.api.Test;
 @DisplayName("JWT 토큰 서비스 테스트")
 class JwtTokenServiceTest {
 
-  private static final String SECRET_KEY =
-      "test-secret-key-at-least-32-characters-long-1234567890";
+  private static final String SECRET_KEY = "test-secret-key-at-least-32-characters-long-1234567890";
 
   @Test
   @DisplayName("액세스 토큰 생성 후 파싱하면 사용자 정보가 유지된다")
   void generateAndParseAccessToken() {
-    JwtProperties jwtProperties = new JwtProperties("maum-on-test", SECRET_KEY, 3600L);
+    JwtProperties jwtProperties =
+        new JwtProperties("maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
-    String token = jwtTokenService.generateAccessToken(10, "member10@test.com", List.of("ROLE_USER"));
+    String token =
+        jwtTokenService.generateAccessToken(10, "member10@test.com", List.of("ROLE_USER"));
     JwtSubject subject = jwtTokenService.parse(token);
 
     assertThat(jwtTokenService.validate(token)).isTrue();
@@ -30,9 +31,26 @@ class JwtTokenServiceTest {
   @Test
   @DisplayName("유효하지 않은 토큰은 validate에서 false를 반환한다")
   void validateReturnsFalseForInvalidToken() {
-    JwtProperties jwtProperties = new JwtProperties("maum-on-test", SECRET_KEY, 3600L);
+    JwtProperties jwtProperties =
+        new JwtProperties("maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
     assertThat(jwtTokenService.validate("invalid-token")).isFalse();
+  }
+
+  @Test
+  @DisplayName("리프레시 토큰 생성 후 파싱하면 jti와 familyId가 유지된다")
+  void generateAndParseRefreshToken() {
+    JwtProperties jwtProperties =
+        new JwtProperties("maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken");
+    JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
+
+    String token = jwtTokenService.generateRefreshToken(11, "jti-11", "family-11");
+    JwtRefreshSubject refreshSubject = jwtTokenService.parseRefreshToken(token);
+
+    assertThat(jwtTokenService.validate(token)).isTrue();
+    assertThat(refreshSubject.memberId()).isEqualTo(11);
+    assertThat(refreshSubject.jti()).isEqualTo("jti-11");
+    assertThat(refreshSubject.familyId()).isEqualTo("family-11");
   }
 }

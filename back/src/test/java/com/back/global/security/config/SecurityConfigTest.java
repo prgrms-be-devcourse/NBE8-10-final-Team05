@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.back.global.aspect.ResponseAspect;
 import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
+import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.adapter.in.web.MemberController;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
@@ -40,6 +41,7 @@ class SecurityConfigTest {
   @Autowired private ObjectMapper objectMapper;
 
   @MockitoBean private MemberService memberService;
+  @MockitoBean private JwtTokenService jwtTokenService;
 
   @Test
   @DisplayName("공개 API는 토큰 없이 접근 가능하다")

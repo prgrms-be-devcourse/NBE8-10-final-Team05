@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
@@ -38,6 +39,7 @@ class MemberControllerTest {
   @Autowired private ObjectMapper objectMapper;
 
   @MockitoBean private MemberService memberService;
+  @MockitoBean private JwtTokenService jwtTokenService;
 
   @Test
   @DisplayName("회원 가입 API는 회원 정보를 생성한다")

@@ -28,7 +28,8 @@ class RefreshTokenDomainServiceTest {
   @DisplayName("토큰 회전 시 기존 토큰은 폐기되고 replacedBy가 기록된다")
   void rotateTracksRevokedAndReplacementState() {
     LocalDateTime now = LocalDateTime.now();
-    Member member = memberRepository.save(Member.create("member1@test.com", "$2a$10$hashValue", "m1"));
+    Member member =
+        memberRepository.save(Member.create("member1@test.com", "$2a$10$hashValue", "m1"));
 
     refreshTokenDomainService.saveIssuedToken(
         member, "jti-1", "token-hash-1", now.plusDays(30), "family-1");
@@ -52,9 +53,11 @@ class RefreshTokenDomainServiceTest {
   @DisplayName("토큰 폐기 시 revokedAt이 기록되고 활성 조회에서 제외된다")
   void revokeTracksRevokedAtState() {
     LocalDateTime now = LocalDateTime.now();
-    Member member = memberRepository.save(Member.create("member2@test.com", "$2a$10$hashValue", "m2"));
+    Member member =
+        memberRepository.save(Member.create("member2@test.com", "$2a$10$hashValue", "m2"));
 
-    refreshTokenDomainService.saveIssuedToken(member, "jti-3", "token-hash-3", now.plusDays(30), null);
+    refreshTokenDomainService.saveIssuedToken(
+        member, "jti-3", "token-hash-3", now.plusDays(30), null);
     refreshTokenDomainService.revoke("jti-3", now.plusMinutes(10));
 
     RefreshToken revoked = refreshTokenRepository.findByJti("jti-3").orElseThrow();
@@ -65,7 +68,8 @@ class RefreshTokenDomainServiceTest {
   @Test
   @DisplayName("jti는 DB 유니크 제약을 만족해야 한다")
   void jtiMustBeUnique() {
-    Member member = memberRepository.save(Member.create("member3@test.com", "$2a$10$hashValue", "m3"));
+    Member member =
+        memberRepository.save(Member.create("member3@test.com", "$2a$10$hashValue", "m3"));
     LocalDateTime expiresAt = LocalDateTime.now().plusDays(30);
 
     refreshTokenRepository.saveAndFlush(

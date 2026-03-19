@@ -11,9 +11,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * 인증은 되었지만 권한이 없는 사용자가 접근했을 때(403) JSON 응답을 내려주는 핸들러.
- */
+/** 인증은 되었지만 권한이 없는 사용자가 접근했을 때(403) JSON 응답을 내려주는 핸들러. */
 @Component
 public class SecurityAccessDeniedHandler implements AccessDeniedHandler {
 
