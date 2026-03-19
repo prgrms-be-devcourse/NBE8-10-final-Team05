@@ -2,6 +2,7 @@ package com.back.letter.entity;
 
 
 import com.back.global.jpa.entity.BaseEntity;
+import com.back.member.domain.Member;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,8 +23,14 @@ public class Letter extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String replyContent;
 
-    private String senderId;
-    private String receiverId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sender_id")
+    private Member sender;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_id")
+    private Member receiver;
 
     private LocalDateTime replyCreatedDate;
 
