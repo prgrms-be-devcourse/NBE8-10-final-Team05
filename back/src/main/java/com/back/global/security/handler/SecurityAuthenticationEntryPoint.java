@@ -11,9 +11,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * 인증이 되지 않은 사용자가 보호된 자원에 접근했을 때(401) JSON 응답을 내려주는 엔트리포인트.
- */
+/** 인증이 되지 않은 사용자가 보호된 자원에 접근했을 때(401) JSON 응답을 내려주는 엔트리포인트. */
 @Component
 public class SecurityAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
