@@ -9,6 +9,10 @@ import com.back.letter.repository.LetterRepository;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,25 +82,23 @@ public class LetterService {
         letter.reply(req.replyContent());
     }
 
+    // 나에게 온 편지 보관함 조회
+    public LetterListRes getMyInbox(int memberId, int page, int size) {
+        return getLetterList(page, size, letterRepository.findByReceiverId(memberId, getPageable(page, size)));
+    }
 
-    /*
-     [나에게 온 편지 보관함 조회]
-     내가 수신자(receiverId)로 지정된 모든 편지 목록을 최신순으로 가져옴
-     */
-    @Transactional(readOnly = true)
-    public LetterListRes getMyInbox(Member userId) {
+    // 내가 보낸 편지 보관함 조회
+    public LetterListRes getMySentBox(int memberId, int page, int size) {
+        return getLetterList(page, size, letterRepository.findBySenderId(memberId, getPageable(page, size)));
+    }
 
-        // 1. 리포지토리를 통해 나에게 온 편지 엔티티 리스트 조회
-        List<Letter> letters = letterRepository.findByReceiverOrderByCreateDateDesc(userId);
+    // 공통 정렬 로직 추출
+    private Pageable getPageable(int page, int size) {
+        return PageRequest.of(page, size, Sort.by("id").descending());
+    }
 
-
-        // 2. 엔티티 리스트를 클라이언트 응답용 DTO(LetterItem) 리스트로 변환
-        List<LetterItem> items = letters.stream()
-                .map(LetterItem::from)
-                .toList();
-
-
-        // 3. 최종 응답 객체(LetterListRes) 생성 후 반환
-        return new LetterListRes(items);
+    // 공통 변환 로직 추출
+    private LetterListRes getLetterList(int page, int size, Page<Letter> letterPage) {
+        return LetterListRes.from(letterPage.map(LetterItem::from));
     }
 }

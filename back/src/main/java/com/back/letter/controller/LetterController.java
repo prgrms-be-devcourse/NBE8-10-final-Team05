@@ -36,21 +36,34 @@ public class LetterController {
 
     @GetMapping("/received")
     public ResponseEntity<RsData<LetterListRes>> getReceivedLetters(
-            @RequestHeader("User-Id") Member userId
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
-        LetterListRes data = letterService.getMyInbox(userId);
+        int memberId = 2;
+        LetterListRes data = letterService.getMyInbox(memberId, page, size);
         return ResponseEntity.ok(new RsData<>("200-2", "받은 편지 보관함 조회 성공", data));
+    }
+
+    @GetMapping("/sent")
+    public ResponseEntity<RsData<LetterListRes>> getSentLetters(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ){
+        int memberId = 1;
+
+        LetterListRes data = letterService.getMySentBox(memberId, page, size);
+        return ResponseEntity.ok(new RsData<>("200-3", "보낸 편지 보관함 조회 성공", data));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<RsData<LetterInfoRes>> getDetail(@PathVariable int id){
         LetterInfoRes data = letterService.getLetter(id);
-        return ResponseEntity.ok(new RsData<>("200-3","편지 상세 조회 성공", data));
+        return ResponseEntity.ok(new RsData<>("200-4","편지 상세 조회 성공", data));
     }
 
     @PostMapping("/{id}/reply")
     public ResponseEntity<RsData<Void>> reply(@PathVariable int id, @RequestBody @Valid ReplyLetterReq req){
         letterService.replyLetter(id, req);
-        return ResponseEntity.ok(new RsData<>("200-4", "답장이 등록되었습니다."));
+        return ResponseEntity.ok(new RsData<>("200-5", "답장이 등록되었습니다."));
     }
 }
