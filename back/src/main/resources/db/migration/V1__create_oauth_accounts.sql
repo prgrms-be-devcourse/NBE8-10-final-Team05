@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS oauth_accounts
 (
-    id               SERIAL PRIMARY KEY,
+    id               BIGSERIAL PRIMARY KEY,
     create_date      TIMESTAMP NULL,
     modify_date      TIMESTAMP NULL,
-    member_id        INTEGER      NOT NULL,
+    member_id        BIGINT       NOT NULL,
     provider         VARCHAR(40)  NOT NULL,
     provider_user_id VARCHAR(120) NOT NULL,
     email_at_provider VARCHAR(120),

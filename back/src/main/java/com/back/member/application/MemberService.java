@@ -40,20 +40,20 @@ public class MemberService {
     return MemberResponse.from(memberRepository.save(member));
   }
 
-  public MemberResponse getMember(Integer memberId) {
+  public MemberResponse getMember(Long memberId) {
     // 조회 실패 시 ServiceException(404-1)로 일관된 에러 응답을 만든다.
     return MemberResponse.from(findMemberById(memberId));
   }
 
   @Transactional
-  public MemberResponse updateProfile(Integer memberId, UpdateMemberProfileRequest request) {
+  public MemberResponse updateProfile(Long memberId, UpdateMemberProfileRequest request) {
     // 현재는 닉네임만 수정한다. 엔티티 변경 감지로 트랜잭션 종료 시 반영된다.
     Member member = findMemberById(memberId);
     member.updateNickname(request.nickname());
     return MemberResponse.from(member);
   }
 
-  private Member findMemberById(Integer memberId) {
+  private Member findMemberById(Long memberId) {
     return memberRepository
         .findById(memberId)
         .orElseThrow(() -> new ServiceException("404-1", "Member not found."));

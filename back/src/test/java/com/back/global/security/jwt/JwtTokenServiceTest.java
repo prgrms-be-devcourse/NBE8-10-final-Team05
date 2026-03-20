@@ -27,11 +27,11 @@ class JwtTokenServiceTest {
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
     String token =
-        jwtTokenService.generateAccessToken(10, "member10@test.com", List.of("ROLE_USER"));
+        jwtTokenService.generateAccessToken(10L, "member10@test.com", List.of("ROLE_USER"));
     JwtSubject subject = jwtTokenService.parse(token);
 
     assertThat(jwtTokenService.validate(token)).isTrue();
-    assertThat(subject.memberId()).isEqualTo(10);
+    assertThat(subject.memberId()).isEqualTo(10L);
     assertThat(subject.email()).isEqualTo("member10@test.com");
     assertThat(subject.roles()).containsExactly("ROLE_USER");
   }
@@ -55,11 +55,11 @@ class JwtTokenServiceTest {
             "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", false, "Lax");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
-    String token = jwtTokenService.generateRefreshToken(11, "jti-11", "family-11");
+    String token = jwtTokenService.generateRefreshToken(11L, "jti-11", "family-11");
     JwtRefreshSubject refreshSubject = jwtTokenService.parseRefreshToken(token);
 
     assertThat(jwtTokenService.validate(token)).isTrue();
-    assertThat(refreshSubject.memberId()).isEqualTo(11);
+    assertThat(refreshSubject.memberId()).isEqualTo(11L);
     assertThat(refreshSubject.jti()).isEqualTo("jti-11");
     assertThat(refreshSubject.familyId()).isEqualTo("family-11");
   }

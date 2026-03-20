@@ -64,11 +64,11 @@ class AuthServiceTest {
     Member member = Member.create("member2@test.com", "$2a$10$stored", "member2");
     given(memberRepository.findByEmail("member2@test.com")).willReturn(Optional.of(member));
     given(passwordEncoder.matches("plain-pass", "$2a$10$stored")).willReturn(true);
-    given(jwtTokenService.generateRefreshToken(any(Integer.class), anyString(), anyString()))
+    given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
         .willReturn("raw-refresh-token");
     given(passwordEncoder.encode("raw-refresh-token")).willReturn("$2a$10$refresh-hash");
     given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
-    given(jwtTokenService.generateAccessToken(any(Integer.class), anyString(), any()))
+    given(jwtTokenService.generateAccessToken(any(Long.class), anyString(), any()))
         .willReturn("access-token");
     given(jwtProperties.accessTokenExpireSeconds()).willReturn(3600L);
 
@@ -123,11 +123,11 @@ class AuthServiceTest {
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-current", "family-1"));
     given(refreshTokenDomainService.findByJti("jti-current")).willReturn(Optional.of(current));
     given(passwordEncoder.matches("raw-refresh-token", "$2a$10$refresh-hash")).willReturn(true);
-    given(jwtTokenService.generateRefreshToken(any(Integer.class), anyString(), anyString()))
+    given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
         .willReturn("next-refresh-token");
     given(passwordEncoder.encode("next-refresh-token")).willReturn("$2a$10$next-hash");
     given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
-    given(jwtTokenService.generateAccessToken(any(Integer.class), anyString(), any()))
+    given(jwtTokenService.generateAccessToken(any(Long.class), anyString(), any()))
         .willReturn("next-access-token");
     given(jwtProperties.accessTokenExpireSeconds()).willReturn(3600L);
 

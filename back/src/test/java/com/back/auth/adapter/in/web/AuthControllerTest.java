@@ -60,7 +60,7 @@ class AuthControllerTest {
   void signupReturnsCreatedMember() throws Exception {
     AuthSignupRequest request = new AuthSignupRequest("member1@test.com", "plain-pass", "member1");
     AuthMemberResponse response =
-        new AuthMemberResponse(1, "member1@test.com", "member1", "USER", "ACTIVE");
+        new AuthMemberResponse(1L, "member1@test.com", "member1", "USER", "ACTIVE");
     given(authService.signup(any(AuthSignupRequest.class))).willReturn(response);
 
     mockMvc
@@ -82,7 +82,7 @@ class AuthControllerTest {
             "access-token",
             "Bearer",
             3600L,
-            new AuthMemberResponse(2, "member2@test.com", "member2", "USER", "ACTIVE"));
+            new AuthMemberResponse(2L, "member2@test.com", "member2", "USER", "ACTIVE"));
     given(authService.login(any(AuthLoginRequest.class)))
         .willReturn(new AuthService.AuthTokenIssueResult(response, "refresh-token"));
 
@@ -123,7 +123,7 @@ class AuthControllerTest {
             "next-access",
             "Bearer",
             3600L,
-            new AuthMemberResponse(3, "member3@test.com", "member3", "USER", "ACTIVE"));
+            new AuthMemberResponse(3L, "member3@test.com", "member3", "USER", "ACTIVE"));
     given(refreshTokenCookieService.resolveRefreshToken(any()))
         .willReturn(Optional.of("raw-refresh-token"));
     given(authService.refresh("raw-refresh-token"))
@@ -157,12 +157,12 @@ class AuthControllerTest {
   @DisplayName("me API는 인증된 principal이 있으면 현재 사용자 정보를 반환한다")
   void meReturnsCurrentMember() throws Exception {
     AuthenticatedMember principal =
-        new AuthenticatedMember(4, "member4@test.com", List.of("ROLE_USER"));
+        new AuthenticatedMember(4L, "member4@test.com", List.of("ROLE_USER"));
     UsernamePasswordAuthenticationToken authenticationToken =
         new UsernamePasswordAuthenticationToken(
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
     AuthMemberResponse response =
-        new AuthMemberResponse(4, "member4@test.com", "member4", "USER", "ACTIVE");
+        new AuthMemberResponse(4L, "member4@test.com", "member4", "USER", "ACTIVE");
     given(authService.me(principal)).willReturn(response);
 
     mockMvc

@@ -25,13 +25,13 @@ public class LetterController {
     private final LetterService letterService;
 
     @PostMapping
-    public ResponseEntity<RsData<Integer>> create(
+    public ResponseEntity<RsData<Long>> create(
             @RequestBody @Valid CreateLetterReq req,
             @AuthenticationPrincipal AuthenticatedMember authMember
             ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
-        int id = letterService.createLetterAndDirectSendLetter(req, authMember.memberId());
+        long id = letterService.createLetterAndDirectSendLetter(req, authMember.memberId());
         return ResponseEntity.ok(new RsData<>("200-1","편지가 전송되었습니다.", id));
     }
 
@@ -61,7 +61,7 @@ public class LetterController {
 
     @GetMapping("/{id}")
     public ResponseEntity<RsData<LetterInfoRes>> getDetail(
-            @PathVariable int id,
+            @PathVariable long id,
             @AuthenticationPrincipal AuthenticatedMember authMember
     ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
@@ -72,7 +72,7 @@ public class LetterController {
 
     @PostMapping("/{id}/reply")
     public ResponseEntity<RsData<Void>> reply(
-            @PathVariable int id,
+            @PathVariable long id,
             @RequestBody @Valid ReplyLetterReq req,
             @AuthenticationPrincipal AuthenticatedMember authMember
     ){

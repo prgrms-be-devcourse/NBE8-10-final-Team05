@@ -6,7 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /** 리프레시 토큰 조회/추적용 JPA 리포지토리. */
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Integer> {
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
   /** jti로 토큰 단건 조회. */
   Optional<RefreshToken> findByJti(String jti);

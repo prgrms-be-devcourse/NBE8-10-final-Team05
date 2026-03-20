@@ -6,7 +6,7 @@ import com.back.letter.entity.LetterStatus;
 import java.time.LocalDateTime;
 
 public record LetterInfoRes(
-        int id,
+        long id,
         String title,
         String content,
         String replyContent,
