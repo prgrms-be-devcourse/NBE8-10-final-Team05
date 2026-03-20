@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -34,6 +35,7 @@ import tools.jackson.databind.ObjectMapper;
   SecurityAuthenticationEntryPoint.class,
   SecurityAccessDeniedHandler.class
 })
+@ActiveProfiles("test")
 @DisplayName("시큐리티 경로 권한 설정 테스트")
 class SecurityConfigTest {
 
@@ -49,7 +51,7 @@ class SecurityConfigTest {
   void publicApiWorksWithoutToken() throws Exception {
     CreateMemberRequest request =
         new CreateMemberRequest("member1@test.com", "pass1234", "member1");
-    MemberResponse response = new MemberResponse(1, "member1@test.com", "member1");
+    MemberResponse response = new MemberResponse(1L, "member1@test.com", "member1");
     given(memberService.createMember(any(CreateMemberRequest.class))).willReturn(response);
 
     mockMvc

@@ -18,41 +18,50 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** 회원 생성/조회/프로필 수정 API를 제공하는 컨트롤러. */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/members")
 public class MemberController {
 
+  private static final String CODE_MEMBER_CREATED = "201-1";
+  private static final String CODE_MEMBER_FETCHED = "200-1";
+  private static final String CODE_PROFILE_UPDATED = "200-2";
+  private static final String MSG_MEMBER_CREATED = "Member created.";
+  private static final String MSG_MEMBER_FETCHED = "Member fetched.";
+  private static final String MSG_PROFILE_UPDATED = "Member profile updated.";
+  private static final String CODE_UNAUTHORIZED = "401-1";
+  private static final String MSG_UNAUTHORIZED = "Authentication is required.";
+
   private final MemberService memberService;
 
+  /** 회원 가입 API. */
   @PostMapping
   public RsData<MemberResponse> createMember(@RequestBody CreateMemberRequest request) {
-    MemberResponse response = memberService.createMember(request);
-    return new RsData<>("201-1", "Member created.", response);
+    return memberCreated(memberService.createMember(request));
   }
 
   /** 본인 회원 정보 조회 엔드포인트. */
   @GetMapping("/me")
   public RsData<MemberResponse> getMyMember(Authentication authentication) {
-    Integer memberId = resolveAuthenticatedMemberId(authentication);
-    return new RsData<>("200-1", "Member fetched.", memberService.getMember(memberId));
+    Long memberId = resolveAuthenticatedMemberId(authentication);
+    return memberFetched(memberService.getMember(memberId));
   }
 
   /** 타인 조회는 관리자만 허용한다. */
   @Deprecated
   @PreAuthorize("hasRole('ADMIN')")
   @GetMapping("/{memberId}")
-  public RsData<MemberResponse> getMember(@PathVariable Integer memberId) {
-    return new RsData<>("200-1", "Member fetched.", memberService.getMember(memberId));
+  public RsData<MemberResponse> getMember(@PathVariable Long memberId) {
+    return memberFetched(memberService.getMember(memberId));
   }
 
   /** 본인 프로필(닉네임) 수정 엔드포인트. */
   @PatchMapping("/me/profile")
   public RsData<MemberResponse> updateMyProfile(
       Authentication authentication, @RequestBody UpdateMemberProfileRequest request) {
-    Integer memberId = resolveAuthenticatedMemberId(authentication);
-    return new RsData<>(
-        "200-2", "Member profile updated.", memberService.updateProfile(memberId, request));
+    Long memberId = resolveAuthenticatedMemberId(authentication);
+    return profileUpdated(memberService.updateProfile(memberId, request));
   }
 
   /** memberId 기반 수정은 유지하되 관리자 전용으로 제한한다. */
@@ -60,16 +69,27 @@ public class MemberController {
   @PreAuthorize("hasRole('ADMIN')")
   @PatchMapping("/{memberId}/profile")
   public RsData<MemberResponse> updateProfile(
-      @PathVariable Integer memberId, @RequestBody UpdateMemberProfileRequest request) {
-    return new RsData<>(
-        "200-2", "Member profile updated.", memberService.updateProfile(memberId, request));
+      @PathVariable Long memberId, @RequestBody UpdateMemberProfileRequest request) {
+    return profileUpdated(memberService.updateProfile(memberId, request));
   }
 
-  private Integer resolveAuthenticatedMemberId(Authentication authentication) {
+  private Long resolveAuthenticatedMemberId(Authentication authentication) {
     if (authentication == null
         || !(authentication.getPrincipal() instanceof AuthenticatedMember principal)) {
-      throw new ServiceException("401-1", "Authentication is required.");
+      throw new ServiceException(CODE_UNAUTHORIZED, MSG_UNAUTHORIZED);
     }
     return principal.memberId();
+  }
+
+  private RsData<MemberResponse> memberCreated(MemberResponse response) {
+    return new RsData<>(CODE_MEMBER_CREATED, MSG_MEMBER_CREATED, response);
+  }
+
+  private RsData<MemberResponse> memberFetched(MemberResponse response) {
+    return new RsData<>(CODE_MEMBER_FETCHED, MSG_MEMBER_FETCHED, response);
+  }
+
+  private RsData<MemberResponse> profileUpdated(MemberResponse response) {
+    return new RsData<>(CODE_PROFILE_UPDATED, MSG_PROFILE_UPDATED, response);
   }
 }

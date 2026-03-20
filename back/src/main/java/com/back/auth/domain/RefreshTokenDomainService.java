@@ -14,6 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class RefreshTokenDomainService {
 
+  private static final String ERROR_CODE_REFRESH_TOKEN_NOT_FOUND = "404-2";
+  private static final String ERROR_MSG_REFRESH_TOKEN_NOT_FOUND = "Refresh token not found.";
+  private static final String ERROR_CODE_REFRESH_TOKEN_INACTIVE = "409-2";
+  private static final String ERROR_MSG_REFRESH_TOKEN_INACTIVE = "Refresh token is not active.";
+
   private final RefreshTokenRepository refreshTokenRepository;
 
   /** 새 리프레시 토큰을 저장한다. */
@@ -42,13 +47,10 @@ public class RefreshTokenDomainService {
       String nextTokenHash,
       LocalDateTime nextExpiresAt,
       LocalDateTime now) {
-    RefreshToken current =
-        refreshTokenRepository
-            .findByJti(currentJti)
-            .orElseThrow(() -> new ServiceException("404-2", "Refresh token not found."));
+    RefreshToken current = findByJtiOrThrow(currentJti);
 
     if (!current.isActive(now)) {
-      throw new ServiceException("409-2", "Refresh token is not active.");
+      throw new ServiceException(ERROR_CODE_REFRESH_TOKEN_INACTIVE, ERROR_MSG_REFRESH_TOKEN_INACTIVE);
     }
 
     current.revoke(now, nextJti);
@@ -62,10 +64,7 @@ public class RefreshTokenDomainService {
   /** 단일 리프레시 토큰을 폐기한다. */
   @Transactional
   public void revoke(String jti, LocalDateTime revokedAt) {
-    RefreshToken refreshToken =
-        refreshTokenRepository
-            .findByJti(jti)
-            .orElseThrow(() -> new ServiceException("404-2", "Refresh token not found."));
+    RefreshToken refreshToken = findByJtiOrThrow(jti);
 
     refreshToken.revoke(revokedAt, null);
   }
@@ -76,5 +75,14 @@ public class RefreshTokenDomainService {
     refreshTokenRepository
         .findAllByFamilyIdOrderByIdAsc(familyId)
         .forEach(token -> token.revoke(revokedAt, null));
+  }
+
+  private RefreshToken findByJtiOrThrow(String jti) {
+    return refreshTokenRepository
+        .findByJti(jti)
+        .orElseThrow(
+            () ->
+                new ServiceException(
+                    ERROR_CODE_REFRESH_TOKEN_NOT_FOUND, ERROR_MSG_REFRESH_TOKEN_NOT_FOUND));
   }
 }

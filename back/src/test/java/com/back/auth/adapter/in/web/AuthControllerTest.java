@@ -15,6 +15,8 @@ import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
 import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthService;
+import com.back.auth.application.OidcAuthorizationRequestService;
+import com.back.auth.application.OidcCallbackService;
 import com.back.auth.application.RefreshTokenCookieService;
 import com.back.global.aspect.ResponseAspect;
 import com.back.global.exception.ServiceException;
@@ -32,6 +34,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -43,6 +46,7 @@ import tools.jackson.databind.ObjectMapper;
   SecurityAuthenticationEntryPoint.class,
   SecurityAccessDeniedHandler.class
 })
+@ActiveProfiles("test")
 @DisplayName("인증 컨트롤러 API 테스트")
 class AuthControllerTest {
 
@@ -51,6 +55,8 @@ class AuthControllerTest {
 
   @MockitoBean private AuthService authService;
   @MockitoBean private RefreshTokenCookieService refreshTokenCookieService;
+  @MockitoBean private OidcAuthorizationRequestService oidcAuthorizationRequestService;
+  @MockitoBean private OidcCallbackService oidcCallbackService;
   @MockitoBean private JwtTokenService jwtTokenService;
 
   @Test
@@ -58,7 +64,7 @@ class AuthControllerTest {
   void signupReturnsCreatedMember() throws Exception {
     AuthSignupRequest request = new AuthSignupRequest("member1@test.com", "plain-pass", "member1");
     AuthMemberResponse response =
-        new AuthMemberResponse(1, "member1@test.com", "member1", "USER", "ACTIVE");
+        new AuthMemberResponse(1L, "member1@test.com", "member1", "USER", "ACTIVE");
     given(authService.signup(any(AuthSignupRequest.class))).willReturn(response);
 
     mockMvc
@@ -80,7 +86,7 @@ class AuthControllerTest {
             "access-token",
             "Bearer",
             3600L,
-            new AuthMemberResponse(2, "member2@test.com", "member2", "USER", "ACTIVE"));
+            new AuthMemberResponse(2L, "member2@test.com", "member2", "USER", "ACTIVE"));
     given(authService.login(any(AuthLoginRequest.class)))
         .willReturn(new AuthService.AuthTokenIssueResult(response, "refresh-token"));
 
@@ -121,7 +127,7 @@ class AuthControllerTest {
             "next-access",
             "Bearer",
             3600L,
-            new AuthMemberResponse(3, "member3@test.com", "member3", "USER", "ACTIVE"));
+            new AuthMemberResponse(3L, "member3@test.com", "member3", "USER", "ACTIVE"));
     given(refreshTokenCookieService.resolveRefreshToken(any()))
         .willReturn(Optional.of("raw-refresh-token"));
     given(authService.refresh("raw-refresh-token"))
@@ -155,12 +161,12 @@ class AuthControllerTest {
   @DisplayName("me API는 인증된 principal이 있으면 현재 사용자 정보를 반환한다")
   void meReturnsCurrentMember() throws Exception {
     AuthenticatedMember principal =
-        new AuthenticatedMember(4, "member4@test.com", List.of("ROLE_USER"));
+        new AuthenticatedMember(4L, "member4@test.com", List.of("ROLE_USER"));
     UsernamePasswordAuthenticationToken authenticationToken =
         new UsernamePasswordAuthenticationToken(
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
     AuthMemberResponse response =
-        new AuthMemberResponse(4, "member4@test.com", "member4", "USER", "ACTIVE");
+        new AuthMemberResponse(4L, "member4@test.com", "member4", "USER", "ACTIVE");
     given(authService.me(principal)).willReturn(response);
 
     mockMvc
@@ -169,5 +175,58 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.resultCode").value("200-6"))
         .andExpect(jsonPath("$.data.id").value(4))
         .andExpect(jsonPath("$.data.email").value("member4@test.com"));
+  }
+
+  @Test
+  @DisplayName("oidc authorize API는 provider authorize URL로 리다이렉트한다")
+  void oidcAuthorizeRedirectsToProviderUrl() throws Exception {
+    given(
+            oidcAuthorizationRequestService.startAuthorization(
+                any(String.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcAuthorizationRequestService.OidcAuthorizationStartResult(
+                "https://accounts.example.com/oauth2/v2/auth?client_id=test",
+                "state-token",
+                "nonce-token",
+                "code-verifier",
+                "http://localhost:3000/login",
+                java.time.Instant.now().plusSeconds(300)));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/authorize/{provider}", "maum-on-oidc")
+                .param("redirect_uri", "http://localhost:3000/login"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl(
+                "https://accounts.example.com/oauth2/v2/auth?client_id=test"));
+  }
+
+  @Test
+  @DisplayName("oidc callback API는 refresh 쿠키를 발급하고 프론트로 리다이렉트한다")
+  void oidcCallbackIssuesRefreshCookieAndRedirectsFront() throws Exception {
+    AuthTokenResponse tokenResponse =
+        new AuthTokenResponse(
+            "oidc-access-token",
+            "Bearer",
+            3600L,
+            new AuthMemberResponse(5L, "oidc@test.com", "oidc-user", "USER", "ACTIVE"));
+    AuthService.AuthTokenIssueResult issueResult =
+        new AuthService.AuthTokenIssueResult(tokenResponse, "oidc-refresh-token");
+
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willReturn(new OidcCallbackService.OidcCallbackResult("http://localhost:3000/login/success", issueResult));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "state-value"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl(
+                "http://localhost:3000/login/success"));
+
+    then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
   }
 }

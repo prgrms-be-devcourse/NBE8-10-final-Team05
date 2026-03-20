@@ -9,7 +9,9 @@ public record JwtProperties(
     String secretKey,
     long accessTokenExpireSeconds,
     long refreshTokenExpireSeconds,
-    String refreshTokenCookieName) {
+    String refreshTokenCookieName,
+    boolean refreshTokenCookieSecure,
+    String refreshTokenCookieSameSite) {
 
   /** 설정값 기본치 보정과 유효성 검증을 수행한다. */
   public JwtProperties {
@@ -35,6 +37,22 @@ public record JwtProperties(
 
     if (refreshTokenCookieName == null || refreshTokenCookieName.isBlank()) {
       refreshTokenCookieName = "refreshToken";
+    }
+
+    if (refreshTokenCookieSameSite == null || refreshTokenCookieSameSite.isBlank()) {
+      refreshTokenCookieSameSite = "Lax";
+    } else {
+      String normalized = refreshTokenCookieSameSite.trim();
+      if ("none".equalsIgnoreCase(normalized)) {
+        refreshTokenCookieSameSite = "None";
+      } else if ("lax".equalsIgnoreCase(normalized)) {
+        refreshTokenCookieSameSite = "Lax";
+      } else if ("strict".equalsIgnoreCase(normalized)) {
+        refreshTokenCookieSameSite = "Strict";
+      } else {
+        throw new IllegalArgumentException(
+            "custom.jwt.refresh-token-cookie-same-site must be one of None, Lax, Strict.");
+      }
     }
   }
 }

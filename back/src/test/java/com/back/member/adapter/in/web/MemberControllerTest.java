@@ -25,6 +25,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -36,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
   com.back.global.security.handler.SecurityAccessDeniedHandler.class,
   com.back.global.security.handler.SecurityAuthenticationEntryPoint.class
 })
+@ActiveProfiles("test")
 @DisplayName("회원 컨트롤러 API 테스트")
 class MemberControllerTest {
 
@@ -51,7 +53,7 @@ class MemberControllerTest {
   void createMember() throws Exception {
     CreateMemberRequest request =
         new CreateMemberRequest("member1@test.com", "pass1234", "member1");
-    MemberResponse response = new MemberResponse(1, "member1@test.com", "member1");
+    MemberResponse response = new MemberResponse(1L, "member1@test.com", "member1");
 
     given(memberService.createMember(any(CreateMemberRequest.class))).willReturn(response);
 
@@ -71,8 +73,8 @@ class MemberControllerTest {
   @Test
   @DisplayName("관리자는 memberId 기반 회원 조회 API를 사용할 수 있다")
   void getMember() throws Exception {
-    MemberResponse response = new MemberResponse(2, "member2@test.com", "member2");
-    given(memberService.getMember(2)).willReturn(response);
+    MemberResponse response = new MemberResponse(2L, "member2@test.com", "member2");
+    given(memberService.getMember(2L)).willReturn(response);
 
     mockMvc
         .perform(get("/api/v1/members/{memberId}", 2).with(user("admin").roles("ADMIN")))
@@ -88,13 +90,13 @@ class MemberControllerTest {
   @DisplayName("본인 프로필 수정 API는 인증된 사용자 기준으로 닉네임을 변경한다")
   void updateProfile() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
-    MemberResponse response = new MemberResponse(3, "member3@test.com", "updatedMember");
-    given(memberService.updateProfile(3, request)).willReturn(response);
+    MemberResponse response = new MemberResponse(3L, "member3@test.com", "updatedMember");
+    given(memberService.updateProfile(3L, request)).willReturn(response);
 
     mockMvc
         .perform(
             patch("/api/v1/members/me/profile")
-                .with(authentication(authenticatedMember(3, "member3@test.com")))
+                .with(authentication(authenticatedMember(3L, "member3@test.com")))
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().is2xxSuccessful())
@@ -121,7 +123,7 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.msg").value("You do not have permission."));
   }
 
-  private UsernamePasswordAuthenticationToken authenticatedMember(Integer memberId, String email) {
+  private UsernamePasswordAuthenticationToken authenticatedMember(Long memberId, String email) {
     AuthenticatedMember principal = new AuthenticatedMember(memberId, email, List.of("ROLE_USER"));
     return new UsernamePasswordAuthenticationToken(
         principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));

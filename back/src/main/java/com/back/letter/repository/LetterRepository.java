@@ -11,17 +11,17 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface LetterRepository extends JpaRepository<Letter, Integer> {
+public interface LetterRepository extends JpaRepository<Letter, Long> {
 
     @Query("SELECT l FROM Letter l JOIN FETCH l.sender WHERE l.receiver.id = :memberId")
-    Page<Letter> findByReceiverId(@Param("memberId") Integer memberId, Pageable pageable);
+    Page<Letter> findByReceiverId(@Param("memberId") Long memberId, Pageable pageable);
 
     @Query("SELECT l FROM Letter l JOIN FETCH l.receiver WHERE l.sender.id = :memberId")
-    Page<Letter> findBySenderId(@Param("memberId") Integer memberId, Pageable pageable);
+    Page<Letter> findBySenderId(@Param("memberId") Long memberId, Pageable pageable);
 
     @Query(value = "SELECT * FROM members " +
             "WHERE id != :myId AND status = 'ACTIVE' " +
             "ORDER BY RANDOM() LIMIT 1",
             nativeQuery = true)
-    Optional<Member> findRandomMemberExceptMe(@Param("myId") int myId);
+    Optional<Member> findRandomMemberExceptMe(@Param("myId") long myId);
 }

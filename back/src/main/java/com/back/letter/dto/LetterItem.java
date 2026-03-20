@@ -4,7 +4,7 @@ import com.back.letter.entity.Letter;
 import java.time.LocalDateTime;
 
 public record LetterItem(
-    int id,
+    long id,
     String title,
     LocalDateTime createdDate,
     boolean isReplied

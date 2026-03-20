@@ -47,7 +47,7 @@ public class LetterService {
       작성자가 편지를 쓰는 순간, 시스템이 작성자를 제외한 유저 중 한 명을 골라 즉시 보냄
      */
     @Transactional
-    public int createLetterAndDirectSendLetter(CreateLetterReq req, int senderId){
+    public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId){
 
         String fullContent = String.format("[제목] %s [내용] %s", req.title(), req.content());
         auditContent(fullContent, "Letter");
@@ -80,7 +80,7 @@ public class LetterService {
       [편지 단건 조회]
       특정 ID의 편지 내용을 확인
      */
-    public LetterInfoRes getLetter(int id, int accessorId){
+    public LetterInfoRes getLetter(long id, long accessorId){
         Letter letter = letterRepository.findById(id)
                 .orElseThrow(()->new ServiceException("404-1","편지를 찾을 수 없습니다."));
 
@@ -96,10 +96,7 @@ public class LetterService {
       수신자가 고민 편지에 대해 답장을 남기면 상태를 REPLIED로 변경
      */
     @Transactional
-    public void replyLetter(int id, ReplyLetterReq req, int accessorId) {
-
-        auditContent(req.replyContent(), "Reply");
-
+    public void replyLetter(long id, ReplyLetterReq req, long accessorId) {
         Letter letter = letterRepository.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1","편지를 찾을 수 없습니다."));
 
@@ -114,12 +111,12 @@ public class LetterService {
     }
 
     // 나에게 온 편지 보관함 조회
-    public LetterListRes getMyInbox(int memberId, int page, int size) {
+    public LetterListRes getMyInbox(long memberId, int page, int size) {
         return getLetterList(page, size, letterRepository.findByReceiverId(memberId, getPageable(page, size)));
     }
 
     // 내가 보낸 편지 보관함 조회
-    public LetterListRes getMySentBox(int memberId, int page, int size) {
+    public LetterListRes getMySentBox(long memberId, int page, int size) {
         return getLetterList(page, size, letterRepository.findBySenderId(memberId, getPageable(page, size)));
     }
 

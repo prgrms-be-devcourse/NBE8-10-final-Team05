@@ -34,7 +34,7 @@ public class JwtTokenService {
 
   /** 액세스 토큰을 발급한다. subject에는 회원 ID를 저장한다. */
   // 액세스 토큰 -> 사용자 권한 증명, Jwt 토큰 -> 데이터 규격 정의
-  public String generateAccessToken(Integer memberId, String email, Collection<String> roles) {
+  public String generateAccessToken(Long memberId, String email, Collection<String> roles) {
     // 절대 시점을 기억하기 위해 Instant 사용
     Instant issuedAt = Instant.now();
     Instant expiresAt = issuedAt.plusSeconds(jwtProperties.accessTokenExpireSeconds());
@@ -52,7 +52,7 @@ public class JwtTokenService {
   }
 
   /** 리프레시 토큰을 발급한다. 토큰 회전을 위해 jti와 familyId를 함께 클레임에 담는다. */
-  public String generateRefreshToken(Integer memberId, String jti, String familyId) {
+  public String generateRefreshToken(Long memberId, String jti, String familyId) {
     Instant issuedAt = Instant.now();
     Instant expiresAt = issuedAt.plusSeconds(jwtProperties.refreshTokenExpireSeconds());
 
@@ -77,7 +77,7 @@ public class JwtTokenService {
   public JwtSubject parseAccessToken(String token) {
     Claims claims = parseClaims(token);
     assertTokenType(claims, TOKEN_TYPE_ACCESS);
-    Integer memberId = Integer.valueOf(claims.getSubject());
+    Long memberId = Long.valueOf(claims.getSubject());
     String email = claims.get("email", String.class);
     List<String> roles = toStringList(claims.get("roles"));
     return new JwtSubject(memberId, email, roles);
@@ -87,7 +87,7 @@ public class JwtTokenService {
   public JwtRefreshSubject parseRefreshToken(String token) {
     Claims claims = parseClaims(token);
     assertTokenType(claims, TOKEN_TYPE_REFRESH);
-    Integer memberId = Integer.valueOf(claims.getSubject());
+    Long memberId = Long.valueOf(claims.getSubject());
     String jti = claims.getId();
     String familyId = claims.get(CLAIM_FAMILY_ID, String.class);
 
