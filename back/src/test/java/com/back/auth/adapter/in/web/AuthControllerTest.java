@@ -15,6 +15,7 @@ import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
 import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthService;
+import com.back.auth.application.OidcAuthorizationRequestService;
 import com.back.auth.application.RefreshTokenCookieService;
 import com.back.global.aspect.ResponseAspect;
 import com.back.global.exception.ServiceException;
@@ -53,6 +54,7 @@ class AuthControllerTest {
 
   @MockitoBean private AuthService authService;
   @MockitoBean private RefreshTokenCookieService refreshTokenCookieService;
+  @MockitoBean private OidcAuthorizationRequestService oidcAuthorizationRequestService;
   @MockitoBean private JwtTokenService jwtTokenService;
 
   @Test
@@ -171,5 +173,30 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.resultCode").value("200-6"))
         .andExpect(jsonPath("$.data.id").value(4))
         .andExpect(jsonPath("$.data.email").value("member4@test.com"));
+  }
+
+  @Test
+  @DisplayName("oidc authorize API는 provider authorize URL로 리다이렉트한다")
+  void oidcAuthorizeRedirectsToProviderUrl() throws Exception {
+    given(
+            oidcAuthorizationRequestService.startAuthorization(
+                any(String.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcAuthorizationRequestService.OidcAuthorizationStartResult(
+                "https://accounts.example.com/oauth2/v2/auth?client_id=test",
+                "state-token",
+                "nonce-token",
+                "code-verifier",
+                "http://localhost:3000/login",
+                java.time.Instant.now().plusSeconds(300)));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/authorize/{provider}", "maum-on-oidc")
+                .param("redirect_uri", "http://localhost:3000/login"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl(
+                "https://accounts.example.com/oauth2/v2/auth?client_id=test"));
   }
 }

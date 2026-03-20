@@ -46,6 +46,13 @@ gemini:
     key: ${GOOGLE_API_KEY:test_key_dummy}
 
 custom:
+  auth:
+    oidc:
+      authorize-enabled: true
+      authorize-ttl-seconds: 300
+      redirect-uri-allowlist:
+        - http://localhost:3000
+        - http://127.0.0.1:3000
   jwt:
     issuer: maum-on-test
     secret-key: maum-on-test-secret-key-at-least-32-characters-long-123456

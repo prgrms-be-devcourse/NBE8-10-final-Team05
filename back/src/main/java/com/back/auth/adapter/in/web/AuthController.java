@@ -5,6 +5,7 @@ import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
 import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthErrorCode;
+import com.back.auth.application.OidcAuthorizationRequestService;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.AuthSuccessCode;
 import com.back.auth.application.RefreshTokenCookieService;
@@ -12,10 +13,14 @@ import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +33,7 @@ public class AuthController {
 
   private final AuthService authService;
   private final RefreshTokenCookieService refreshTokenCookieService;
+  private final OidcAuthorizationRequestService oidcAuthorizationRequestService;
 
   /** 회원 가입 API. */
   @PostMapping("/signup")
@@ -81,11 +87,42 @@ public class AuthController {
         AuthSuccessCode.ME_SUCCESS.code(), AuthSuccessCode.ME_SUCCESS.message(), response);
   }
 
+  /** OIDC 로그인 시작 API: state/nonce/code_verifier를 저장하고 provider authorize URL로 리다이렉트한다. */
+  @GetMapping("/oidc/authorize/{provider}")
+  public ResponseEntity<Void> startOidcAuthorize(
+      @PathVariable String provider,
+      @RequestParam(name = "redirect_uri") String redirectUri,
+      HttpServletRequest request) {
+    String baseUrl = resolveBaseUrl(request);
+    OidcAuthorizationRequestService.OidcAuthorizationStartResult result =
+        oidcAuthorizationRequestService.startAuthorization(provider, redirectUri, baseUrl);
+    return ResponseEntity.status(302).location(URI.create(result.authorizeUrl())).build();
+  }
+
   private AuthenticatedMember resolveAuthenticatedMember(Authentication authentication) {
     if (authentication == null
         || !(authentication.getPrincipal() instanceof AuthenticatedMember principal)) {
       throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
     }
     return principal;
+  }
+
+  private String resolveBaseUrl(HttpServletRequest request) {
+    String scheme = request.getScheme();
+    String serverName = request.getServerName();
+    int port = request.getServerPort();
+    String contextPath = request.getContextPath();
+
+    boolean defaultPort = ("http".equalsIgnoreCase(scheme) && port == 80)
+        || ("https".equalsIgnoreCase(scheme) && port == 443);
+    StringBuilder builder = new StringBuilder();
+    builder.append(scheme).append("://").append(serverName);
+    if (!defaultPort) {
+      builder.append(':').append(port);
+    }
+    if (contextPath != null && !contextPath.isBlank()) {
+      builder.append(contextPath);
+    }
+    return builder.toString();
   }
 }

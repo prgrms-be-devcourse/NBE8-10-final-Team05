@@ -1,10 +1,12 @@
 package com.back.global.security.config;
 
+import com.back.auth.application.OidcAuthorizeProperties;
 import com.back.global.security.adapter.in.JwtAuthenticationFilter;
 import com.back.global.security.handler.OAuth2LoginSuccessHandler;
 import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtProperties;
+import java.time.Clock;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -40,7 +42,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, OidcAuthorizeProperties.class})
 public class SecurityConfig {
 
   @Bean
@@ -88,7 +90,11 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers(CorsUtils::isPreFlightRequest)
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/health", "/error")
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/health",
+                        "/error",
+                        "/api/v1/auth/oidc/authorize/**")
                     .permitAll()
                     .requestMatchers("/oauth2/**", "/login/oauth2/**")
                     .permitAll()
@@ -111,6 +117,11 @@ public class SecurityConfig {
   @Bean
   PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
+  }
+
+  @Bean
+  Clock clock() {
+    return Clock.systemUTC();
   }
 
   @Bean
