@@ -25,5 +25,5 @@ Thumbs.db
 **/data/
 **/logs/
 docs
-AGENTS.md.env
+AGENTS.md
 .env.example
