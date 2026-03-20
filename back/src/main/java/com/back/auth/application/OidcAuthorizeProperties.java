@@ -8,9 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record OidcAuthorizeProperties(
     boolean authorizeEnabled, long authorizeTtlSeconds, List<String> redirectUriAllowlist) {
 
+  private static final long DEFAULT_AUTHORIZE_TTL_SECONDS = 300L;
+
   public OidcAuthorizeProperties {
     if (authorizeTtlSeconds <= 0) {
-      authorizeTtlSeconds = 300L;
+      authorizeTtlSeconds = DEFAULT_AUTHORIZE_TTL_SECONDS;
     }
     if (redirectUriAllowlist == null) {
       redirectUriAllowlist = List.of();

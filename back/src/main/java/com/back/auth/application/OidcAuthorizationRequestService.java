@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +42,10 @@ public class OidcAuthorizationRequestService {
   /** URL-safe Base64 인코더(패딩 제거). state/nonce/verifier/challenge 인코딩에 사용한다. */
   private static final Base64.Encoder BASE64_URL_ENCODER =
       Base64.getUrlEncoder().withoutPadding();
+  private static final String REDIRECT_ACTION_LOGIN = "login";
+  private static final String SCHEME_HTTP = "http";
+  private static final String SCHEME_HTTPS = "https";
+  private static final String SCOPE_DELIMITER = " ";
 
   private final OidcAuthorizeProperties properties;
   private final ClientRegistrationRepository clientRegistrationRepository;
@@ -161,7 +166,7 @@ public class OidcAuthorizationRequestService {
     if (!StringUtils.hasText(provider)) {
       throw AuthErrorCode.OIDC_PROVIDER_NOT_SUPPORTED.toException();
     }
-    return provider.trim().toLowerCase();
+    return provider.trim().toLowerCase(Locale.ROOT);
   }
 
   /** 서버 baseUrl 유효성을 검증한다. */
@@ -205,7 +210,7 @@ public class OidcAuthorizationRequestService {
       throw AuthErrorCode.OIDC_REDIRECT_URI_NOT_ALLOWED.toException();
     }
     String scheme = candidate.getScheme();
-    if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+    if (!SCHEME_HTTP.equalsIgnoreCase(scheme) && !SCHEME_HTTPS.equalsIgnoreCase(scheme)) {
       throw AuthErrorCode.OIDC_REDIRECT_URI_NOT_ALLOWED.toException();
     }
 
@@ -240,7 +245,8 @@ public class OidcAuthorizationRequestService {
       if (normalizedPort(allowedUri) != normalizedPort(candidate)) {
         continue;
       }
-      if (!matchesPathPrefix(normalizePath(allowedUri.getPath()), normalizePath(candidate.getPath()))) {
+      if (!matchesPathPrefix(
+          normalizePath(allowedUri.getPath()), normalizePath(candidate.getPath()))) {
         continue;
       }
       return true;
@@ -265,7 +271,7 @@ public class OidcAuthorizationRequestService {
     variables.put("basePort", basePort);
     variables.put("basePath", basePath);
     variables.put("registrationId", registrationId);
-    variables.put("action", "login");
+    variables.put("action", REDIRECT_ACTION_LOGIN);
     return UriComponentsBuilder.fromUriString(template).buildAndExpand(variables).toUriString();
   }
 
@@ -300,7 +306,10 @@ public class OidcAuthorizationRequestService {
 
   /** 등록된 scope 컬렉션을 RFC6749 형식(공백 구분)으로 직렬화한다. */
   private String joinScopes(Collection<String> scopes) {
-    return String.join(" ", scopes);
+    if (scopes == null || scopes.isEmpty()) {
+      return "";
+    }
+    return String.join(SCOPE_DELIMITER, scopes);
   }
 
   /** PKCE S256 code_challenge 생성: BASE64URL(SHA-256(code_verifier)). */
@@ -338,7 +347,7 @@ public class OidcAuthorizationRequestService {
     if (uri.getPort() >= 0) {
       return uri.getPort();
     }
-    return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    return SCHEME_HTTPS.equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
   }
 
   /** null-safe 대소문자 무시 문자열 비교. */

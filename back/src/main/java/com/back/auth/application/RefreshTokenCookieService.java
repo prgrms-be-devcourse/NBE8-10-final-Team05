@@ -37,27 +37,28 @@ public class RefreshTokenCookieService {
 
   /** refresh 토큰을 HttpOnly 쿠키로 내려준다. */
   public void issueRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-    ResponseCookie cookie =
-        ResponseCookie.from(jwtProperties.refreshTokenCookieName(), refreshToken)
-            .httpOnly(true)
-            .secure(jwtProperties.refreshTokenCookieSecure())
-            .path("/")
-            .sameSite(jwtProperties.refreshTokenCookieSameSite())
-            .maxAge(Duration.ofSeconds(jwtProperties.refreshTokenExpireSeconds()))
-            .build();
-    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    addSetCookieHeader(
+        response,
+        buildRefreshCookie(
+            refreshToken, Duration.ofSeconds(jwtProperties.refreshTokenExpireSeconds())));
   }
 
   /** refresh 쿠키를 즉시 만료시켜 로그아웃 상태를 만든다. */
   public void expireRefreshTokenCookie(HttpServletResponse response) {
-    ResponseCookie cookie =
-        ResponseCookie.from(jwtProperties.refreshTokenCookieName(), "")
-            .httpOnly(true)
-            .secure(jwtProperties.refreshTokenCookieSecure())
-            .path("/")
-            .sameSite(jwtProperties.refreshTokenCookieSameSite())
-            .maxAge(Duration.ZERO)
-            .build();
+    addSetCookieHeader(response, buildRefreshCookie("", Duration.ZERO));
+  }
+
+  private ResponseCookie buildRefreshCookie(String value, Duration maxAge) {
+    return ResponseCookie.from(jwtProperties.refreshTokenCookieName(), value)
+        .httpOnly(true)
+        .secure(jwtProperties.refreshTokenCookieSecure())
+        .path("/")
+        .sameSite(jwtProperties.refreshTokenCookieSameSite())
+        .maxAge(maxAge)
+        .build();
+  }
+
+  private void addSetCookieHeader(HttpServletResponse response, ResponseCookie cookie) {
     response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
   }
 }

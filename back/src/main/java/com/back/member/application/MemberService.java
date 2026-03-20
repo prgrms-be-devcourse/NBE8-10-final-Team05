@@ -6,6 +6,7 @@ import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,33 +22,35 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class MemberService {
 
+  private static final String ERROR_CODE_BAD_REQUEST = "400-1";
+  private static final String ERROR_CODE_NOT_FOUND = "404-1";
+  private static final String ERROR_CODE_CONFLICT = "409-1";
+  private static final String ERROR_MSG_EMAIL_EXISTS = "Member email already exists.";
+  private static final String ERROR_MSG_MEMBER_NOT_FOUND = "Member not found.";
+  private static final String ERROR_MSG_EMAIL_BLANK = "email must not be blank.";
+  private static final String ERROR_MSG_PASSWORD_BLANK = "password must not be blank.";
+
   private final MemberRepository memberRepository;
   private final PasswordEncoder passwordEncoder;
 
+  /** 신규 회원을 생성하고 응답 DTO로 반환한다. */
   @Transactional
   public MemberResponse createMember(CreateMemberRequest request) {
-    // 이메일 표준화(공백 제거 + 소문자화) 후 중복을 검사한다.
     String email = normalizeEmail(request.email());
-
-    if (memberRepository.existsByEmail(email)) {
-      throw new ServiceException("409-1", "Member email already exists.");
-    }
-
-    // 비밀번호 원문은 저장하지 않고, 해시값만 저장한다.
-    String rawPassword = normalizeRawPassword(request.password());
-    String passwordHash = passwordEncoder.encode(rawPassword);
+    validateEmailNotDuplicated(email);
+    String passwordHash = encodePassword(request.password());
     Member member = Member.create(email, passwordHash, request.nickname());
     return MemberResponse.from(memberRepository.save(member));
   }
 
+  /** memberId로 회원 단건 조회를 수행한다. */
   public MemberResponse getMember(Long memberId) {
-    // 조회 실패 시 ServiceException(404-1)로 일관된 에러 응답을 만든다.
     return MemberResponse.from(findMemberById(memberId));
   }
 
+  /** 회원 프로필(현재는 닉네임)을 수정한다. */
   @Transactional
   public MemberResponse updateProfile(Long memberId, UpdateMemberProfileRequest request) {
-    // 현재는 닉네임만 수정한다. 엔티티 변경 감지로 트랜잭션 종료 시 반영된다.
     Member member = findMemberById(memberId);
     member.updateNickname(request.nickname());
     return MemberResponse.from(member);
@@ -56,22 +59,30 @@ public class MemberService {
   private Member findMemberById(Long memberId) {
     return memberRepository
         .findById(memberId)
-        .orElseThrow(() -> new ServiceException("404-1", "Member not found."));
+        .orElseThrow(() -> new ServiceException(ERROR_CODE_NOT_FOUND, ERROR_MSG_MEMBER_NOT_FOUND));
   }
 
   private String normalizeEmail(String email) {
-    // 이메일은 필수값이며, 비교 일관성을 위해 소문자로 저장한다.
     if (email == null || email.isBlank()) {
-      throw new ServiceException("400-1", "email must not be blank.");
+      throw new ServiceException(ERROR_CODE_BAD_REQUEST, ERROR_MSG_EMAIL_BLANK);
     }
-    return email.trim().toLowerCase();
+    return email.trim().toLowerCase(Locale.ROOT);
   }
 
-  private String normalizeRawPassword(String password) {
-    // 비밀번호 공백/NULL 방지. 실제 보안 처리는 createMember에서 인코딩한다.
-    if (password == null || password.isBlank()) {
-      throw new ServiceException("400-1", "password must not be blank.");
+  private void validateEmailNotDuplicated(String email) {
+    if (memberRepository.existsByEmail(email)) {
+      throw new ServiceException(ERROR_CODE_CONFLICT, ERROR_MSG_EMAIL_EXISTS);
     }
-    return password;
+  }
+
+  private String encodePassword(String rawPassword) {
+    validateRawPassword(rawPassword);
+    return passwordEncoder.encode(rawPassword);
+  }
+
+  private void validateRawPassword(String password) {
+    if (password == null || password.isBlank()) {
+      throw new ServiceException(ERROR_CODE_BAD_REQUEST, ERROR_MSG_PASSWORD_BLANK);
+    }
   }
 }

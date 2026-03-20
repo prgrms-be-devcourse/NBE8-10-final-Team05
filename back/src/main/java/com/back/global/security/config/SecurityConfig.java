@@ -94,7 +94,8 @@ public class SecurityConfig {
                         HttpMethod.GET,
                         "/api/v1/health",
                         "/error",
-                        "/api/v1/auth/oidc/authorize/**")
+                        "/api/v1/auth/oidc/authorize/**",
+                        "/api/v1/auth/oidc/callback/**")
                     .permitAll()
                     .requestMatchers("/oauth2/**", "/login/oauth2/**")
                     .permitAll()

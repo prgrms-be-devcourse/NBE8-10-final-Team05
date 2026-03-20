@@ -22,6 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseEntity {
 
+  private static final String DEFAULT_NICKNAME = "anonymous";
+
   /** 로그인 식별 이메일(유니크). */
   @Column(nullable = false, length = 120)
   private String email;
@@ -53,13 +55,15 @@ public class Member extends BaseEntity {
     this.status = status;
   }
 
+  /** 일반 회원 생성 팩토리. 기본 role/status는 USER/ACTIVE를 사용한다. */
   public static Member create(String email, String passwordHash, String nickname) {
     return new Member(
-        email, passwordHash, normalizeNickname(nickname), MemberRole.USER, MemberStatus.ACTIVE);
+        email, passwordHash, sanitizeNickname(nickname), MemberRole.USER, MemberStatus.ACTIVE);
   }
 
+  /** 프로필 닉네임을 갱신한다(빈 값은 기본 닉네임으로 보정). */
   public void updateNickname(String nickname) {
-    this.nickname = normalizeNickname(nickname);
+    this.nickname = sanitizeNickname(nickname);
   }
 
   /** 비밀번호 비교는 문자열 비교가 아닌 PasswordEncoder.matches 수행한다. */
@@ -69,7 +73,7 @@ public class Member extends BaseEntity {
 
   /** DB 저장 직전 role/status 기본값 보정. */
   @PrePersist
-  private void applyDefaults() {
+  private void applyDefaultRoleAndStatus() {
     if (role == null) {
       role = MemberRole.USER;
     }
@@ -78,9 +82,9 @@ public class Member extends BaseEntity {
     }
   }
 
-  private static String normalizeNickname(String nickname) {
+  private static String sanitizeNickname(String nickname) {
     if (nickname == null || nickname.isBlank()) {
-      return "anonymous";
+      return DEFAULT_NICKNAME;
     }
     return nickname.trim();
   }

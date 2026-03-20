@@ -10,6 +10,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,9 @@ import org.springframework.util.StringUtils;
     })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OAuthAccount extends BaseEntity {
+
+  private static final String ERR_PROVIDER_BLANK = "provider must not be blank";
+  private static final String ERR_PROVIDER_USER_ID_BLANK = "providerUserId must not be blank";
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "member_id", nullable = false)
@@ -92,14 +96,14 @@ public class OAuthAccount extends BaseEntity {
 
   private static String normalizeProvider(String provider) {
     if (!StringUtils.hasText(provider)) {
-      throw new IllegalArgumentException("provider must not be blank");
+      throw new IllegalArgumentException(ERR_PROVIDER_BLANK);
     }
-    return provider.trim().toLowerCase();
+    return provider.trim().toLowerCase(Locale.ROOT);
   }
 
   private static String normalizeProviderUserId(String providerUserId) {
     if (!StringUtils.hasText(providerUserId)) {
-      throw new IllegalArgumentException("providerUserId must not be blank");
+      throw new IllegalArgumentException(ERR_PROVIDER_USER_ID_BLANK);
     }
     return providerUserId.trim();
   }
@@ -108,6 +112,6 @@ public class OAuthAccount extends BaseEntity {
     if (!StringUtils.hasText(email)) {
       return null;
     }
-    return email.trim().toLowerCase();
+    return email.trim().toLowerCase(Locale.ROOT);
   }
 }

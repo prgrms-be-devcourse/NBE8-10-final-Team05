@@ -16,6 +16,7 @@ import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
 import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.OidcAuthorizationRequestService;
+import com.back.auth.application.OidcCallbackService;
 import com.back.auth.application.RefreshTokenCookieService;
 import com.back.global.aspect.ResponseAspect;
 import com.back.global.exception.ServiceException;
@@ -55,6 +56,7 @@ class AuthControllerTest {
   @MockitoBean private AuthService authService;
   @MockitoBean private RefreshTokenCookieService refreshTokenCookieService;
   @MockitoBean private OidcAuthorizationRequestService oidcAuthorizationRequestService;
+  @MockitoBean private OidcCallbackService oidcCallbackService;
   @MockitoBean private JwtTokenService jwtTokenService;
 
   @Test
@@ -198,5 +200,33 @@ class AuthControllerTest {
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl(
                 "https://accounts.example.com/oauth2/v2/auth?client_id=test"));
+  }
+
+  @Test
+  @DisplayName("oidc callback API는 refresh 쿠키를 발급하고 프론트로 리다이렉트한다")
+  void oidcCallbackIssuesRefreshCookieAndRedirectsFront() throws Exception {
+    AuthTokenResponse tokenResponse =
+        new AuthTokenResponse(
+            "oidc-access-token",
+            "Bearer",
+            3600L,
+            new AuthMemberResponse(5L, "oidc@test.com", "oidc-user", "USER", "ACTIVE"));
+    AuthService.AuthTokenIssueResult issueResult =
+        new AuthService.AuthTokenIssueResult(tokenResponse, "oidc-refresh-token");
+
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willReturn(new OidcCallbackService.OidcCallbackResult("http://localhost:3000/login/success", issueResult));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "state-value"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl(
+                "http://localhost:3000/login/success"));
+
+    then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
   }
 }
