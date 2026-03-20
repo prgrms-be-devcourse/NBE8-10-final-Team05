@@ -14,8 +14,13 @@ import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +35,12 @@ import org.springframework.util.StringUtils;
 @Transactional(readOnly = true)
 public class AuthService {
 
+  private static final String ERROR_CODE_BAD_REQUEST = "400-1";
+  private static final String ERROR_MSG_EMAIL_BLANK = "email must not be blank.";
+  private static final String ERROR_MSG_PASSWORD_BLANK = "password must not be blank.";
+  private static final String ROLE_PREFIX = "ROLE_";
+  private static final String DEFAULT_NICKNAME = "anonymous";
+
   private final MemberRepository memberRepository;
   private final PasswordEncoder passwordEncoder;
   private final JwtTokenService jwtTokenService;
@@ -40,13 +51,8 @@ public class AuthService {
   @Transactional
   public AuthMemberResponse signup(AuthSignupRequest request) {
     String email = normalizeEmail(request.email());
-    String rawPassword = normalizePassword(request.password());
-
-    if (memberRepository.existsByEmail(email)) {
-      throw AuthErrorCode.EMAIL_ALREADY_EXISTS.toException();
-    }
-
-    String passwordHash = passwordEncoder.encode(rawPassword);
+    validateEmailNotDuplicated(email);
+    String passwordHash = passwordEncoder.encode(requirePassword(request.password()));
     Member member = Member.create(email, passwordHash, request.nickname());
     return AuthMemberResponse.from(memberRepository.save(member));
   }
@@ -55,11 +61,8 @@ public class AuthService {
   @Transactional
   public AuthTokenIssueResult login(AuthLoginRequest request) {
     String email = normalizeEmail(request.email());
-    String rawPassword = normalizePassword(request.password());
-    Member member =
-        memberRepository
-            .findByEmail(email)
-            .orElseThrow(AuthErrorCode.INVALID_EMAIL_OR_PASSWORD::toException);
+    String rawPassword = requirePassword(request.password());
+    Member member = findByEmailForLogin(email);
 
     if (!member.matchesPassword(rawPassword, passwordEncoder)) {
       throw AuthErrorCode.INVALID_EMAIL_OR_PASSWORD.toException();
@@ -81,6 +84,16 @@ public class AuthService {
             .orElseGet(() -> createOidcMember(normalizedEmail, normalizedNickname));
 
     assertMemberCanAuthenticate(member);
+    return issueTokenPairForMember(member);
+  }
+
+  /** 이미 식별된 회원 기준으로 기존 내부 토큰 발급 경로를 재사용한다. */
+  @Transactional
+  public AuthTokenIssueResult issueTokenPairForMember(Member member) {
+    if (member == null) {
+      throw AuthErrorCode.MEMBER_NOT_FOUND.toException();
+    }
+    assertMemberCanAuthenticate(member);
     return issueTokenPair(member, UUID.randomUUID().toString());
   }
 
@@ -101,7 +114,7 @@ public class AuthService {
             .findByJti(refreshSubject.jti())
             .orElseThrow(AuthErrorCode.REFRESH_TOKEN_INVALID::toException);
 
-    if (!passwordEncoder.matches(rawRefreshToken, current.getTokenHash())) {
+    if (!matchesRefreshToken(rawRefreshToken, current.getTokenHash())) {
       throw AuthErrorCode.REFRESH_TOKEN_INVALID.toException();
     }
 
@@ -123,7 +136,7 @@ public class AuthService {
     String nextJti = UUID.randomUUID().toString();
     String nextRefreshToken =
         jwtTokenService.generateRefreshToken(member.getId(), nextJti, current.getFamilyId());
-    String nextRefreshTokenHash = passwordEncoder.encode(nextRefreshToken);
+    String nextRefreshTokenHash = hashRefreshToken(nextRefreshToken);
 
     refreshTokenDomainService.rotate(
         current.getJti(),
@@ -152,7 +165,7 @@ public class AuthService {
 
     refreshTokenDomainService
         .findByJti(refreshSubject.jti())
-        .filter(stored -> passwordEncoder.matches(rawRefreshToken, stored.getTokenHash()))
+        .filter(stored -> matchesRefreshToken(rawRefreshToken, stored.getTokenHash()))
         .filter(stored -> stored.getRevokedAt() == null)
         .filter(stored -> stored.getExpiresAt().isAfter(LocalDateTime.now()))
         .ifPresent(
@@ -184,7 +197,7 @@ public class AuthService {
     String refreshJti = UUID.randomUUID().toString();
     String refreshToken =
         jwtTokenService.generateRefreshToken(member.getId(), refreshJti, familyId);
-    String refreshTokenHash = passwordEncoder.encode(refreshToken);
+    String refreshTokenHash = hashRefreshToken(refreshToken);
     LocalDateTime now = LocalDateTime.now();
 
     refreshTokenDomainService.saveIssuedToken(
@@ -200,7 +213,7 @@ public class AuthService {
 
   private String generateAccessToken(Member member) {
     return jwtTokenService.generateAccessToken(
-        member.getId(), member.getEmail(), List.of("ROLE_" + member.getRole().name()));
+        member.getId(), member.getEmail(), List.of(ROLE_PREFIX + member.getRole().name()));
   }
 
   private AuthTokenResponse toTokenResponse(String accessToken, Member member) {
@@ -228,14 +241,14 @@ public class AuthService {
 
   private String normalizeEmail(String email) {
     if (!StringUtils.hasText(email)) {
-      throw new ServiceException("400-1", "email must not be blank.");
+      throw new ServiceException(ERROR_CODE_BAD_REQUEST, ERROR_MSG_EMAIL_BLANK);
     }
-    return email.trim().toLowerCase();
+    return email.trim().toLowerCase(Locale.ROOT);
   }
 
-  private String normalizePassword(String password) {
+  private String requirePassword(String password) {
     if (!StringUtils.hasText(password)) {
-      throw new ServiceException("400-1", "password must not be blank.");
+      throw new ServiceException(ERROR_CODE_BAD_REQUEST, ERROR_MSG_PASSWORD_BLANK);
     }
     return password;
   }
@@ -250,7 +263,41 @@ public class AuthService {
       return emailFallback.substring(0, atIndex);
     }
 
-    return "anonymous";
+    return DEFAULT_NICKNAME;
+  }
+
+  /**
+   * refresh 토큰 저장용 해시를 생성한다.
+   *
+   * <p>BCrypt(72 bytes 제한) 대신 SHA-256을 사용해 JWT 길이와 무관하게 안정적으로 처리한다.
+   */
+  private String hashRefreshToken(String rawRefreshToken) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hashBytes = digest.digest(rawRefreshToken.getBytes(StandardCharsets.UTF_8));
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("SHA-256 algorithm is not available.", exception);
+    }
+  }
+
+  private boolean matchesRefreshToken(String rawRefreshToken, String storedTokenHash) {
+    String calculatedHash = hashRefreshToken(rawRefreshToken);
+    return MessageDigest.isEqual(
+        calculatedHash.getBytes(StandardCharsets.UTF_8),
+        storedTokenHash.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private void validateEmailNotDuplicated(String email) {
+    if (memberRepository.existsByEmail(email)) {
+      throw AuthErrorCode.EMAIL_ALREADY_EXISTS.toException();
+    }
+  }
+
+  private Member findByEmailForLogin(String email) {
+    return memberRepository
+        .findByEmail(email)
+        .orElseThrow(AuthErrorCode.INVALID_EMAIL_OR_PASSWORD::toException);
   }
 
   /** 컨트롤러에서 쿠키 발급을 위해 사용하는 access/refresh 발급 결과 DTO. */

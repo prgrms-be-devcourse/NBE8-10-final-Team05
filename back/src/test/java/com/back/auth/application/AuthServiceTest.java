@@ -19,7 +19,11 @@ import com.back.global.security.jwt.JwtRefreshSubject;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,7 +70,6 @@ class AuthServiceTest {
     given(passwordEncoder.matches("plain-pass", "$2a$10$stored")).willReturn(true);
     given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
         .willReturn("raw-refresh-token");
-    given(passwordEncoder.encode("raw-refresh-token")).willReturn("$2a$10$refresh-hash");
     given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
     given(jwtTokenService.generateAccessToken(any(Long.class), anyString(), any()))
         .willReturn("access-token");
@@ -77,10 +80,16 @@ class AuthServiceTest {
 
     assertThat(result.response().accessToken()).isEqualTo("access-token");
     assertThat(result.refreshToken()).isEqualTo("raw-refresh-token");
+    ArgumentCaptor<String> refreshHashCaptor = ArgumentCaptor.forClass(String.class);
     then(refreshTokenDomainService)
         .should()
         .saveIssuedToken(
-            any(Member.class), anyString(), anyString(), any(LocalDateTime.class), anyString());
+            any(Member.class),
+            anyString(),
+            refreshHashCaptor.capture(),
+            any(LocalDateTime.class),
+            anyString());
+    assertThat(refreshHashCaptor.getValue()).isEqualTo(refreshTokenHash("raw-refresh-token"));
   }
 
   @Test
@@ -115,17 +124,15 @@ class AuthServiceTest {
         RefreshToken.issue(
             member,
             "jti-current",
-            "$2a$10$refresh-hash",
+            refreshTokenHash("raw-refresh-token"),
             LocalDateTime.now().plusHours(1),
             "family-1");
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-current", "family-1"));
     given(refreshTokenDomainService.findByJti("jti-current")).willReturn(Optional.of(current));
-    given(passwordEncoder.matches("raw-refresh-token", "$2a$10$refresh-hash")).willReturn(true);
     given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
         .willReturn("next-refresh-token");
-    given(passwordEncoder.encode("next-refresh-token")).willReturn("$2a$10$next-hash");
     given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
     given(jwtTokenService.generateAccessToken(any(Long.class), anyString(), any()))
         .willReturn("next-access-token");
@@ -135,14 +142,16 @@ class AuthServiceTest {
 
     assertThat(result.response().accessToken()).isEqualTo("next-access-token");
     assertThat(result.refreshToken()).isEqualTo("next-refresh-token");
+    ArgumentCaptor<String> nextHashCaptor = ArgumentCaptor.forClass(String.class);
     then(refreshTokenDomainService)
         .should()
         .rotate(
             anyString(),
             anyString(),
-            anyString(),
+            nextHashCaptor.capture(),
             any(LocalDateTime.class),
             any(LocalDateTime.class));
+    assertThat(nextHashCaptor.getValue()).isEqualTo(refreshTokenHash("next-refresh-token"));
   }
 
   @Test
@@ -153,7 +162,7 @@ class AuthServiceTest {
         RefreshToken.issue(
             member,
             "jti-reused",
-            "$2a$10$refresh-hash",
+            refreshTokenHash("raw-refresh-token"),
             LocalDateTime.now().plusHours(1),
             "family-2");
     revoked.revoke(LocalDateTime.now().minusMinutes(1), null);
@@ -161,7 +170,6 @@ class AuthServiceTest {
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-reused", "family-2"));
     given(refreshTokenDomainService.findByJti("jti-reused")).willReturn(Optional.of(revoked));
-    given(passwordEncoder.matches("raw-refresh-token", "$2a$10$refresh-hash")).willReturn(true);
 
     assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
         .isInstanceOf(ServiceException.class)
@@ -182,14 +190,13 @@ class AuthServiceTest {
         RefreshToken.issue(
             member,
             "jti-expired",
-            "$2a$10$refresh-hash",
+            refreshTokenHash("raw-refresh-token"),
             LocalDateTime.now().minusSeconds(1),
             "family-expired");
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-expired", "family-expired"));
     given(refreshTokenDomainService.findByJti("jti-expired")).willReturn(Optional.of(expiredToken));
-    given(passwordEncoder.matches("raw-refresh-token", "$2a$10$refresh-hash")).willReturn(true);
 
     assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
         .isInstanceOf(ServiceException.class)
@@ -224,5 +231,15 @@ class AuthServiceTest {
     assertThat(response.id()).isEqualTo(member.getId());
     assertThat(response.email()).isEqualTo(member.getEmail());
     assertThat(response.nickname()).isEqualTo(member.getNickname());
+  }
+
+  private String refreshTokenHash(String rawRefreshToken) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hashBytes = digest.digest(rawRefreshToken.getBytes(StandardCharsets.UTF_8));
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException(exception);
+    }
   }
 }
