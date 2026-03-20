@@ -34,6 +34,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-web")
 
+    // GEMINI
+    implementation("com.google.genai:google-genai:1.0.0")
+    implementation ("com.fasterxml.jackson.core:jackson-databind")
+    implementation("io.github.cdimascio:dotenv-java:3.0.0")
+
     // JWT (토큰 생성/검증)
     implementation("io.jsonwebtoken:jjwt-api:$jwtVersion")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:$jwtVersion")
