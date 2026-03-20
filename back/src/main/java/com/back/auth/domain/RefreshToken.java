@@ -18,8 +18,8 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-    name = "refresh_tokens",
-    uniqueConstraints = {@UniqueConstraint(name = "uk_refresh_tokens_jti", columnNames = "jti")})
+        name = "refresh_tokens",
+        uniqueConstraints = {@UniqueConstraint(name = "uk_refresh_tokens_jti", columnNames = "jti")})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseEntity {
 
@@ -53,13 +53,13 @@ public class RefreshToken extends BaseEntity {
   private String replacedBy;
 
   private RefreshToken(
-      Member member,
-      String jti,
-      String tokenHash,
-      LocalDateTime expiresAt,
-      String familyId,
-      LocalDateTime revokedAt,
-      String replacedBy) {
+          Member member,
+          String jti,
+          String tokenHash,
+          LocalDateTime expiresAt,
+          String familyId,
+          LocalDateTime revokedAt,
+          String replacedBy) {
     this.member = member;
     this.jti = jti;
     this.tokenHash = tokenHash;
@@ -71,9 +71,9 @@ public class RefreshToken extends BaseEntity {
 
   /** 새 리프레시 토큰 발급 엔트리 생성. familyId가 없으면 현재 jti를 familyId로 사용한다. */
   public static RefreshToken issue(
-      Member member, String jti, String tokenHash, LocalDateTime expiresAt, String familyId) {
+          Member member, String jti, String tokenHash, LocalDateTime expiresAt, String familyId) {
     return new RefreshToken(
-        member, jti, tokenHash, expiresAt, normalizeFamilyId(familyId, jti), null, null);
+            member, jti, tokenHash, expiresAt, normalizeFamilyId(familyId, jti), null, null);
   }
 
   /** 토큰을 폐기하고, 회전 케이스면 대체 토큰 jti를 기록한다. */

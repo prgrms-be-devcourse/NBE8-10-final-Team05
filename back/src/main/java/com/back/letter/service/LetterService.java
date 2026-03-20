@@ -34,17 +34,12 @@ public class LetterService {
     @Transactional
     public int createLetterAndDirectSendLetter(CreateLetterReq req, int senderId){
 
-        // 1. 기존에 편지를 썼던 유저들(senderId 모음) 중 나를 제외한 랜덤 1인 추출
-        // 만약 첫 유저라 보낼 대상이 없다면 null이 할당
-
         Member sender = memberRepository.findById(senderId)
                 .orElseThrow(()-> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
 
         Member randomReceiverId = letterRepository.findRandomMemberExceptMe(sender.getId())
                 .orElseThrow(()->new ServiceException("404-2", "배송 가능한 유저가 없습니다."));
 
-        // 2. 빌더 패턴을 사용하여 편지 엔티티 생성
-        // 수신자(receiverId)를 생성 시점에 바로 할당하여 배송
         Letter letter = Letter.builder()
                 .title(req.title())
                 .content(req.content())
@@ -52,6 +47,11 @@ public class LetterService {
                 .receiver(randomReceiverId)
                 .status(LetterStatus.SENT)
                 .build();
+
+        System.out.println("==== 편지 발송 확인 ====");
+        System.out.println("발신자 ID: " + senderId);
+        System.out.println("수신자 ID: " + randomReceiverId.getId());
+        System.out.println("========================");
 
         // 3. 저장 후 생성된 편지의 고유 ID 반환
         return letterRepository.save(letter).getId();
@@ -62,9 +62,13 @@ public class LetterService {
       [편지 단건 조회]
       특정 ID의 편지 내용을 확인
      */
-    public LetterInfoRes getLetter(int id){
+    public LetterInfoRes getLetter(int id, int accessorId){
         Letter letter = letterRepository.findById(id)
                 .orElseThrow(()->new ServiceException("404-1","편지를 찾을 수 없습니다."));
+
+        if(letter.getSender().getId() != accessorId && letter.getReceiver().getId() != accessorId) {
+            throw new ServiceException("403-1", "이 편지를 볼 권한이 없습니다.");
+        }
 
         return LetterInfoRes.from(letter);
     }
@@ -74,10 +78,16 @@ public class LetterService {
       수신자가 고민 편지에 대해 답장을 남기면 상태를 REPLIED로 변경
      */
     @Transactional
-    public void replyLetter(int id, ReplyLetterReq req) {
+    public void replyLetter(int id, ReplyLetterReq req, int accessorId) {
         Letter letter = letterRepository.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1","편지를 찾을 수 없습니다."));
 
+        if(letter.getReceiver().getId() != accessorId){
+            throw new ServiceException("403-2", "본인이 받은 편지에만 답장할 수 있습니다.");
+        }
+        if(letter.getStatus() == LetterStatus.REPLIED){
+            throw new ServiceException("400-2", "이미 답장한 편지입니다.");
+        }
         // Entity 내부의 비즈니스 로직(reply)을 호출하여 데이터 변경 및 상태 업데이트
         letter.reply(req.replyContent());
     }
