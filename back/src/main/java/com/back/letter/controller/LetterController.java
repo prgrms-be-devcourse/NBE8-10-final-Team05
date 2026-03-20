@@ -2,6 +2,7 @@ package com.back.letter.controller;
 
 
 import com.back.auth.application.AuthErrorCode;
+import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.letter.dto.CreateLetterReq;
@@ -28,6 +29,7 @@ public class LetterController {
             @RequestBody @Valid CreateLetterReq req,
             @AuthenticationPrincipal AuthenticatedMember authMember
             ){
+        if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
         int id = letterService.createLetterAndDirectSendLetter(req, authMember.memberId());
         return ResponseEntity.ok(new RsData<>("200-1","편지가 전송되었습니다.", id));
@@ -39,6 +41,8 @@ public class LetterController {
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal AuthenticatedMember authMember
     ) {
+        if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+
         LetterListRes data = letterService.getMyInbox(authMember.memberId(), page, size);
         return ResponseEntity.ok(new RsData<>("200-2", "받은 편지 보관함 조회 성공", data));
     }
@@ -49,6 +53,8 @@ public class LetterController {
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal AuthenticatedMember authMember
     ){
+        if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+
         LetterListRes data = letterService.getMySentBox(authMember.memberId(), page, size);
         return ResponseEntity.ok(new RsData<>("200-3", "보낸 편지 보관함 조회 성공", data));
     }
@@ -59,6 +65,7 @@ public class LetterController {
             @AuthenticationPrincipal AuthenticatedMember authMember
     ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+
         LetterInfoRes data = letterService.getLetter(id, authMember.memberId());
         return ResponseEntity.ok(new RsData<>("200-4","편지 상세 조회 성공", data));
     }
@@ -70,6 +77,7 @@ public class LetterController {
             @AuthenticationPrincipal AuthenticatedMember authMember
     ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+
         letterService.replyLetter(id, req, authMember.memberId());
         return ResponseEntity.ok(new RsData<>("200-5", "답장이 등록되었습니다."));
     }
