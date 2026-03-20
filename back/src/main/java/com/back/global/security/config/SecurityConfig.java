@@ -82,7 +82,6 @@ public class SecurityConfig {
                                     .permitAll()
                                     .requestMatchers(HttpMethod.POST, "/api/v1/members", "/api/v1/auth/**")
                                     .permitAll()
-                                    .requestMatchers("/api/v1/letters/**").permitAll()
                                     // 관리자 경로는 ADMIN 권한이 필요하다.
                                     .requestMatchers("/api/v1/admin/**")
                                     .hasRole("ADMIN")
