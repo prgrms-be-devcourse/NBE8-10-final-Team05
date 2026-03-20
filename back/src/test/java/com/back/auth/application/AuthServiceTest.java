@@ -90,7 +90,8 @@ class AuthServiceTest {
     given(memberRepository.findByEmail("member2@test.com")).willReturn(Optional.of(member));
     given(passwordEncoder.matches("wrong-pass", "$2a$10$stored")).willReturn(false);
 
-    assertThatThrownBy(() -> authService.login(new AuthLoginRequest("member2@test.com", "wrong-pass")))
+    assertThatThrownBy(
+            () -> authService.login(new AuthLoginRequest("member2@test.com", "wrong-pass")))
         .isInstanceOf(ServiceException.class)
         .satisfies(
             exception -> {
@@ -196,8 +197,7 @@ class AuthServiceTest {
             exception -> {
               ServiceException serviceException = (ServiceException) exception;
               assertThat(serviceException.getRsData().resultCode()).isEqualTo("401-4");
-              assertThat(serviceException.getRsData().msg())
-                  .isEqualTo("Refresh token is invalid.");
+              assertThat(serviceException.getRsData().msg()).isEqualTo("Refresh token is invalid.");
             });
 
     then(refreshTokenDomainService)

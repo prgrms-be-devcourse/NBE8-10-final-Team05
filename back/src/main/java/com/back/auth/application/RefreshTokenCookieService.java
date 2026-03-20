@@ -40,9 +40,9 @@ public class RefreshTokenCookieService {
     ResponseCookie cookie =
         ResponseCookie.from(jwtProperties.refreshTokenCookieName(), refreshToken)
             .httpOnly(true)
-            .secure(false)
+            .secure(jwtProperties.refreshTokenCookieSecure())
             .path("/")
-            .sameSite("Lax")
+            .sameSite(jwtProperties.refreshTokenCookieSameSite())
             .maxAge(Duration.ofSeconds(jwtProperties.refreshTokenExpireSeconds()))
             .build();
     response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -53,9 +53,9 @@ public class RefreshTokenCookieService {
     ResponseCookie cookie =
         ResponseCookie.from(jwtProperties.refreshTokenCookieName(), "")
             .httpOnly(true)
-            .secure(false)
+            .secure(jwtProperties.refreshTokenCookieSecure())
             .path("/")
-            .sameSite("Lax")
+            .sameSite(jwtProperties.refreshTokenCookieSameSite())
             .maxAge(Duration.ZERO)
             .build();
     response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

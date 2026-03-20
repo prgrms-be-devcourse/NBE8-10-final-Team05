@@ -16,6 +16,7 @@ import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -65,23 +66,22 @@ public class AuthService {
     }
 
     assertMemberCanAuthenticate(member);
+    return issueTokenPair(member, UUID.randomUUID().toString());
+  }
 
-    String refreshJti = UUID.randomUUID().toString();
-    String familyId = UUID.randomUUID().toString();
-    String refreshToken =
-        jwtTokenService.generateRefreshToken(member.getId(), refreshJti, familyId);
-    String refreshTokenHash = passwordEncoder.encode(refreshToken);
-    LocalDateTime now = LocalDateTime.now();
+  /** OIDC 로그인 처리: 이메일로 회원을 조회하고 없으면 생성한 뒤 access/refresh 토큰을 발급한다. */
+  @Transactional
+  public AuthTokenIssueResult oidcLogin(String email, String nickname) {
+    String normalizedEmail = normalizeEmail(email);
+    String normalizedNickname = normalizeNickname(nickname, normalizedEmail);
 
-    refreshTokenDomainService.saveIssuedToken(
-        member,
-        refreshJti,
-        refreshTokenHash,
-        now.plusSeconds(jwtProperties.refreshTokenExpireSeconds()),
-        familyId);
+    Member member =
+        memberRepository
+            .findByEmail(normalizedEmail)
+            .orElseGet(() -> createOidcMember(normalizedEmail, normalizedNickname));
 
-    String accessToken = generateAccessToken(member);
-    return new AuthTokenIssueResult(toTokenResponse(accessToken, member), refreshToken);
+    assertMemberCanAuthenticate(member);
+    return issueTokenPair(member, UUID.randomUUID().toString());
   }
 
   /** refresh 회전 처리: 기존 토큰 폐기 + 신규 refresh/access 토큰 발급. */
@@ -115,7 +115,7 @@ public class AuthService {
     }
 
     Member member = current.getMember();
-    if (member.getId() != refreshSubject.memberId()) {
+    if (!Objects.equals(member.getId(), refreshSubject.memberId())) {
       throw AuthErrorCode.REFRESH_TOKEN_INVALID.toException();
     }
     assertMemberCanAuthenticate(member);
@@ -124,7 +124,6 @@ public class AuthService {
     String nextRefreshToken =
         jwtTokenService.generateRefreshToken(member.getId(), nextJti, current.getFamilyId());
     String nextRefreshTokenHash = passwordEncoder.encode(nextRefreshToken);
-
 
     refreshTokenDomainService.rotate(
         current.getJti(),
@@ -181,6 +180,24 @@ public class AuthService {
     }
   }
 
+  private AuthTokenIssueResult issueTokenPair(Member member, String familyId) {
+    String refreshJti = UUID.randomUUID().toString();
+    String refreshToken =
+        jwtTokenService.generateRefreshToken(member.getId(), refreshJti, familyId);
+    String refreshTokenHash = passwordEncoder.encode(refreshToken);
+    LocalDateTime now = LocalDateTime.now();
+
+    refreshTokenDomainService.saveIssuedToken(
+        member,
+        refreshJti,
+        refreshTokenHash,
+        now.plusSeconds(jwtProperties.refreshTokenExpireSeconds()),
+        familyId);
+
+    String accessToken = generateAccessToken(member);
+    return new AuthTokenIssueResult(toTokenResponse(accessToken, member), refreshToken);
+  }
+
   private String generateAccessToken(Member member) {
     return jwtTokenService.generateAccessToken(
         member.getId(), member.getEmail(), List.of("ROLE_" + member.getRole().name()));
@@ -192,6 +209,12 @@ public class AuthService {
         "Bearer",
         jwtProperties.accessTokenExpireSeconds(),
         AuthMemberResponse.from(member));
+  }
+
+  private Member createOidcMember(String email, String nickname) {
+    String generatedPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+    Member member = Member.create(email, generatedPasswordHash, nickname);
+    return memberRepository.save(member);
   }
 
   private void assertMemberCanAuthenticate(Member member) {
@@ -215,6 +238,19 @@ public class AuthService {
       throw new ServiceException("400-1", "password must not be blank.");
     }
     return password;
+  }
+
+  private String normalizeNickname(String nickname, String emailFallback) {
+    if (StringUtils.hasText(nickname)) {
+      return nickname.trim();
+    }
+
+    int atIndex = emailFallback.indexOf('@');
+    if (atIndex > 0) {
+      return emailFallback.substring(0, atIndex);
+    }
+
+    return "anonymous";
   }
 
   /** 컨트롤러에서 쿠키 발급을 위해 사용하는 access/refresh 발급 결과 DTO. */

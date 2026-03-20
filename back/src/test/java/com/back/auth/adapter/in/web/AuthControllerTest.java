@@ -32,6 +32,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ import tools.jackson.databind.ObjectMapper;
   SecurityAuthenticationEntryPoint.class,
   SecurityAccessDeniedHandler.class
 })
+@ActiveProfiles("test")
 @DisplayName("인증 컨트롤러 API 테스트")
 class AuthControllerTest {
 
