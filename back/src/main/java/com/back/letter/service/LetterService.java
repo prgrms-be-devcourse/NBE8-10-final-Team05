@@ -1,6 +1,8 @@
 package com.back.letter.service;
 
 
+import com.back.ai.dto.AuditAiRequest;
+import com.back.ai.service.AiService;
 import com.back.global.exception.ServiceException;
 import com.back.letter.dto.*;
 import com.back.letter.entity.Letter;
@@ -25,6 +27,19 @@ public class LetterService {
 
     private final LetterRepository letterRepository;
     private final MemberRepository memberRepository;
+    private final AiService aiService;
+
+
+    private void auditContent(String content, String type) {
+        // AiService 호출
+        var auditResponse = aiService.auditContent(new AuditAiRequest(content, type));
+
+        if (!auditResponse.isPassed()) {
+            // 통과 실패 시 AI가 제안한 부드러운 거절 메시지를 담아 예외 발생
+            // 에러 코드는 임의로 "400-AI"로 지정 (필요시 Enum으로 교체)
+            throw new ServiceException("400-AI", auditResponse.message());
+        }
+    }
 
 
     /*
@@ -33,6 +48,9 @@ public class LetterService {
      */
     @Transactional
     public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId){
+
+        String fullContent = String.format("[제목] %s [내용] %s", req.title(), req.content());
+        auditContent(fullContent, "Letter");
 
         Member sender = memberRepository.findById(senderId)
                 .orElseThrow(()-> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
