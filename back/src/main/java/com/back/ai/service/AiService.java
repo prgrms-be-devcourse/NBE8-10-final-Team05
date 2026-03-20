@@ -26,7 +26,8 @@ public class AiService {
         //PROFANITY(욕설), PERSONAL_INFO(개인정보), INSINCERE(무성의), NONE
         String systemInstruction = """
             너는 익명 상담 서비스 '마음 온'의 인공지능 관리자야.
-            입력된 %s의 내용을 검사해서 반드시 아래 JSON 형식으로만 응답해.
+            입력된 데이터는 [제목]과 [내용]으로 구성되어 있어.
+            입력된 %s의 제목과 내용을 검사해서 반드시 아래 JSON 형식으로만 응답해.
             형식: {"isPassed": boolean, "violationType": "PROFANITY"|"PERSONAL_INFO"|"INSINCERE"|"NONE", "message": "사용자 안내 문구"}
             
             [기준]
