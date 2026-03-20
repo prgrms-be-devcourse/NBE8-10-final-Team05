@@ -125,6 +125,7 @@ public class AuthService {
         jwtTokenService.generateRefreshToken(member.getId(), nextJti, current.getFamilyId());
     String nextRefreshTokenHash = passwordEncoder.encode(nextRefreshToken);
 
+
     refreshTokenDomainService.rotate(
         current.getJti(),
         nextJti,
