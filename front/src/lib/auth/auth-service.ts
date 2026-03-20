@@ -17,10 +17,15 @@ import { toErrorMessage } from "@/lib/api/rs-data";
 const AUTH_ME_PATH = "/api/v1/auth/me";
 const AUTH_LOGIN_PATH = "/api/v1/auth/login";
 const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
+const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
+const OIDC_CALLBACK_PATH = "/login/callback";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 let restorePromise: Promise<void> | null = null;
 let handlersBound = false;
+
+export type OidcProvider = "maum-on-oidc" | "kakao";
 
 /** 인터셉터의 인증 실패/refresh 성공 이벤트를 스토어 정책과 연결한다. */
 function bindHttpClientHandlers(): void {
@@ -115,14 +120,33 @@ export async function logout(): Promise<void> {
   }
 }
 
-/** 보호 페이지에서 현재 사용자 정보를 강제로 재조회할 때 사용한다. */
-export async function fetchMe(): Promise<AuthMember> {
+/** 현재 사용자 정보를 재조회한다. auth failure 리다이렉트 정책을 선택할 수 있다. */
+export async function fetchMe(options?: {
+  authFailureRedirect?: boolean;
+}): Promise<AuthMember> {
   bindHttpClientHandlers();
   const member = await requestData<AuthMember>(AUTH_ME_PATH, {
     method: "GET",
+    authFailureRedirect: options?.authFailureRedirect,
   });
   applyAuthenticatedMember(member);
   return member;
+}
+
+/** 소셜 로그인 authorize 경로로 이동한다. */
+export function startOidcLogin(provider: OidcProvider, nextPath: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const callbackUrl = new URL(OIDC_CALLBACK_PATH, window.location.origin);
+  if (nextPath.startsWith("/")) {
+    callbackUrl.searchParams.set("next", nextPath);
+  }
+
+  const authorizeUrl = new URL(`${AUTH_OIDC_AUTHORIZE_PATH}/${provider}`, API_BASE_URL);
+  authorizeUrl.searchParams.set("redirect_uri", callbackUrl.toString());
+  window.location.assign(authorizeUrl.toString());
 }
 
 /** 인증 실패 시 로그인 페이지로 일관되게 보낸다. */
