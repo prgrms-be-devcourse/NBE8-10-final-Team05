@@ -123,6 +123,40 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.msg").value("You do not have permission."));
   }
 
+  @Test
+  @DisplayName("관리자는 memberId 기반 타인 프로필 수정 API를 사용할 수 있다")
+  void adminCanUpdateOtherProfile() throws Exception {
+    UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedByAdmin");
+    MemberResponse response = new MemberResponse(9L, "member9@test.com", "updatedByAdmin");
+    given(memberService.updateProfile(9L, request)).willReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/{memberId}/profile", 9L)
+                .with(user("admin").roles("ADMIN"))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-2"))
+        .andExpect(jsonPath("$.data.id").value(9))
+        .andExpect(jsonPath("$.data.nickname").value("updatedByAdmin"));
+  }
+
+  @Test
+  @DisplayName("인증 없이 /members/me/profile 호출 시 401을 반환한다")
+  void updateMyProfileWithoutAuthenticationReturns401() throws Exception {
+    UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me/profile")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-1"))
+        .andExpect(jsonPath("$.msg").value("Authentication is required."));
+  }
+
   private UsernamePasswordAuthenticationToken authenticatedMember(Long memberId, String email) {
     AuthenticatedMember principal = new AuthenticatedMember(memberId, email, List.of("ROLE_USER"));
     return new UsernamePasswordAuthenticationToken(

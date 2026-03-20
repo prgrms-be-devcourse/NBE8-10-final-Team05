@@ -229,4 +229,68 @@ class AuthControllerTest {
 
     then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
   }
+
+  @Test
+  @DisplayName("oidc callback API는 state 불일치 시 401-6을 반환한다")
+  void oidcCallbackReturns401WhenStateInvalid() throws Exception {
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willThrow(new ServiceException("401-6", "OIDC state is invalid."));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "invalid-state"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-6"))
+        .andExpect(jsonPath("$.msg").value("OIDC state is invalid."));
+  }
+
+  @Test
+  @DisplayName("oidc callback API는 state 재사용 시 401-8을 반환한다")
+  void oidcCallbackReturns401WhenStateReplayDetected() throws Exception {
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willThrow(new ServiceException("401-8", "OIDC state is already used."));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "used-state"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-8"))
+        .andExpect(jsonPath("$.msg").value("OIDC state is already used."));
+  }
+
+  @Test
+  @DisplayName("oidc callback API는 nonce 불일치 시 401-9를 반환한다")
+  void oidcCallbackReturns401WhenNonceMismatch() throws Exception {
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willThrow(new ServiceException("401-9", "OIDC nonce does not match."));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "state-value"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-9"))
+        .andExpect(jsonPath("$.msg").value("OIDC nonce does not match."));
+  }
+
+  @Test
+  @DisplayName("oidc callback API는 provider 토큰 오류 시 401-10을 반환한다")
+  void oidcCallbackReturns401WhenProviderTokenExchangeFails() throws Exception {
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willThrow(new ServiceException("401-10", "OIDC token exchange failed."));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "state-value"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-10"))
+        .andExpect(jsonPath("$.msg").value("OIDC token exchange failed."));
+  }
 }

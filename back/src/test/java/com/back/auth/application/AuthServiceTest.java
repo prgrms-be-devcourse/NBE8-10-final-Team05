@@ -19,6 +19,7 @@ import com.back.global.security.jwt.JwtRefreshSubject;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import com.back.member.domain.MemberStatus;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -33,6 +34,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("인증 서비스 테스트")
@@ -65,7 +67,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("로그인은 access/refresh 토큰을 발급하고 refresh 해시를 저장한다")
   void loginIssuesAccessAndRefreshTokens() {
-    Member member = Member.create("member2@test.com", "$2a$10$stored", "member2");
+    Member member = memberWithId(2L, "member2@test.com", "member2");
     given(memberRepository.findByEmail("member2@test.com")).willReturn(Optional.of(member));
     given(passwordEncoder.matches("plain-pass", "$2a$10$stored")).willReturn(true);
     given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
@@ -95,7 +97,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("로그인 시 비밀번호가 일치하지 않으면 401-2 예외를 반환한다")
   void loginFailsWhenPasswordDoesNotMatch() {
-    Member member = Member.create("member2@test.com", "$2a$10$stored", "member2");
+    Member member = memberWithId(2L, "member2@test.com", "member2");
     given(memberRepository.findByEmail("member2@test.com")).willReturn(Optional.of(member));
     given(passwordEncoder.matches("wrong-pass", "$2a$10$stored")).willReturn(false);
 
@@ -119,7 +121,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("refresh는 기존 토큰이 활성 상태면 회전하고 새 access를 반환한다")
   void refreshRotatesTokenWhenCurrentTokenIsActive() {
-    Member member = Member.create("member3@test.com", "$2a$10$stored", "member3");
+    Member member = memberWithId(3L, "member3@test.com", "member3");
     RefreshToken current =
         RefreshToken.issue(
             member,
@@ -157,7 +159,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("revoked refresh 토큰 재사용 시 family 전체 폐기 후 예외를 던진다")
   void refreshDetectsReuseAndRevokesFamily() {
-    Member member = Member.create("member4@test.com", "$2a$10$stored", "member4");
+    Member member = memberWithId(4L, "member4@test.com", "member4");
     RefreshToken revoked =
         RefreshToken.issue(
             member,
@@ -185,7 +187,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("만료된 refresh 토큰은 401-4 예외를 반환하고 회전하지 않는다")
   void refreshFailsWhenStoredTokenExpired() {
-    Member member = Member.create("member6@test.com", "$2a$10$stored", "member6");
+    Member member = memberWithId(6L, "member6@test.com", "member6");
     RefreshToken expiredToken =
         RefreshToken.issue(
             member,
@@ -220,7 +222,7 @@ class AuthServiceTest {
   @Test
   @DisplayName("me는 인증된 사용자 ID로 회원 정보를 조회한다")
   void meReturnsCurrentMemberInformation() {
-    Member member = Member.create("member5@test.com", "$2a$10$stored", "member5");
+    Member member = memberWithId(5L, "member5@test.com", "member5");
     given(memberRepository.findById(member.getId())).willReturn(Optional.of(member));
 
     var response =
@@ -231,6 +233,66 @@ class AuthServiceTest {
     assertThat(response.id()).isEqualTo(member.getId());
     assertThat(response.email()).isEqualTo(member.getEmail());
     assertThat(response.nickname()).isEqualTo(member.getNickname());
+  }
+
+  @Test
+  @DisplayName("refresh 토큰이 없으면 401-3을 반환한다")
+  void refreshFailsWhenTokenMissing() {
+    assertThatThrownBy(() -> authService.refresh(null))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-3"));
+
+    then(jwtTokenService).should(never()).validate(anyString());
+  }
+
+  @Test
+  @DisplayName("JWT 검증에 실패한 refresh 토큰은 401-4를 반환한다")
+  void refreshFailsWhenJwtValidationFails() {
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(false);
+
+    assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-4"));
+
+    then(jwtTokenService).should().validate("raw-refresh-token");
+    then(refreshTokenDomainService).should(never()).findByJti(anyString());
+  }
+
+  @Test
+  @DisplayName("차단된 회원은 로그인 시 403-2를 반환한다")
+  void loginFailsWhenMemberBlocked() {
+    Member member = memberWithId(7L, "blocked@test.com", "blocked");
+    ReflectionTestUtils.setField(member, "status", MemberStatus.BLOCKED);
+    given(memberRepository.findByEmail("blocked@test.com")).willReturn(Optional.of(member));
+    given(passwordEncoder.matches("plain-pass", "$2a$10$stored")).willReturn(true);
+
+    assertThatThrownBy(() -> authService.login(new AuthLoginRequest("blocked@test.com", "plain-pass")))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("403-2"));
+  }
+
+  @Test
+  @DisplayName("인증 정보가 없으면 me는 401-1을 반환한다")
+  void meFailsWhenAuthenticationMissing() {
+    assertThatThrownBy(() -> authService.me(null))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-1"));
+
+    then(memberRepository).should(never()).findById(any(Long.class));
+  }
+
+  private Member memberWithId(Long id, String email, String nickname) {
+    Member member = Member.create(email, "$2a$10$stored", nickname);
+    ReflectionTestUtils.setField(member, "id", id);
+    return member;
   }
 
   private String refreshTokenHash(String rawRefreshToken) {

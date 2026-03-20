@@ -263,6 +263,51 @@ class OidcCallbackServiceTest {
                 assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-8"));
   }
 
+  @Test
+  @DisplayName("provider 토큰 교환 실패 시 401-10을 반환한다")
+  void callbackFailsWhenProviderTokenExchangeFails() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-03-20T00:00:00Z"));
+    OidcAuthorizeProperties properties =
+        new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
+    OidcAuthorizationRequestService authorizationRequestService =
+        new OidcAuthorizationRequestService(properties, clientRegistrationRepository, clock);
+    OidcCallbackService callbackService =
+        new OidcCallbackService(
+            properties,
+            authorizationRequestService,
+            clientRegistrationRepository,
+            oidcTokenClient,
+            oidcIdTokenValidator,
+            oauthAccountRepository,
+            memberRepository,
+            passwordEncoder,
+            authService,
+            clock);
+
+    ClientRegistration registration = registration("maum-on-oidc");
+    given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
+
+    OidcAuthorizationStartResult startResult =
+        authorizationRequestService.startAuthorization(
+            "maum-on-oidc", "http://localhost:3000/login", "http://localhost:8080");
+
+    given(
+            oidcTokenClient.exchangeCode(
+                any(ClientRegistration.class), any(String.class), any(String.class), any(String.class)))
+        .willThrow(AuthErrorCode.OIDC_TOKEN_EXCHANGE_FAILED.toException());
+
+    assertThatThrownBy(
+            () ->
+                callbackService.handleCallback(
+                    "maum-on-oidc", "auth-code", startResult.state(), "http://localhost:8080"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-10"));
+
+    then(authService).shouldHaveNoInteractions();
+  }
+
   private ClientRegistration registration(String registrationId) {
     return ClientRegistration.withRegistrationId(registrationId)
         .clientId("test-client-id")
