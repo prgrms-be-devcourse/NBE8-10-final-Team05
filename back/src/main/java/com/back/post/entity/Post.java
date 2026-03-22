@@ -16,7 +16,7 @@ public class Post extends BaseEntity {
     private String title;
 
     @Lob
-    @Column(columnDefinition = "MEDIUMTEXT", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
 
