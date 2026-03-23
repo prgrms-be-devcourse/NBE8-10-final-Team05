@@ -94,6 +94,62 @@ class OidcAuthorizationRequestServiceTest {
                     .isEqualTo("401-7"));
   }
 
+  @Test
+  @DisplayName("authorize 기능이 비활성화면 403-4로 차단된다")
+  void startAuthorizationFailsWhenFeatureDisabled() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-03-20T00:00:00Z"));
+    OidcAuthorizeProperties properties =
+        new OidcAuthorizeProperties(
+            false, 300L, List.of("http://localhost:3000", "http://127.0.0.1:3000"));
+    OidcAuthorizationRequestService service =
+        new OidcAuthorizationRequestService(
+            properties, new InMemoryClientRegistrationRepository(createRegistration()), clock);
+
+    assertThatThrownBy(
+            () ->
+                service.startAuthorization(
+                    "maum-on-oidc", "http://localhost:3000/login", "http://localhost:8080"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode())
+                    .isEqualTo("403-4"));
+  }
+
+  @Test
+  @DisplayName("허용되지 않은 redirect_uri는 400-3으로 차단된다")
+  void startAuthorizationFailsWhenRedirectUriNotAllowed() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-03-20T00:00:00Z"));
+    OidcAuthorizationRequestService service = createService(clock, 300L);
+
+    assertThatThrownBy(
+            () ->
+                service.startAuthorization(
+                    "maum-on-oidc", "https://evil.example.com/callback", "http://localhost:8080"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode())
+                    .isEqualTo("400-3"));
+  }
+
+  @Test
+  @DisplayName("미지원 provider로 authorize 시작 시 400-2를 반환한다")
+  void startAuthorizationFailsWhenProviderUnsupported() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-03-20T00:00:00Z"));
+    OidcAuthorizationRequestService service = createService(clock, 300L);
+
+    assertThatThrownBy(
+            () ->
+                service.startAuthorization(
+                    "unsupported", "http://localhost:3000/login", "http://localhost:8080"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode())
+                    .isEqualTo("400-2"));
+  }
+
   private OidcAuthorizationRequestService createService(MutableClock clock, long ttlSeconds) {
     OidcAuthorizeProperties properties =
         new OidcAuthorizeProperties(

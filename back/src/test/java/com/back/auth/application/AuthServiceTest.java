@@ -289,6 +289,126 @@ class AuthServiceTest {
     then(memberRepository).should(never()).findById(any(Long.class));
   }
 
+  @Test
+  @DisplayName("oidcLogin은 기존 회원이 있으면 재사용하고 새 회원을 만들지 않는다")
+  void oidcLoginUsesExistingMember() {
+    Member member = memberWithId(8L, "existing@test.com", "existing");
+    given(memberRepository.findByEmail("existing@test.com")).willReturn(Optional.of(member));
+    given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
+        .willReturn("oidc-refresh-token");
+    given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
+    given(jwtTokenService.generateAccessToken(any(Long.class), anyString(), any()))
+        .willReturn("oidc-access-token");
+    given(jwtProperties.accessTokenExpireSeconds()).willReturn(3600L);
+
+    AuthService.AuthTokenIssueResult result = authService.oidcLogin("Existing@Test.Com", "ignored");
+
+    assertThat(result.response().accessToken()).isEqualTo("oidc-access-token");
+    assertThat(result.refreshToken()).isEqualTo("oidc-refresh-token");
+    then(memberRepository).should(never()).save(any(Member.class));
+    then(passwordEncoder).should(never()).encode(anyString());
+  }
+
+  @Test
+  @DisplayName("oidcLogin은 신규 회원이면 생성하고 이메일 local-part를 기본 닉네임으로 사용한다")
+  void oidcLoginCreatesMemberWithFallbackNickname() {
+    given(memberRepository.findByEmail("new_member@test.com")).willReturn(Optional.empty());
+    given(passwordEncoder.encode(anyString())).willReturn("$2a$10$oidcHash");
+    given(memberRepository.save(any(Member.class)))
+        .willAnswer(
+            invocation -> {
+              Member saved = invocation.getArgument(0);
+              ReflectionTestUtils.setField(saved, "id", 11L);
+              return saved;
+            });
+    given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
+        .willReturn("oidc-refresh-token");
+    given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
+    given(jwtTokenService.generateAccessToken(any(Long.class), anyString(), any()))
+        .willReturn("oidc-access-token");
+    given(jwtProperties.accessTokenExpireSeconds()).willReturn(3600L);
+
+    AuthService.AuthTokenIssueResult result =
+        authService.oidcLogin("new_member@test.com", "   ");
+
+    assertThat(result.response().member().nickname()).isEqualTo("new_member");
+
+    ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
+    then(memberRepository).should().save(memberCaptor.capture());
+    assertThat(memberCaptor.getValue().getNickname()).isEqualTo("new_member");
+    then(passwordEncoder).should().encode(anyString());
+  }
+
+  @Test
+  @DisplayName("issueTokenPairForMember는 member가 null이면 404-1을 반환한다")
+  void issueTokenPairForMemberFailsWhenMemberNull() {
+    assertThatThrownBy(() -> authService.issueTokenPairForMember(null))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("404-1"));
+  }
+
+  @Test
+  @DisplayName("issueTokenPairForMember는 차단 회원이면 403-2를 반환한다")
+  void issueTokenPairForMemberFailsWhenBlockedMember() {
+    Member member = memberWithId(12L, "blocked2@test.com", "blocked2");
+    ReflectionTestUtils.setField(member, "status", MemberStatus.BLOCKED);
+
+    assertThatThrownBy(() -> authService.issueTokenPairForMember(member))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("403-2"));
+  }
+
+  @Test
+  @DisplayName("logout은 refresh JWT가 유효하지 않으면 저장소에 접근하지 않는다")
+  void logoutSkipsWhenRefreshTokenInvalid() {
+    given(jwtTokenService.validate("invalid-refresh-token")).willReturn(false);
+
+    authService.logout("invalid-refresh-token");
+
+    then(jwtTokenService).should().validate("invalid-refresh-token");
+    then(jwtTokenService).should(never()).parseRefreshToken(anyString());
+    then(refreshTokenDomainService).should(never()).findByJti(anyString());
+  }
+
+  @Test
+  @DisplayName("logout은 refresh 파싱 실패 시 저장소 폐기 없이 종료한다")
+  void logoutSkipsWhenRefreshParsingFails() {
+    given(jwtTokenService.validate("malformed-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("malformed-refresh-token"))
+        .willThrow(new IllegalArgumentException("malformed"));
+
+    authService.logout("malformed-refresh-token");
+
+    then(refreshTokenDomainService).should(never()).findByJti(anyString());
+    then(refreshTokenDomainService).should(never()).revoke(anyString(), any(LocalDateTime.class));
+  }
+
+  @Test
+  @DisplayName("logout은 저장된 해시가 다르면 토큰을 폐기하지 않는다")
+  void logoutSkipsWhenStoredTokenHashDoesNotMatch() {
+    Member member = memberWithId(13L, "logout@test.com", "logout");
+    RefreshToken stored =
+        RefreshToken.issue(
+            member,
+            "logout-jti",
+            refreshTokenHash("another-refresh-token"),
+            LocalDateTime.now().plusHours(1),
+            "family-logout");
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
+        .willReturn(new JwtRefreshSubject(13L, "logout-jti", "family-logout"));
+    given(refreshTokenDomainService.findByJti("logout-jti")).willReturn(Optional.of(stored));
+
+    authService.logout("raw-refresh-token");
+
+    then(refreshTokenDomainService).should().findByJti("logout-jti");
+    then(refreshTokenDomainService).should(never()).revoke(anyString(), any(LocalDateTime.class));
+  }
+
   private Member memberWithId(Long id, String email, String nickname) {
     Member member = Member.create(email, "$2a$10$stored", nickname);
     ReflectionTestUtils.setField(member, "id", id);

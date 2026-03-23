@@ -72,6 +72,60 @@ class OidcIdTokenValidatorTest {
             exception -> assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-11"));
   }
 
+  @Test
+  @DisplayName("issuer가 불일치하면 401-11 예외를 반환한다")
+  void validateFailsOnIssuerMismatch() {
+    ClientRegistration registration =
+        registration("maum-on-oidc", "test-client-id", "https://accounts.example.com");
+    Map<String, Object> claims = baseClaims();
+    claims.put("iss", "https://attacker.example.com");
+
+    assertThatThrownBy(() -> validator.validate(registration, unsignedToken(claims), "expected-nonce"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-11"));
+  }
+
+  @Test
+  @DisplayName("exp가 만료되면 401-11 예외를 반환한다")
+  void validateFailsOnExpiredToken() {
+    ClientRegistration registration =
+        registration("maum-on-oidc", "test-client-id", "https://accounts.example.com");
+    Map<String, Object> claims = baseClaims();
+    claims.put("exp", Instant.parse("2026-03-19T23:59:59Z").getEpochSecond());
+
+    assertThatThrownBy(() -> validator.validate(registration, unsignedToken(claims), "expected-nonce"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-11"));
+  }
+
+  @Test
+  @DisplayName("sub가 없으면 401-11 예외를 반환한다")
+  void validateFailsWhenSubjectMissing() {
+    ClientRegistration registration =
+        registration("maum-on-oidc", "test-client-id", "https://accounts.example.com");
+    Map<String, Object> claims = baseClaims();
+    claims.remove("sub");
+
+    assertThatThrownBy(() -> validator.validate(registration, unsignedToken(claims), "expected-nonce"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-11"));
+  }
+
+  @Test
+  @DisplayName("id_token 형식이 잘못되면 401-11 예외를 반환한다")
+  void validateFailsWhenTokenMalformed() {
+    ClientRegistration registration =
+        registration("maum-on-oidc", "test-client-id", "https://accounts.example.com");
+
+    assertThatThrownBy(() -> validator.validate(registration, "not-a-jwt", "expected-nonce"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-11"));
+  }
+
   private Map<String, Object> baseClaims() {
     Map<String, Object> claims = new LinkedHashMap<>();
     claims.put("iss", "https://accounts.example.com");
