@@ -40,7 +40,6 @@ spring:
             scope:
               - openid
               - profile_nickname
-              - account_email
 gemini:
   api:
     key: ${GOOGLE_API_KEY:test_key_dummy}

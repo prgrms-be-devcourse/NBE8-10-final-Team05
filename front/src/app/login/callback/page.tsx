@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { toErrorMessage } from "@/lib/api/rs-data";
-import { fetchMe, restoreSession } from "@/lib/auth/auth-service";
+import { restoreSession } from "@/lib/auth/auth-service";
 import { getAuthState, setAuthError } from "@/lib/auth/auth-store";
 
 const DEFAULT_NEXT_PATH = "/dashboard";
@@ -27,12 +26,9 @@ export default function LoginCallbackPage() {
 
       try {
         await restoreSession();
-        if (!getAuthState().isAuthenticated) {
-          await fetchMe({ authFailureRedirect: false });
-        }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setAuthError(toErrorMessage(error));
+          setAuthError("로그인 세션 복원에 실패했습니다. 다시 시도해 주세요.");
           router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
         }
         return;

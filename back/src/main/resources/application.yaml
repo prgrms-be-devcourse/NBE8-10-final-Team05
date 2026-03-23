@@ -35,7 +35,6 @@ spring:
             scope:
               - openid
               - profile_nickname
-              - account_email
 
 custom:
   auth:

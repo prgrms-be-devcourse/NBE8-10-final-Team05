@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  applyAuthenticatedMember,
   applyAuthTokenPayload,
+  applyAuthenticatedMember,
   clearAuthSession,
   getAuthState,
   markRestoreFinished,
@@ -17,6 +17,7 @@ import { toErrorMessage } from "@/lib/api/rs-data";
 const AUTH_ME_PATH = "/api/v1/auth/me";
 const AUTH_LOGIN_PATH = "/api/v1/auth/login";
 const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
+const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
 const OIDC_CALLBACK_PATH = "/login/callback";
@@ -45,7 +46,7 @@ function bindHttpClientHandlers(): void {
   });
 }
 
-/** 앱 초기 진입 시 현재 세션(/auth/me)을 복원한다. */
+/** 앱 초기 진입 시 refresh 쿠키를 이용해 세션을 복원한다. */
 export async function restoreSession(): Promise<void> {
   bindHttpClientHandlers();
 
@@ -63,11 +64,13 @@ export async function restoreSession(): Promise<void> {
 
   restorePromise = (async () => {
     try {
-      const member = await requestData<AuthMember>(AUTH_ME_PATH, {
-        method: "GET",
+      const payload = await requestData<AuthTokenPayload>(AUTH_REFRESH_PATH, {
+        method: "POST",
+        skipAuth: true,
+        retryOnAuthFailure: false,
         authFailureRedirect: false,
       });
-      applyAuthenticatedMember(member);
+      applyAuthTokenPayload(payload);
     } catch {
       // 초기 복원은 비로그인 상태도 정상 케이스이므로 에러를 노출하지 않는다.
       clearAuthSession();
