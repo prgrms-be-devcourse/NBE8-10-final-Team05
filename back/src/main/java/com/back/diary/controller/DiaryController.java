@@ -51,4 +51,24 @@ public class DiaryController {
 
         return new RsData<>("200-2", "일기들을 가져왔습니다.", myDiaries);
     }
+
+
+    @PatchMapping("/{id}")
+    public RsData<Void> modify(
+            @PathVariable Long id,
+            @Valid @RequestBody DiaryCreateReq req,
+            @AuthenticationPrincipal AuthenticatedMember authenticatedMember
+    ) {
+        diaryService.modify(id, req, authenticatedMember.memberId());
+        return new RsData<>("200-1", "%d번 일기가 수정되었습니다.".formatted(id));
+    }
+
+    @DeleteMapping("/{id}")
+    public RsData<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedMember authenticatedMember
+    ) {
+        diaryService.delete(id, authenticatedMember.memberId());
+        return new RsData<>("200-1", "%d번 일기가 삭제되었습니다.".formatted(id));
+    }
 }
