@@ -82,4 +82,24 @@ class RefreshTokenDomainServiceTest {
                         member, "duplicate-jti", "token-hash-5", expiresAt, "family-2")))
         .isInstanceOf(DataIntegrityViolationException.class);
   }
+
+  @Test
+  @DisplayName("같은 familyId 토큰들은 revokeFamily 호출 시 모두 폐기된다")
+  void revokeFamilyRevokesAllTokensInFamily() {
+    LocalDateTime now = LocalDateTime.now();
+    Member member =
+        memberRepository.save(Member.create("member4@test.com", "$2a$10$hashValue", "m4"));
+
+    refreshTokenDomainService.saveIssuedToken(
+        member, "jti-family-1", "token-hash-family-1", now.plusDays(30), "family-9");
+    refreshTokenDomainService.saveIssuedToken(
+        member, "jti-family-2", "token-hash-family-2", now.plusDays(30), "family-9");
+
+    refreshTokenDomainService.revokeFamily("family-9", now.plusMinutes(1));
+
+    RefreshToken first = refreshTokenRepository.findByJti("jti-family-1").orElseThrow();
+    RefreshToken second = refreshTokenRepository.findByJti("jti-family-2").orElseThrow();
+    assertThat(first.getRevokedAt()).isNotNull();
+    assertThat(second.getRevokedAt()).isNotNull();
+  }
 }
