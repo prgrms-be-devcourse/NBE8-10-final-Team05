@@ -3,27 +3,60 @@ package com.back.ai.application;
 import com.back.ai.dto.AuditAiRequest;
 import com.back.ai.dto.AuditAiResponse;
 import com.back.ai.service.AiService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.genai.Client;
+import com.google.genai.Models;
+import com.google.genai.types.GenerateContentResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
-@SpringBootTest
-@Transactional
-@ActiveProfiles("test")
+@ExtendWith(MockitoExtension.class)
 class AiServiceTest {
 
-    @Autowired
+    @Mock
+    private Client geminiClient;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    @InjectMocks
     private AiService aiService;
 
+    private Models mockModels;
+
+    @BeforeEach
+    void setUp() {
+        mockModels = mock(Models.class);
+        ReflectionTestUtils.setField(geminiClient, "models", mockModels);
+    }
+
+    private void mockAiResponse(boolean isPassed, String violationType) {
+        GenerateContentResponse mockResponse = mock(GenerateContentResponse.class);
+        String jsonResponse = String.format("{\"isPassed\": %b, \"violationType\": \"%s\", \"message\": \"test\"}", isPassed, violationType);
+        given(mockResponse.text()).willReturn(jsonResponse);
+
+        given(mockModels.generateContent(anyString(), anyString(), any()))
+                .willReturn(mockResponse);
+    }
+
     @Test
-    @DisplayName("정상적인 편지 내용은 검열을 통과해야 한다")
+    @DisplayName("t1: 정상적인 편지 내용은 검열을 통과해야 한다")
     void t1() {
-        AuditAiRequest request = new AuditAiRequest("오늘 하루도 정말 수고 많으셨어요. 당신을 응원합니다.", "LETTER");
+        AuditAiRequest request = new AuditAiRequest("오늘 하루도 수고 많으셨어요.", "LETTER");
+        mockAiResponse(true, "NONE"); // 통과 시나리오
 
         AuditAiResponse response = aiService.auditContent(request);
 
@@ -32,9 +65,10 @@ class AiServiceTest {
     }
 
     @Test
-    @DisplayName("약한 수위의 타인 비방 목적이 아닌 표현")
+    @DisplayName("t2: 약한 수위의 타인 비방 목적이 아닌 표현")
     void t2() {
         AuditAiRequest request = new AuditAiRequest("나는 바보같아요..", "POST");
+        mockAiResponse(true, "NONE"); // 통과 시나리오
 
         AuditAiResponse response = aiService.auditContent(request);
 
@@ -43,9 +77,10 @@ class AiServiceTest {
     }
 
     @Test
-    @DisplayName("약한 수위더라도 타인 비방 목적인 표현")
+    @DisplayName("t3: 약한 수위더라도 타인 비방 목적인 표현은 차단된다")
     void t3() {
         AuditAiRequest request = new AuditAiRequest("이 바보 같은 녀석아!", "POST");
+        mockAiResponse(false, "PROFANITY"); // 차단 시나리오
 
         AuditAiResponse response = aiService.auditContent(request);
 
@@ -54,9 +89,10 @@ class AiServiceTest {
     }
 
     @Test
-    @DisplayName("우회 욕설 시도")
+    @DisplayName("t4: 우회 욕설 시도")
     void t4() {
         AuditAiRequest request = new AuditAiRequest("시1발롬아", "POST");
+        mockAiResponse(false, "PROFANITY"); // 차단 시나리오
 
         AuditAiResponse response = aiService.auditContent(request);
 
