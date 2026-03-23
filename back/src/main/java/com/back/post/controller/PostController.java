@@ -7,14 +7,16 @@ import com.back.post.dto.PostCreateReq;
 import com.back.post.dto.PostInfoRes;
 import com.back.post.dto.PostListRes;
 import com.back.post.dto.PostUpdateReq;
+import com.back.post.entity.PostCategory;
 import com.back.post.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/posts")
@@ -37,8 +39,15 @@ public class PostController {
 
     /* 게시물 다건 조회 */
     @GetMapping
-    public ResponseEntity<RsData<List<PostListRes>>> getPosts() {
-        return ResponseEntity.ok(new RsData<>("200-1", "Posts fetched.", postService.getPosts()));
+    public ResponseEntity<RsData<Slice<PostListRes>>> getPosts(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) PostCategory category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        Slice<PostListRes> data = postService.getPosts(title, category, pageable);
+        return ResponseEntity.ok(new RsData<>("200-1", "Posts fetched.", data));
     }
 
     /* 게시물 단건 조회 */

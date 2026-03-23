@@ -33,10 +33,16 @@ public class Post extends BaseEntity {
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
 
-    public void update(String title, String content, String thumbnail) {
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private PostCategory category;
+
+
+    public void update(String title, String content, String thumbnail, PostCategory category) {
         this.title = title;
         this.content = content;
         this.thumbnail = thumbnail;
+        this.category = category;
 
     }
 
