@@ -12,6 +12,7 @@ import com.back.member.domain.MemberRepository;
 import com.back.post.dto.PostCreateReq;
 import com.back.post.dto.PostUpdateReq;
 import com.back.post.entity.Post;
+import com.back.post.entity.PostCategory;
 import com.back.post.repository.PostRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -38,11 +39,13 @@ class PostServiceTest {
     given(memberRepository.findById(1L)).willReturn(Optional.of(member));
     given(postRepository.save(any(Post.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-    postService.createPost(new PostCreateReq("title", "content", "thumbnail"), 1L);
+    postService.createPost(
+        new PostCreateReq("title", "content", "thumbnail", PostCategory.WORRY), 1L);
 
     ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
     then(postRepository).should().save(captor.capture());
     assertThat(captor.getValue().getMember()).isSameAs(member);
+    assertThat(captor.getValue().getCategory()).isEqualTo(PostCategory.WORRY);
   }
 
   @Test
@@ -55,12 +58,15 @@ class PostServiceTest {
             .content("content")
             .thumbnail("thumbnail")
             .member(author)
+            .category(PostCategory.DAILY)
             .build();
     setId(post, 10L);
     given(postRepository.findById(10L)).willReturn(Optional.of(post));
 
     assertThatThrownBy(
-            () -> postService.updatePost(10L, new PostUpdateReq("new", "content", null), 2L))
+            () ->
+                postService.updatePost(
+                    10L, new PostUpdateReq("new", "content", null, PostCategory.QUESTION), 2L))
         .isInstanceOf(ServiceException.class)
         .satisfies(
             exception ->
@@ -77,6 +83,7 @@ class PostServiceTest {
             .content("content")
             .thumbnail("thumbnail")
             .member(author)
+            .category(PostCategory.DAILY)
             .build();
     setId(post, 11L);
     given(postRepository.findById(11L)).willReturn(Optional.of(post));

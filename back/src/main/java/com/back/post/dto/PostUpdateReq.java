@@ -1,6 +1,8 @@
 package com.back.post.dto;
 
+import com.back.post.entity.PostCategory;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public record PostUpdateReq(
 
@@ -11,6 +13,9 @@ public record PostUpdateReq(
             String content,
 
 
-            String thumbnail
+            String thumbnail,
+
+            @NotNull(message = "카테고리는 필수 선택 항목입니다.")
+            PostCategory category
 ) {
 }

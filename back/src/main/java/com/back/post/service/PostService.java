@@ -9,12 +9,14 @@ import com.back.post.dto.PostInfoRes;
 import com.back.post.dto.PostListRes;
 import com.back.post.dto.PostUpdateReq;
 import com.back.post.entity.Post;
+import com.back.post.entity.PostCategory;
 import com.back.post.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,7 @@ public class PostService {
                 .content(req.content())
                 .thumbnail(req.thumbnail())
                 .member(member)
+                .category(req.category())
                 .build();
 
        post = postRepository.save(post);
@@ -46,14 +49,23 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public List<PostListRes> getPosts() {
-        return postRepository.findAll().stream()
-                .map(PostListRes::from)
-                .toList();
+    public Slice<PostListRes> getPosts(String title, PostCategory category, Pageable pageable) {
+        Slice<Post> posts;
+        boolean hasTitle = StringUtils.hasText(title);
 
+        if (hasTitle && category != null) {
+            posts = postRepository.findByTitleContainingAndCategory(title, category, pageable);
+        } else if (hasTitle) {
+            posts = postRepository.findByTitleContaining(title, pageable);
+        } else if (category != null) {
+            posts = postRepository.findByCategory(category, pageable);
+        } else {
+            posts = postRepository.findAllBy(pageable);
+        }
+
+        return posts.map(PostListRes::from);
     }
 
-    ;
 
     @Transactional(readOnly = true)
     public PostInfoRes getPost(Long id) {
@@ -68,7 +80,7 @@ public class PostService {
     public void updatePost(Long postId, PostUpdateReq req, Long memberId) {
         Post post = findOwnedPost(postId, memberId);
 
-        post.update(req.title(), req.content(), req.thumbnail());
+        post.update(req.title(), req.content(), req.thumbnail(),req.category());
 
     }
 
