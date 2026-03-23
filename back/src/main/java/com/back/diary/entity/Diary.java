@@ -30,9 +30,14 @@ public class Diary extends BaseEntity {
     @Column(nullable = false)
     private String categoryName;
 
-    // 일기장은 기본적으로 비공개(true)로 설정
     @Column(nullable = false)
     private boolean isPrivate = true;
+
+    public void modify(String title, String content, String categoryName) {
+        this.title = title;
+        this.content = content;
+        this.categoryName = categoryName;
+    }
 
     @Builder
     public Diary(Long memberId, String nickname, String title, String content, String categoryName) {

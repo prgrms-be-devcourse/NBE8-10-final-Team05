@@ -43,4 +43,28 @@ public class DiaryService {
                 .map(DiaryRes::from) // Entity -> DTO 변환
                 .toList();
     }
+
+    @Transactional
+    public void modify(Long diaryId, DiaryCreateReq req, Long currentMemberId) {
+        Diary diary = diaryRepository.findById(diaryId)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 일기입니다."));
+
+        if (!diary.getMemberId().equals(currentMemberId)) {
+            throw new ServiceException("403-1", "수정 권한이 없습니다.");
+        }
+
+        diary.modify(req.title(), req.content(), req.categoryName());
+    }
+
+    @Transactional
+    public void delete(Long diaryId, Long currentMemberId) {
+        Diary diary = diaryRepository.findById(diaryId)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 일기입니다."));
+
+        if (!diary.getMemberId().equals(currentMemberId)) {
+            throw new ServiceException("403-1", "삭제 권한이 없습니다.");
+        }
+
+        diaryRepository.delete(diary);
+    }
 }
