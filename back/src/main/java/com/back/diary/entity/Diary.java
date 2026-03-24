@@ -30,22 +30,32 @@ public class Diary extends BaseEntity {
     @Column(nullable = false)
     private String categoryName;
 
+    @Column(columnDefinition = "TEXT")
+    private String imageUrl;
+
     @Column(nullable = false)
     private boolean isPrivate = true;
 
-    public void modify(String title, String content, String categoryName) {
-        this.title = title;
-        this.content = content;
-        this.categoryName = categoryName;
-    }
-
     @Builder
-    public Diary(Long memberId, String nickname, String title, String content, String categoryName) {
+    public Diary(Long memberId, String nickname, String title, String content, String categoryName, String imageUrl, boolean isPrivate) {
         this.memberId = memberId;
         this.nickname = (nickname == null) ? "익명" : nickname;
-        this.nickname = nickname;
         this.title = title;
         this.content = content;
         this.categoryName = categoryName;
+        this.imageUrl = imageUrl;
+        this.isPrivate = isPrivate;
     }
+
+    public void modify(String title, String content, String categoryName, String imageUrl, boolean isPrivate) {
+        this.title = title;
+        this.content = content;
+        this.categoryName = categoryName;
+        if (imageUrl != null) {
+            this.imageUrl = imageUrl;
+        }
+        this.isPrivate = isPrivate;
+    }
+
+
 }
