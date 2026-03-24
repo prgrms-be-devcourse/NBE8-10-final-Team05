@@ -31,7 +31,7 @@ public class Report extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private ReportStatus status = ReportStatus.PENDING;
+    private ReportStatus status = ReportStatus.RECEIVED;
 
     public static Report create(Long reporterId, Long targetId, TargetType targetType,
                                 ReportReason reason, String content) {
@@ -42,5 +42,10 @@ public class Report extends BaseEntity {
                 .reason(reason)
                 .content(content)
                 .build();
+    }
+
+    //신고의 처리 상태(RECEIVED, PROCESSED)를 변경합니다.
+    public void updateStatus(ReportStatus status) {
+        this.status = status;
     }
 }
