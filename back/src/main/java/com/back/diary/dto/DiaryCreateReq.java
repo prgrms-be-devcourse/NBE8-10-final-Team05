@@ -11,7 +11,8 @@ public record DiaryCreateReq(
     String content,
     
     @NotBlank(message = "카테고리를 선택해주세요.")
-    String categoryName
+    String categoryName,
+    boolean isPrivate
 ) {
     // Service 계층에서 엔티티로 변환할 때 사용
     public Diary toEntity(Long memberId, String nickname) {

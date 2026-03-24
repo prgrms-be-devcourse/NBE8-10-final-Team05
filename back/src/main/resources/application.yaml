@@ -35,7 +35,10 @@ spring:
             scope:
               - openid
               - profile_nickname
-
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 custom:
   auth:
     oidc:
@@ -52,3 +55,6 @@ custom:
     refresh-token-cookie-name: ${JWT_REFRESH_TOKEN_COOKIE_NAME:refreshToken}
     refresh-token-cookie-secure: ${JWT_REFRESH_TOKEN_COOKIE_SECURE:false}
     refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+  file:
+    upload-dir: C:/javadev/diary_image
+
