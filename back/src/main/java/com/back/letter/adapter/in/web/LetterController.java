@@ -1,16 +1,13 @@
-package com.back.letter.controller;
-
+package com.back.letter.adapter.in.web;
 
 import com.back.auth.application.AuthErrorCode;
-import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
-import com.back.letter.dto.CreateLetterReq;
-import com.back.letter.dto.LetterInfoRes;
-import com.back.letter.dto.LetterListRes;
-import com.back.letter.dto.ReplyLetterReq;
-import com.back.letter.service.LetterService;
-import com.back.member.domain.Member;
+import com.back.letter.application.port.in.*; // DTO와 UseCase를 인터페이스 패키지에서 가져옴
+import com.back.letter.application.port.in.dto.CreateLetterReq;
+import com.back.letter.application.port.in.dto.LetterInfoRes;
+import com.back.letter.application.port.in.dto.LetterListRes;
+import com.back.letter.application.port.in.dto.ReplyLetterReq;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,17 +19,18 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class LetterController {
 
-    private final LetterService letterService;
+    private final SendLetterUseCase sendLetterUseCase;
+    private final InquiryLetterUseCase inquiryLetterUseCase;
 
     @PostMapping
     public ResponseEntity<RsData<Long>> create(
             @RequestBody @Valid CreateLetterReq req,
             @AuthenticationPrincipal AuthenticatedMember authMember
-            ){
+    ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
-        long id = letterService.createLetterAndDirectSendLetter(req, authMember.memberId());
-        return ResponseEntity.ok(new RsData<>("200-1","편지가 전송되었습니다.", id));
+        long id = sendLetterUseCase.createLetterAndDirectSendLetter(req, authMember.memberId());
+        return ResponseEntity.ok(new RsData<>("200-1", "편지가 전송되었습니다.", id));
     }
 
     @GetMapping("/received")
@@ -43,7 +41,7 @@ public class LetterController {
     ) {
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
-        LetterListRes data = letterService.getMyInbox(authMember.memberId(), page, size);
+        LetterListRes data = inquiryLetterUseCase.getMyInbox(authMember.memberId(), page, size);
         return ResponseEntity.ok(new RsData<>("200-2", "받은 편지 보관함 조회 성공", data));
     }
 
@@ -55,7 +53,7 @@ public class LetterController {
     ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
-        LetterListRes data = letterService.getMySentBox(authMember.memberId(), page, size);
+        LetterListRes data = inquiryLetterUseCase.getMySentBox(authMember.memberId(), page, size);
         return ResponseEntity.ok(new RsData<>("200-3", "보낸 편지 보관함 조회 성공", data));
     }
 
@@ -66,8 +64,8 @@ public class LetterController {
     ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
-        LetterInfoRes data = letterService.getLetter(id, authMember.memberId());
-        return ResponseEntity.ok(new RsData<>("200-4","편지 상세 조회 성공", data));
+        LetterInfoRes data = inquiryLetterUseCase.getLetter(id, authMember.memberId());
+        return ResponseEntity.ok(new RsData<>("200-4", "편지 상세 조회 성공", data));
     }
 
     @PostMapping("/{id}/reply")
@@ -78,7 +76,7 @@ public class LetterController {
     ){
         if(authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
 
-        letterService.replyLetter(id, req, authMember.memberId());
+        sendLetterUseCase.replyLetter(id, req, authMember.memberId());
         return ResponseEntity.ok(new RsData<>("200-5", "답장이 등록되었습니다."));
     }
 }

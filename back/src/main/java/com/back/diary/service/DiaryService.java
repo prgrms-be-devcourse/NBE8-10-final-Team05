@@ -5,6 +5,8 @@ import com.back.diary.dto.DiaryRes;
 import com.back.diary.entity.Diary;
 import com.back.diary.repository.DiaryRepository;
 import com.back.global.exception.ServiceException;
+import com.back.member.domain.Member;
+import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +19,16 @@ import java.util.List;
 public class DiaryService {
 
     private final DiaryRepository diaryRepository;
+    private final MemberRepository memberRepository;
 
     @Transactional
     public Long write(DiaryCreateReq req, Long memberId) {
-        Diary diary = req.toEntity(memberId);
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
+
+        Diary diary = req.toEntity(memberId, member.getNickname());
+
         return diaryRepository.save(diary).getId();
     }
 

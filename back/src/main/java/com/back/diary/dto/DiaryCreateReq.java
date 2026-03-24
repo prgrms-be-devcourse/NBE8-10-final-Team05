@@ -14,10 +14,10 @@ public record DiaryCreateReq(
     String categoryName
 ) {
     // Service 계층에서 엔티티로 변환할 때 사용
-    public Diary toEntity(Long memberId) {
+    public Diary toEntity(Long memberId, String nickname) {
         return Diary.builder()
-            .memberId(memberId)
-//            .nickname(nickname)
+            .memberId(memberId)// Member 객체 연관관계 설정
+                .nickname(nickname) // DB의 NOT NULL 제약조건 해결
             .title(title)
             .content(content)
             .categoryName(categoryName)

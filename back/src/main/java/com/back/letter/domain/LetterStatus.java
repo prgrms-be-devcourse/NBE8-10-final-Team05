@@ -1,4 +1,4 @@
-package com.back.letter.entity;
+package com.back.letter.domain;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
