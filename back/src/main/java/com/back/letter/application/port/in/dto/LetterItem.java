@@ -1,6 +1,6 @@
-package com.back.letter.dto;
+package com.back.letter.application.port.in.dto;
 
-import com.back.letter.entity.Letter;
+import com.back.letter.domain.Letter;
 import java.time.LocalDateTime;
 
 public record LetterItem(

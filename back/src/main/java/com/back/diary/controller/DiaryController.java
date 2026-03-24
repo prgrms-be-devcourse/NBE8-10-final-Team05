@@ -53,7 +53,7 @@ public class DiaryController {
     }
 
 
-    @PatchMapping("/{id}")
+    @PutMapping("/{id}")
     public RsData<Void> modify(
             @PathVariable Long id,
             @Valid @RequestBody DiaryCreateReq req,

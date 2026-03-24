@@ -1,7 +1,7 @@
-package com.back.letter.dto;
+package com.back.letter.application.port.in.dto;
 
-import com.back.letter.entity.Letter;
-import com.back.letter.entity.LetterStatus;
+import com.back.letter.domain.Letter;
+import com.back.letter.domain.LetterStatus;
 
 import java.time.LocalDateTime;
 
