@@ -46,4 +46,9 @@ public class Post extends BaseEntity {
 
     }
 
+    //게시글의 상태(DRAFT, PUBLISHED, HIDDEN)를 변경합니다.
+    public void updateStatus(PostStatus status) {
+        this.status = status;
+    }
+
 }
