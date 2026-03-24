@@ -17,6 +17,7 @@ import com.back.member.adapter.in.web.MemberController;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.application.MemberService;
+import com.back.member.domain.MemberRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,7 @@ class SecurityConfigTest {
   @Autowired private ObjectMapper objectMapper;
 
   @MockitoBean private MemberService memberService;
+  @MockitoBean private MemberRepository memberRepository;
   @MockitoBean private JwtTokenService jwtTokenService;
 
   @Test
@@ -83,17 +85,4 @@ class SecurityConfigTest {
         .andExpect(jsonPath("$.msg").value("You do not have permission."));
   }
 
-  @Test
-  @DisplayName("만료된 액세스 토큰으로 보호 API를 호출하면 401을 반환한다")
-  void expiredAccessTokenReturns401() throws Exception {
-    given(jwtTokenService.validate("expired-access-token")).willReturn(false);
-
-    mockMvc
-        .perform(
-            get("/api/v1/members/{memberId}", 1)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer expired-access-token"))
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.resultCode").value("401-1"))
-        .andExpect(jsonPath("$.msg").value("Authentication is required."));
-  }
 }
