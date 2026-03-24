@@ -23,15 +23,20 @@ import com.back.member.domain.MemberStatus;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -45,8 +50,15 @@ class AuthServiceTest {
   @Mock private JwtTokenService jwtTokenService;
   @Mock private RefreshTokenDomainService refreshTokenDomainService;
   @Mock private JwtProperties jwtProperties;
+  @Mock private Clock clock;
 
   @InjectMocks private AuthService authService;
+
+  @BeforeEach
+  void setUpClock() {
+    Mockito.lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+    Mockito.lenient().when(clock.instant()).thenReturn(Instant.parse("2026-03-24T00:00:00Z"));
+  }
 
   @Test
   @DisplayName("회원 가입은 이메일 중복 검사 후 비밀번호 해시를 저장한다")
@@ -92,6 +104,14 @@ class AuthServiceTest {
             any(LocalDateTime.class),
             anyString());
     assertThat(refreshHashCaptor.getValue()).isEqualTo(refreshTokenHash("raw-refresh-token"));
+    then(refreshTokenDomainService)
+        .should()
+        .saveIssuedToken(
+            any(Member.class),
+            anyString(),
+            anyString(),
+            org.mockito.ArgumentMatchers.eq(fixedNow().plusSeconds(1_209_600L)),
+            anyString());
   }
 
   @Test
@@ -127,7 +147,7 @@ class AuthServiceTest {
             member,
             "jti-current",
             refreshTokenHash("raw-refresh-token"),
-            LocalDateTime.now().plusHours(1),
+            fixedNow().plusHours(1),
             "family-1");
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
@@ -151,8 +171,8 @@ class AuthServiceTest {
             any(RefreshToken.class),
             anyString(),
             nextHashCaptor.capture(),
-            any(LocalDateTime.class),
-            any(LocalDateTime.class));
+            org.mockito.ArgumentMatchers.eq(fixedNow().plusSeconds(1_209_600L)),
+            org.mockito.ArgumentMatchers.eq(fixedNow()));
     assertThat(nextHashCaptor.getValue()).isEqualTo(refreshTokenHash("next-refresh-token"));
   }
 
@@ -165,9 +185,9 @@ class AuthServiceTest {
             member,
             "jti-reused",
             refreshTokenHash("raw-refresh-token"),
-            LocalDateTime.now().plusHours(1),
+            fixedNow().plusHours(1),
             "family-2");
-    revoked.revoke(LocalDateTime.now().minusMinutes(1), null);
+    revoked.revoke(fixedNow().minusMinutes(1), null);
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-reused", "family-2"));
@@ -193,7 +213,7 @@ class AuthServiceTest {
             member,
             "jti-expired",
             refreshTokenHash("raw-refresh-token"),
-            LocalDateTime.now().minusSeconds(1),
+            fixedNow().minusSeconds(1),
             "family-expired");
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
@@ -234,6 +254,42 @@ class AuthServiceTest {
     assertThat(response.id()).isEqualTo(member.getId());
     assertThat(response.email()).isEqualTo(member.getEmail());
     assertThat(response.nickname()).isEqualTo(member.getNickname());
+  }
+
+  @Test
+  @DisplayName("me는 차단된 회원이면 403-2를 반환한다")
+  void meFailsWhenMemberBlocked() {
+    Member member = memberWithId(15L, "blocked-me@test.com", "blocked-me");
+    ReflectionTestUtils.setField(member, "status", MemberStatus.BLOCKED);
+    given(memberRepository.findById(member.getId())).willReturn(Optional.of(member));
+
+    assertThatThrownBy(
+            () ->
+                authService.me(
+                    new AuthenticatedMember(
+                        member.getId(), member.getEmail(), java.util.List.of("ROLE_USER"))))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("403-2"));
+  }
+
+  @Test
+  @DisplayName("me는 탈퇴한 회원이면 403-3을 반환한다")
+  void meFailsWhenMemberWithdrawn() {
+    Member member = memberWithId(16L, "withdrawn-me@test.com", "withdrawn-me");
+    ReflectionTestUtils.setField(member, "status", MemberStatus.WITHDRAWN);
+    given(memberRepository.findById(member.getId())).willReturn(Optional.of(member));
+
+    assertThatThrownBy(
+            () ->
+                authService.me(
+                    new AuthenticatedMember(
+                        member.getId(), member.getEmail(), java.util.List.of("ROLE_USER"))))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("403-3"));
   }
 
   @Test
@@ -397,7 +453,7 @@ class AuthServiceTest {
             member,
             "logout-jti",
             refreshTokenHash("another-refresh-token"),
-            LocalDateTime.now().plusHours(1),
+            fixedNow().plusHours(1),
             "family-logout");
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
@@ -410,10 +466,35 @@ class AuthServiceTest {
     then(refreshTokenDomainService).should(never()).revoke(anyString(), any(LocalDateTime.class));
   }
 
+  @Test
+  @DisplayName("logout은 활성 refresh 토큰이면 고정 시각 기준으로 폐기한다")
+  void logoutRevokesActiveTokenUsingClockTime() {
+    Member member = memberWithId(14L, "logout-active@test.com", "logout-active");
+    RefreshToken stored =
+        RefreshToken.issue(
+            member,
+            "logout-active-jti",
+            refreshTokenHash("raw-refresh-token"),
+            fixedNow().plusHours(1),
+            "family-logout-active");
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
+        .willReturn(new JwtRefreshSubject(14L, "logout-active-jti", "family-logout-active"));
+    given(refreshTokenDomainService.findByJti("logout-active-jti")).willReturn(Optional.of(stored));
+
+    authService.logout("raw-refresh-token");
+
+    then(refreshTokenDomainService).should().revoke("logout-active-jti", fixedNow());
+  }
+
   private Member memberWithId(Long id, String email, String nickname) {
     Member member = Member.create(email, "$2a$10$stored", nickname);
     ReflectionTestUtils.setField(member, "id", id);
     return member;
+  }
+
+  private LocalDateTime fixedNow() {
+    return LocalDateTime.ofInstant(Instant.parse("2026-03-24T00:00:00Z"), ZoneOffset.UTC);
   }
 
   private String refreshTokenHash(String rawRefreshToken) {
