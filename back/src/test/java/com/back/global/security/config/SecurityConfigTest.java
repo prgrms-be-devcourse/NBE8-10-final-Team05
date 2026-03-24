@@ -85,4 +85,14 @@ class SecurityConfigTest {
         .andExpect(jsonPath("$.msg").value("You do not have permission."));
   }
 
+  @Test
+  @DisplayName("허용 목록에 없는 경로는 인증된 사용자여도 403을 반환한다")
+  void nonWhitelistedRouteReturns403() throws Exception {
+    mockMvc
+        .perform(get("/api/v2/preview").with(user("member").roles("USER")))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.resultCode").value("403-1"))
+        .andExpect(jsonPath("$.msg").value("You do not have permission."));
+  }
+
 }

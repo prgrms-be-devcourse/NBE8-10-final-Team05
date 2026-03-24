@@ -6,6 +6,7 @@ import com.back.global.security.handler.OAuth2LoginSuccessHandler;
 import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtProperties;
+import jakarta.servlet.DispatcherType;
 import java.time.Clock;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
@@ -35,8 +36,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *
  * <ul>
  *   <li>JWT API + OIDC 로그인 공존
- *   <li>/api/v1/** 경로는 기본적으로 인증 필요
- *   <li>공개해야 하는 경로만 명시적으로 허용
+ *   <li>공개 경로만 명시적으로 허용
+ *   <li>나머지 모든 경로는 기본 거부(deny by default)
  * </ul>
  */
 @Configuration
@@ -88,12 +89,15 @@ public class SecurityConfig {
 
     http.authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(CorsUtils::isPreFlightRequest)
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR)
+                    .permitAll()
+                    .requestMatchers(CorsUtils::isPreFlightRequest)
+                    .permitAll()
+                    .requestMatchers("/error")
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/health",
-                        "/error",
                         "/api/v1/auth/oidc/authorize/**",
                         "/api/v1/auth/oidc/callback/**")
                     .permitAll()
@@ -107,8 +111,9 @@ public class SecurityConfig {
                     // 나머지 /api/v1 경로는 모두 인증이 필요하다.
                     .requestMatchers("/api/v1/**")
                     .authenticated()
+                    // 허용 목록에 없는 모든 경로는 기본적으로 차단한다.
                     .anyRequest()
-                    .permitAll())
+                    .denyAll())
         // 비인증 허용 엔드포인트를 위해 anonymous principal 유지.
         .anonymous(Customizer.withDefaults());
 
