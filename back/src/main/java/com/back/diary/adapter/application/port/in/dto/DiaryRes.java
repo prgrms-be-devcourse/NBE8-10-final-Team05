@@ -1,6 +1,6 @@
-package com.back.diary.dto;
+package com.back.diary.adapter.application.port.in.dto;
 
-import com.back.diary.entity.Diary;
+import com.back.diary.domain.Diary;
 
 import java.time.LocalDateTime;
 

@@ -1,4 +1,4 @@
-package com.back.diary.service;
+package com.back.diary.adapter.application.service;
 
 import com.back.global.exception.ServiceException;
 import org.springframework.beans.factory.annotation.Value;

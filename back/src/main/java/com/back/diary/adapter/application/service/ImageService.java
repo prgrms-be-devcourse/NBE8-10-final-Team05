@@ -1,4 +1,4 @@
-package com.back.diary.service;
+package com.back.diary.adapter.application.service;
 
 import org.springframework.web.multipart.MultipartFile;
 
