@@ -1,18 +1,33 @@
 package com.back.report.service;
 
 import com.back.global.exception.ServiceException;
-import com.back.report.dto.ReportCreateRequest;
+import com.back.letter.adapter.out.persistence.repository.LetterRepository;
+import com.back.letter.domain.Letter;
+import com.back.member.domain.Member;
+import com.back.member.domain.MemberRepository;
+import com.back.member.domain.MemberStatus;
+import com.back.post.entity.Post;
+import com.back.post.entity.PostStatus;
+import com.back.post.repository.PostRepository;
+import com.back.report.dto.*;
 import com.back.report.entity.Report;
+import com.back.report.entity.ReportStatus;
+import com.back.report.entity.TargetType;
 import com.back.report.repository.ReportRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ReportService {
 
     private final ReportRepository reportRepository;
+    private final MemberRepository memberRepository;
+    private final PostRepository postRepository;
+    private final LetterRepository letterRepository;
 
     @Transactional
     public Long createReport(Long reporterId, ReportCreateRequest request) {
@@ -30,6 +45,109 @@ public class ReportService {
                 request.content()
         );
 
-        return reportRepository.save(report).getId(); // BaseEntity의 id 반환
+        return reportRepository.save(report).getId();
+    }
+
+    // 관리자용 신고 목록 조회
+    public List<ReportListResponse> getReports() {
+        return reportRepository.findAll().stream()
+                .map(report -> {
+                    Member reporter = memberRepository.findById(report.getReporterId()).orElse(null);
+                    return new ReportListResponse(
+                            report.getId(),
+                            reporter != null ? reporter.getNickname() : "알 수 없음",
+                            report.getTargetType().name(),
+                            report.getTargetId(),
+                            report.getReason().getContent(),
+                            report.getStatus().name(),
+                            report.getCreateDate()
+                    );
+                }).toList();
+    }
+
+    // 관리자용 신고 상세 조회
+    public ReportDetailResponse getReportDetail(Long id) {
+        Report report = reportRepository.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 신고입니다."));
+
+        Member reporter = memberRepository.findById(report.getReporterId()).orElse(null);
+
+        String originalContent = "";
+        String authorNickname = "";
+
+        // 타겟 타입에 따른 원본 데이터 조회
+        if (report.getTargetType() == TargetType.POST) {
+            Post post = postRepository.findById(report.getTargetId()).orElse(null);
+            if (post != null) {
+                originalContent = post.getContent();
+                authorNickname = post.getMember().getNickname();
+            }
+        } else if (report.getTargetType() == TargetType.LETTER) {
+            Letter letter = letterRepository.findById(report.getTargetId()).orElse(null);
+            if (letter != null) {
+                originalContent = letter.getContent();
+                authorNickname = letter.getSender().getNickname();
+            }
+        }
+
+        return new ReportDetailResponse(
+                report.getId(),
+                reporter != null ? reporter.getNickname() : "알 수 없음",
+                report.getReason().getContent(),
+                report.getContent(),
+                report.getStatus().name(),
+                report.getCreateDate(),
+                new ReportDetailResponse.TargetInfo(
+                        report.getTargetType().name(),
+                        report.getTargetId(),
+                        originalContent,
+                        authorNickname
+                )
+        );
+    }
+
+    // 관리자용 신고 처리 로직
+    @Transactional
+    public void handleReport(Long id, ReportHandleRequest request) {
+        Report report = reportRepository.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 신고입니다."));
+
+        // 1. 신고 사유가 부적절한 경우 (무시)
+        if ("REJECT".equals(request.action())) {
+            // 별도 조치 없이 상태만 변경하러 이동
+        }
+
+        // 2. 게시글/댓글 삭제 (소프트 딜리트)
+        else if ("DELETE".equals(request.action())) {
+            if (report.getTargetType() == TargetType.POST) {
+                Post post = postRepository.findById(report.getTargetId()).orElse(null);
+                if (post != null) {
+                    // status를 HIDDEN으로 변경 (Soft Delete)
+                    post.updateStatus(PostStatus.HIDDEN);
+                }
+            }
+            // else if (report.getTargetType() == TargetType.COMMENT) { ... 댓글 숨김 처리 ... }
+        }
+
+        // 3. 작성자 계정 정지 (POST, LETTER, COMMENT 공통)
+        else if ("BLOCK_USER".equals(request.action())) {
+            Long authorId = null;
+            if (report.getTargetType() == TargetType.POST) {
+                authorId = postRepository.findById(report.getTargetId())
+                        .map(p -> p.getMember().getId()).orElse(null);
+            } else if (report.getTargetType() == TargetType.LETTER) {
+                authorId = letterRepository.findById(report.getTargetId())
+                        .map(l -> l.getSender().getId()).orElse(null);
+            }
+
+            if (authorId != null) {
+                Member author = memberRepository.findById(authorId).orElse(null);
+                if (author != null) {
+                    author.updateStatus(MemberStatus.BLOCKED); // 계정 정지 처리
+                }
+            }
+        }
+
+        report.updateStatus(ReportStatus.PROCESSED);
     }
 }
