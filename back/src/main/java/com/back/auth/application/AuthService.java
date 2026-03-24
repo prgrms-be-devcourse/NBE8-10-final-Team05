@@ -98,7 +98,7 @@ public class AuthService {
   }
 
   /** refresh 회전 처리: 기존 토큰 폐기 + 신규 refresh/access 토큰 발급. */
-  @Transactional
+  @Transactional(noRollbackFor = ServiceException.class)
   public AuthTokenIssueResult refresh(String rawRefreshToken) {
     if (!StringUtils.hasText(rawRefreshToken)) {
       throw AuthErrorCode.REFRESH_TOKEN_REQUIRED.toException();
@@ -111,7 +111,7 @@ public class AuthService {
     LocalDateTime now = LocalDateTime.now();
     RefreshToken current =
         refreshTokenDomainService
-            .findByJti(refreshSubject.jti())
+            .findByJtiForUpdate(refreshSubject.jti())
             .orElseThrow(AuthErrorCode.REFRESH_TOKEN_INVALID::toException);
 
     if (!matchesRefreshToken(rawRefreshToken, current.getTokenHash())) {
@@ -139,7 +139,7 @@ public class AuthService {
     String nextRefreshTokenHash = hashRefreshToken(nextRefreshToken);
 
     refreshTokenDomainService.rotate(
-        current.getJti(),
+        current,
         nextJti,
         nextRefreshTokenHash,
         now.plusSeconds(jwtProperties.refreshTokenExpireSeconds()),

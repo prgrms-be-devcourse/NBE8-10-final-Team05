@@ -132,7 +132,7 @@ class AuthServiceTest {
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-current", "family-1"));
-    given(refreshTokenDomainService.findByJti("jti-current")).willReturn(Optional.of(current));
+    given(refreshTokenDomainService.findByJtiForUpdate("jti-current")).willReturn(Optional.of(current));
     given(jwtTokenService.generateRefreshToken(any(Long.class), anyString(), anyString()))
         .willReturn("next-refresh-token");
     given(jwtProperties.refreshTokenExpireSeconds()).willReturn(1_209_600L);
@@ -148,7 +148,7 @@ class AuthServiceTest {
     then(refreshTokenDomainService)
         .should()
         .rotate(
-            anyString(),
+            any(RefreshToken.class),
             anyString(),
             nextHashCaptor.capture(),
             any(LocalDateTime.class),
@@ -171,7 +171,7 @@ class AuthServiceTest {
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-reused", "family-2"));
-    given(refreshTokenDomainService.findByJti("jti-reused")).willReturn(Optional.of(revoked));
+    given(refreshTokenDomainService.findByJtiForUpdate("jti-reused")).willReturn(Optional.of(revoked));
 
     assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
         .isInstanceOf(ServiceException.class)
@@ -198,7 +198,8 @@ class AuthServiceTest {
     given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
     given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
         .willReturn(new JwtRefreshSubject(member.getId(), "jti-expired", "family-expired"));
-    given(refreshTokenDomainService.findByJti("jti-expired")).willReturn(Optional.of(expiredToken));
+    given(refreshTokenDomainService.findByJtiForUpdate("jti-expired"))
+        .willReturn(Optional.of(expiredToken));
 
     assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
         .isInstanceOf(ServiceException.class)
@@ -212,7 +213,7 @@ class AuthServiceTest {
     then(refreshTokenDomainService)
         .should(never())
         .rotate(
-            anyString(),
+            any(RefreshToken.class),
             anyString(),
             anyString(),
             any(LocalDateTime.class),
@@ -259,7 +260,7 @@ class AuthServiceTest {
                 assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-4"));
 
     then(jwtTokenService).should().validate("raw-refresh-token");
-    then(refreshTokenDomainService).should(never()).findByJti(anyString());
+    then(refreshTokenDomainService).should(never()).findByJtiForUpdate(anyString());
   }
 
   @Test
