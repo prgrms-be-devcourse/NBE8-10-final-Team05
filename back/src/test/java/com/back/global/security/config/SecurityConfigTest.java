@@ -95,4 +95,14 @@ class SecurityConfigTest {
         .andExpect(jsonPath("$.msg").value("You do not have permission."));
   }
 
+  @Test
+  @DisplayName("허용 목록에 없는 auth POST 경로를 토큰 없이 호출하면 401을 반환한다")
+  void nonWhitelistedAuthPostRouteReturns401() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/auth/internal-sync"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-1"))
+        .andExpect(jsonPath("$.msg").value("Authentication is required."));
+  }
+
 }

@@ -103,7 +103,13 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/oauth2/**", "/login/oauth2/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/members", "/api/v1/auth/**")
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/v1/members",
+                        "/api/v1/auth/signup",
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/refresh",
+                        "/api/v1/auth/logout")
                     .permitAll()
                     // 관리자 경로는 ADMIN 권한이 필요하다.
                     .requestMatchers("/api/v1/admin/**")

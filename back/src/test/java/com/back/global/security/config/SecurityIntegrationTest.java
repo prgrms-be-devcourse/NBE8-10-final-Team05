@@ -59,6 +59,41 @@ class SecurityIntegrationTest {
   }
 
   @Test
+  @DisplayName("공개 로그인 API는 토큰 없이도 정상 동작한다")
+  void loginEndpointRemainsPublic() throws Exception {
+    Member member = createMember(MemberRole.USER, MemberStatus.ACTIVE);
+    String requestBody =
+        objectMapper.writeValueAsString(
+            new AuthLoginIntegrationRequest(member.getEmail(), "plain-pass-1234"));
+
+    mockMvc
+        .perform(post("/api/v1/auth/login").contentType(APPLICATION_JSON).content(requestBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-3"))
+        .andExpect(jsonPath("$.data.member.email").value(member.getEmail()));
+  }
+
+  @Test
+  @DisplayName("공개 refresh API는 인증 헤더 없이 호출돼도 컨트롤러 규약 코드로 응답한다")
+  void refreshEndpointRemainsPublic() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/auth/refresh"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-3"))
+        .andExpect(jsonPath("$.msg").value("Refresh token cookie is required."));
+  }
+
+  @Test
+  @DisplayName("공개 logout API는 인증 헤더 없이 호출돼도 정상 응답한다")
+  void logoutEndpointRemainsPublic() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/auth/logout"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-5"))
+        .andExpect(jsonPath("$.msg").value("Logged out successfully."));
+  }
+
+  @Test
   @DisplayName("보호 API를 토큰 없이 호출하면 실제 컨텍스트에서도 401을 반환한다")
   void protectedRouteWithoutTokenReturns401() throws Exception {
     mockMvc
@@ -119,6 +154,16 @@ class SecurityIntegrationTest {
   }
 
   @Test
+  @DisplayName("허용 목록에 없는 auth POST 경로는 실제 컨텍스트에서 401을 반환한다")
+  void nonWhitelistedAuthPostRouteReturns401() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/auth/internal-sync"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.resultCode").value("401-1"))
+        .andExpect(jsonPath("$.msg").value("Authentication is required."));
+  }
+
+  @Test
   @DisplayName("OIDC authorize 경로는 토큰 없이도 리다이렉트 응답을 반환한다")
   void oidcAuthorizeRemainsPublic() throws Exception {
     mockMvc
@@ -144,6 +189,8 @@ class SecurityIntegrationTest {
   private String bearer(String accessToken) {
     return "Bearer " + accessToken;
   }
+
+  private record AuthLoginIntegrationRequest(String email, String password) {}
 
   private record AuthSignupIntegrationRequest(String email, String password, String nickname) {}
 }
