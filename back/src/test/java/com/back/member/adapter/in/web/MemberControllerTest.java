@@ -17,6 +17,7 @@ import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
 import com.back.member.application.MemberService;
+import com.back.member.domain.MemberRepository;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ class MemberControllerTest {
 
   @MockitoBean private MemberService memberService;
   @MockitoBean private JwtTokenService jwtTokenService;
+  @MockitoBean private MemberRepository memberRepository;
 
   @Test
   @DisplayName("회원 가입 API는 회원 정보를 생성한다")

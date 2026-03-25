@@ -66,6 +66,11 @@ public class Member extends BaseEntity {
     this.nickname = sanitizeNickname(nickname);
   }
 
+  /** 회원의 상태(ACTIVE, BLOCKED, WITHDRAWN)를 변경합니다. */
+  public void updateStatus(MemberStatus status) {
+    this.status = status;
+  }
+
   /** 비밀번호 비교는 문자열 비교가 아닌 PasswordEncoder.matches 수행한다. */
   public boolean matchesPassword(String rawPassword, PasswordEncoder passwordEncoder) {
     return passwordEncoder.matches(rawPassword, passwordHash);
