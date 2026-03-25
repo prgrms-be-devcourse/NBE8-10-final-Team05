@@ -9,6 +9,7 @@ public record ReportDetailResponse(
         String reason,
         String description,
         String status,
+        String processingAction,
         LocalDateTime createdAt,
         TargetInfo targetInfo
 ) {
