@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
+import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
 interface ReceivedLetter {
@@ -28,6 +29,15 @@ export default function ReceivedLettersPage() {
   const router = useRouter();
   const [letters, setLetters] = useState<ReceivedLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  function handleGoBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/letters/mailbox");
+  }
 
   useEffect(() => {
     const fetchReceivedLetters = async () => {
@@ -49,23 +59,28 @@ export default function ReceivedLettersPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#EBF5FF] text-slate-800 font-sans pb-20">
-      {/* 상단 네비게이션 */}
-      <header className="p-6 flex items-center justify-between max-w-6xl mx-auto w-full">
-        <button
-          onClick={() => router.push("/")}
-          className="p-2 hover:bg-white/50 rounded-full transition-all text-slate-500 active:scale-95"
-        >
-          <ChevronLeft size={28} />
-        </button>
-        <h1 className="text-xl font-bold text-sky-900 flex items-center gap-2">
-          <Inbox size={22} className="text-sky-400" />
-          받은 편지함
-        </h1>
-        <div className="w-10" />
-      </header>
+    <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+      <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+        <MainHeader />
+      </div>
 
-      <main className="max-w-6xl mx-auto px-6 mt-8">
+      <main className="mx-auto mt-10 max-w-6xl px-6">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+          >
+            <ChevronLeft size={16} />
+            돌아가기
+          </button>
+
+          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900 shadow-sm sm:self-auto">
+            <Inbox size={18} className="text-sky-400" />
+            받은 편지함
+          </div>
+        </div>
+
         {/* 요약 카드: 받은 편지만의 감성 문구 */}
         <section className="bg-white/70 backdrop-blur-lg rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/50 shadow-sm">
           <div className="text-center md:text-left">

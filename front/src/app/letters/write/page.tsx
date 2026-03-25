@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { RefreshCcw, Waves } from "lucide-react";
+import { ChevronLeft, RefreshCcw, Waves } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -47,6 +47,15 @@ export default function WriteLetterPage() {
   const letterLength = title.trim().length + content.trim().length;
   const hasDraft = title.trim().length > 0 || content.trim().length > 0;
   const canSend = title.trim().length > 0 && content.trim().length > 0 && !isSending;
+
+  function handleGoBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/letters/mailbox");
+  }
 
   async function handleSend() {
     if (!canSend) {
@@ -110,6 +119,17 @@ export default function WriteLetterPage() {
         </section>
 
         <section className="mx-auto mt-10 w-full max-w-4xl">
+          <div className="mb-5 flex justify-start">
+            <button
+              type="button"
+              onClick={handleGoBack}
+              className="inline-flex items-center gap-2 rounded-full bg-white/78 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+            >
+              <ChevronLeft size={16} />
+              돌아가기
+            </button>
+          </div>
+
           <div className="relative rounded-[44px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.66),rgba(238,247,255,0.92))] px-4 pb-8 pt-14 shadow-[0_36px_90px_-54px_rgba(92,139,203,0.52)] sm:px-8 sm:pb-10 sm:pt-16">
             <div className="absolute left-1/2 top-0 h-7 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#c59f74] shadow-[0_10px_18px_-14px_rgba(88,61,34,0.7)]" />
 

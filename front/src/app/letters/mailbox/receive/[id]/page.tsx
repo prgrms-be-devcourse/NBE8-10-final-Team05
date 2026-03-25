@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -11,6 +11,7 @@ import {
   Send,
   MessageSquareText,
 } from "lucide-react";
+import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
 
 interface ReceivedLetterDetail {
@@ -31,6 +32,15 @@ export default function ReceivedLetterDetailPage() {
   const [replyContent, setReplyContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/letters/mailbox/receive");
+  }, [router]);
+
   useEffect(() => {
     const fetchLetterDetail = async () => {
       try {
@@ -41,13 +51,13 @@ export default function ReceivedLetterDetailPage() {
       } catch (error) {
         console.error("편지를 가져오는데 실패했습니다.", error);
         alert("존재하지 않는 편지입니다.");
-        router.back();
+        handleGoBack();
       } finally {
         setIsLoading(false);
       }
     };
     fetchLetterDetail();
-  }, [params.id, router]);
+  }, [handleGoBack, params.id, router]);
 
   // 답장 전송 함수
   const handleReplySubmit = async () => {
@@ -76,8 +86,13 @@ export default function ReceivedLetterDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#EBF5FF] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-400"></div>
+      <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+        <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+          <MainHeader />
+        </div>
+        <div className="flex items-center justify-center py-24">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-400"></div>
+        </div>
       </div>
     );
   }
@@ -85,22 +100,28 @@ export default function ReceivedLetterDetailPage() {
   if (!letter) return null;
 
   return (
-    <div className="min-h-screen bg-[#EBF5FF] text-slate-800 font-sans pb-20">
-      <header className="p-6 flex items-center justify-between max-w-6xl mx-auto w-full sticky top-0 z-50">
-        <button
-          onClick={() => router.back()}
-          className="p-3 bg-white/60 hover:bg-white rounded-full transition-all text-slate-500 shadow-sm"
-        >
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-xl font-bold text-sky-900 flex items-center gap-2.5">
-          <MailOpen size={22} className="text-sky-400" />
-          도착한 마음
-        </h1>
-        <div className="w-12" />
-      </header>
+    <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+      <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+        <MainHeader />
+      </div>
 
-      <main className="max-w-4xl mx-auto px-6 mt-10">
+      <main className="mx-auto mt-10 max-w-4xl px-6">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+          >
+            <ChevronLeft size={16} />
+            돌아가기
+          </button>
+
+          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900 shadow-sm sm:self-auto">
+            <MailOpen size={18} className="text-sky-400" />
+            도착한 마음
+          </div>
+        </div>
+
         {/* 원본 편지 카드 */}
         <section className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 md:p-14 shadow-[0_30px_70px_-15px_rgba(186,215,233,0.6)] border border-white relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-sky-100 via-sky-300 to-sky-100" />
