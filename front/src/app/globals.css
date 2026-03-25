@@ -22,20 +22,66 @@ html {
   scroll-behavior: smooth;
 }
 
-body {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 32%),
-    radial-gradient(circle at top right, rgba(214, 232, 255, 0.7) 0%, rgba(214, 232, 255, 0) 26%),
-    var(--background);
-  color: var(--foreground);
+/* 1. 기본 스타일 (Base) */
+@layer base {
+  body {
+    min-height: 100vh;
+    /* [develop]의 화사한 그라데이션 배경 적용 */
+    background: 
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 32%),
+      radial-gradient(circle at top right, rgba(214, 232, 255, 0.7) 0%, rgba(214, 232, 255, 0) 26%),
+      var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  ::selection {
+    background: rgba(120, 167, 230, 0.28);
+  }
+
+  /* [refactor] 에디터 관련 커스텀 스타일 */
+  .editor-area:empty:before {
+    content: attr(data-placeholder);
+    color: #cbd5e1;
+    cursor: text;
+    transition: opacity 0.3s;
+  }
+
+  .editor-area:focus:empty:before {
+    opacity: 0.5;
+  }
+
+  .editor-area p {
+    margin-bottom: 1.8rem;
+    min-height: 1.5em;
+  }
+
+  /* 이미지(figure) 스타일 및 드래그 애니메이션 */
+  .editor-area figure {
+    transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.3s;
+    margin: 3rem 0;
+    cursor: grab;
+  }
+
+  .editor-area figure:active {
+    cursor: grabbing;
+  }
+
+  .editor-area figure.opacity-40 {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+
+  .editor-area figure img {
+    border-radius: 2rem;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
+    border: 4px solid white;
+  }
 }
 
-::selection {
-  background: rgba(120, 167, 230, 0.28);
-}
-
+/* 2. 컴포넌트 스타일 (Components) */
 @layer components {
+  /* [develop] 홈 화면 분위기 관련 클래스 */
   .home-atmosphere {
     position: relative;
   }
@@ -62,5 +108,4 @@ body {
     background: linear-gradient(135deg, #9dc3fb 0%, #77aaf4 38%, #5e95f3 100%);
     box-shadow: 0 30px 70px -40px rgba(58, 105, 176, 0.55);
   }
-
 }

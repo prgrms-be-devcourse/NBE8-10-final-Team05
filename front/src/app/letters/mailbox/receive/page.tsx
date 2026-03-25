@@ -10,23 +10,18 @@ import {
   Waves,
   Clock,
   CheckCircle2,
-  PenTool,
-  Loader2,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
-// 1. 백엔드 LetterStatus와 일치하는 타입 정의
 interface ReceivedLetter {
   id: number;
   title: string;
   content: string;
   senderNickname: string;
-  status: "SENT" | "ACCEPTED" | "WRITING" | "REPLIED";
+  read: boolean;
   createdDate: string;
 }
-
-type ReceivedLettersResponse = ReceivedLetter[] | { letters?: ReceivedLetter[] };
 
 export default function ReceivedLettersPage() {
   const router = useRouter();
@@ -38,19 +33,22 @@ export default function ReceivedLettersPage() {
       router.back();
       return;
     }
-
     router.push("/letters/mailbox");
   }
 
   useEffect(() => {
     const fetchReceivedLetters = async () => {
       try {
-        const response = await requestData<ReceivedLettersResponse>("/api/v1/letters/received");
-        const data = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.letters)
-            ? response.letters
-            : [];
+        // [Refactor + Develop 통합] 다양한 응답 형태 대응
+        const response = await requestData<any>("/api/v1/letters/received");
+        
+        let data: ReceivedLetter[] = [];
+        if (Array.isArray(response)) {
+          data = response;
+        } else if (response && Array.isArray(response.letters)) {
+          data = response.letters;
+        }
+        
         setLetters(data);
       } catch (error) {
         console.error("받은 편지를 가져오는데 실패했습니다.", error);
@@ -61,51 +59,15 @@ export default function ReceivedLettersPage() {
     fetchReceivedLetters();
   }, []);
 
-  // 2. 상태에 따른 디자인 매핑
-  const getStatusDisplay = (status: string) => {
-    switch (status) {
-      case "REPLIED":
-        return {
-          label: "답장 완료",
-          icon: <CheckCircle2 size={12} />,
-          className: "text-emerald-600 bg-emerald-50 border-emerald-100",
-          cardClass: "bg-white/40 border-white/20 opacity-80",
-        };
-      case "WRITING":
-        return {
-          label: "답장 작성 중",
-          icon: <PenTool size={12} />,
-          className:
-            "text-amber-600 bg-amber-50 border-amber-100 animate-pulse",
-          cardClass: "bg-white shadow-sm border-white",
-        };
-      case "ACCEPTED":
-        return {
-          label: "읽음",
-          icon: <Clock size={12} />,
-          className: "text-sky-600 bg-sky-50 border-sky-100",
-          cardClass: "bg-white/60 border-white/30",
-        };
-      case "SENT":
-      default:
-        return {
-          label: "NEW",
-          icon: <Sparkles size={12} />,
-          className:
-            "text-white bg-rose-400 border-rose-300 animate-bounce shadow-sm",
-          cardClass:
-            "bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border-white ring-2 ring-sky-100",
-        };
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+      {/* [Develop] 메인 헤더 디자인 적용 */}
       <div className="mx-auto w-full max-w-6xl px-6 pt-7">
         <MainHeader />
       </div>
 
       <main className="mx-auto mt-10 max-w-6xl px-6">
+        {/* [Develop] 상단 버튼 및 타이틀 영역 디자인 */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
@@ -122,7 +84,7 @@ export default function ReceivedLettersPage() {
           </div>
         </div>
 
-        {/* 요약 카드: 받은 편지만의 감성 문구 */}
+        {/* 요약 카드 */}
         <section className="bg-white/70 backdrop-blur-lg rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/50 shadow-sm">
           <div className="text-center md:text-left">
             <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center md:justify-start gap-2">
@@ -130,8 +92,7 @@ export default function ReceivedLettersPage() {
               <Sparkles size={24} className="text-amber-400" />
             </h2>
             <p className="text-slate-500">
-              바다를 건너 당신에게 닿은 {letters.length}개의 소중한
-              이야기입니다.
+              바다를 건너 당신에게 닿은 {letters.length}개의 소중한 이야기입니다.
             </p>
           </div>
           <div className="mt-6 md:mt-0 p-5 bg-gradient-to-br from-sky-400 to-blue-500 text-white rounded-[2rem] shadow-lg shadow-sky-200">
@@ -139,70 +100,69 @@ export default function ReceivedLettersPage() {
           </div>
         </section>
 
+        {/* 편지 목록 */}
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
-            <Loader2 className="animate-spin h-10 w-10 text-sky-400" />
-            <p className="text-sky-600 font-medium">편지를 불러오는 중...</p>
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-sky-400"></div>
           </div>
         ) : letters.length === 0 ? (
-          <div className="text-center py-24 bg-white/20 rounded-[3rem] border-2 border-dashed border-sky-200/50 flex flex-col items-center">
+          <div className="text-center py-24 bg-white/20 rounded-[3rem] border-2 border-dashed border-sky-200/50">
             <p className="text-slate-400 text-lg italic font-serif">
               아직 바닷가에 떠밀려온 편지가 없네요...
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {letters.map((letter) => {
-              const statusInfo = getStatusDisplay(letter.status);
-              return (
-                <div
-                  key={letter.id}
-                  onClick={() =>
-                    router.push(`/letters/mailbox/receive/${letter.id}`)
-                  }
-                  className={`group relative p-8 rounded-[2.5rem] border transition-all duration-300 cursor-pointer hover:-translate-y-2 hover:shadow-xl ${statusInfo.cardClass}`}
-                >
-                  <div className="flex justify-between items-start mb-6 gap-2">
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 bg-slate-100/50 px-3 py-1.5 rounded-full uppercase">
-                      <Clock size={14} />
-                      {new Date(letter.createdDate).toLocaleDateString()}
-                    </div>
-
-                    {/* 상태 표시 배지 */}
-                    <div
-                      className={`flex items-center gap-1 text-[10px] font-black px-3 py-1.5 rounded-full border transition-all ${statusInfo.className}`}
-                    >
-                      {statusInfo.icon}
-                      {statusInfo.label}
-                    </div>
+            {letters.map((letter) => (
+              <div
+                key={letter.id}
+                onClick={() => router.push(`/letters/mailbox/receive/${letter.id}`)}
+                className={`group relative p-8 rounded-[2.5rem] border transition-all duration-300 cursor-pointer hover:-translate-y-2
+                  ${
+                    letter.read
+                      ? "bg-white/40 border-white/20 grayscale-[0.3]"
+                      : "bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border-white"
+                  }`}
+              >
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 bg-slate-100/50 px-3 py-1.5 rounded-full uppercase">
+                    <Clock size={14} />
+                    {new Date(letter.createdDate).toLocaleDateString()}
                   </div>
-
-                  <h3
-                    className={`text-xl font-bold mb-3 line-clamp-1 group-hover:text-sky-600 transition-colors ${letter.status === "REPLIED" ? "text-slate-500" : "text-slate-800"}`}
-                  >
-                    {letter.title || "제목 없는 편지"}
-                  </h3>
-                  <p className="text-slate-400 text-sm leading-relaxed line-clamp-2 font-serif italic mb-8">
-                    {letter.content}
-                  </p>
-
-                  <div className="pt-6 border-t border-slate-100 flex justify-between items-center text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 bg-sky-50 rounded-full flex items-center justify-center text-sky-400 group-hover:bg-sky-400 group-hover:text-white transition-all">
-                        <MessageSquare size={14} />
-                      </div>
-                      <span className="text-xs font-medium">
-                        From. {letter.senderNickname || "익명의 파도"}
-                      </span>
-                    </div>
-                    <Waves
-                      size={16}
-                      className="text-sky-200 group-hover:text-sky-400 transition-colors"
-                    />
-                  </div>
+                  {!letter.read && (
+                    <span className="flex items-center gap-1 text-[11px] font-black text-white bg-rose-400 px-3 py-1.5 rounded-full shadow-md shadow-rose-100 animate-bounce">
+                      NEW
+                    </span>
+                  )}
+                  {letter.read && (
+                    <CheckCircle2 size={18} className="text-sky-300" />
+                  )}
                 </div>
-              );
-            })}
+
+                <h3 className={`text-xl font-bold mb-3 line-clamp-1 ${letter.read ? "text-slate-500" : "text-slate-800"}`}>
+                  {letter.title}
+                </h3>
+                <p className="text-slate-400 text-sm leading-relaxed line-clamp-2 font-serif mb-8">
+                  {letter.content}
+                </p>
+
+                <div className="pt-6 border-t border-slate-100 flex justify-between items-center text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-sky-100 rounded-full flex items-center justify-center text-sky-500">
+                      <MessageSquare size={14} />
+                    </div>
+                    <span className="text-xs font-medium">
+                      From. {letter.senderNickname || "익명의 파도"}
+                    </span>
+                  </div>
+                  <Waves size={16} className="text-sky-200 group-hover:text-sky-400 transition-colors" />
+                </div>
+
+                {!letter.read && (
+                  <div className="absolute inset-0 rounded-[2.5rem] ring-2 ring-sky-300/30 pointer-events-none"></div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </main>
