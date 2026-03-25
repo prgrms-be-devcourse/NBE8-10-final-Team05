@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
 /** 전역 상단에서 로그인 상태와 로그아웃 액션을 제공하는 UI. */
 export default function AuthStatusBar() {
+  const pathname = usePathname();
   const router = useRouter();
   const { member, isAuthenticated, isRestoring } = useAuthStore();
+
+  if (pathname === "/") {
+    return null;
+  }
 
   async function handleLogout() {
     await logout();
