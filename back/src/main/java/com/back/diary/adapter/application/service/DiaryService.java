@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -25,6 +28,20 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
     @Override
     @Transactional
     public Long write(DiaryCreateReq req, MultipartFile image, Long memberId) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfToday = today.atStartOfDay();
+        LocalDateTime startOfTomorrow = today.plusDays(1).atStartOfDay();
+
+        boolean hasTodayDiary = diaryRepositoryPort.existsByMemberIdAndCreateDateBetween(
+                memberId,
+                startOfToday,
+                startOfTomorrow
+        );
+
+        if (hasTodayDiary) {
+            throw new ServiceException("409-1", "오늘은 이미 일기를 작성했습니다. 기존 기록을 수정해주세요.");
+        }
+
         String imageUrl = imageService.upload(image);
 
         Diary diary = Diary.builder()

@@ -1,196 +1,193 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useDeferredValue, useEffect, useId, useState } from "react";
 import MainHeader from "@/components/layout/MainHeader";
+import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { toErrorMessage } from "@/lib/api/rs-data";
 
-const STORY_CATEGORIES = ["전체", "연애", "친구", "진로", "가족", "직장", "기타"] as const;
-const STORY_SORTS = ["최신순", "댓글순", "조회순"] as const;
+const STORY_CATEGORIES = ["전체", "고민", "일상", "질문"] as const;
+const STORY_SORTS = ["최신순", "조회순"] as const;
 const LETTER_BOTTLE_OUTLINE_PATH =
   "M56.5 43L59.5 43L65 48.5L68.5 53Q70.3 49.4 75.5 49L80 55.5L77 59.5L94.5 76Q101.2 69.7 116.5 72Q133.5 76 142 88.5L172.5 127L181 131L182 135.5L135.5 182L133.5 182L131 181Q129.3 173.5 123.5 169L87.5 141L78 131.5L72 117.5L72 103.5L76 93.5L58.5 77Q58 80.5 53.5 80L49 75.5L49 73.5L53 68.5L43 59.5L43 56.5L56.5 43ZM58 45L45 58L45 60L53 65L55 67L67 55L61 47L58 45ZM74 51L51 74L51 76L55 78L78 56L76 53Q77 50 74 51ZM75 61L61 76L78 92L86 84L87 85Q76 92 73 108L74 119L81 133L127 170L135 164L128 172L132 179L135 180L180 134L173 129L172 128L164 135L170 128L138 87Q129 76 113 73Q100 73 94 78L90 81L92 78L75 61Z";
 
 type StoryCategory = (typeof STORY_CATEGORIES)[number];
 type StorySort = (typeof STORY_SORTS)[number];
+type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
+
+type StoryCategoryFilter = Exclude<StoryCategory, "전체">;
 
 type CommunityStory = {
   id: number;
-  category: Exclude<StoryCategory, "전체">;
+  category: StoryCategoryFilter;
   title: string;
-  summary: string;
-  author: string;
   timeAgo: string;
-  minutesAgo: number;
-  comments: number;
-  views: number;
+  createdAt: string;
+  createdAtMs: number;
+  viewCount: number;
 };
 
-const COMMUNITY_STORIES: CommunityStory[] = [
-  {
-    id: 1,
-    category: "연애",
-    title: "짝사랑, 전할까?",
-    summary: "마음은 커지는데 표현은 서툴러서 자꾸 타이밍을 놓치고 있어요.",
-    author: "익명 별빛",
-    timeAgo: "1분 전",
-    minutesAgo: 1,
-    comments: 15,
-    views: 112,
-  },
-  {
-    id: 2,
-    category: "진로",
-    title: "이 길이 맞을까?",
-    summary: "준비는 오래 했는데 확신이 없어서 발걸음이 자꾸 멈춥니다.",
-    author: "익명 파도",
-    timeAgo: "1분 전",
-    minutesAgo: 1,
-    comments: 22,
-    views: 150,
-  },
-  {
-    id: 3,
-    category: "연애",
-    title: "연락 텀이 길어질 때",
-    summary: "답장은 오는데 텀이 길어질수록 제 마음만 조급해져요.",
-    author: "익명 라일락",
-    timeAgo: "4분 전",
-    minutesAgo: 4,
-    comments: 15,
-    views: 112,
-  },
-  {
-    id: 4,
-    category: "친구",
-    title: "서운한 말이 오래 남아요",
-    summary: "사소한 한마디였는데 계속 남아서 관계가 어색해졌어요.",
-    author: "익명 모래",
-    timeAgo: "1분 전",
-    minutesAgo: 1,
-    comments: 12,
-    views: 104,
-  },
-  {
-    id: 5,
-    category: "가족",
-    title: "부모님과 대화가 힘들어요",
-    summary: "걱정보단 잔소리로 들려서 대화를 시작하는 것도 버거워요.",
-    author: "익명 구름",
-    timeAgo: "4분 전",
-    minutesAgo: 4,
-    comments: 18,
-    views: 129,
-  },
-  {
-    id: 6,
-    category: "직장",
-    title: "퇴사 고민이 깊어져요",
-    summary: "버티는 게 맞는지 떠나는 게 맞는지 매일 마음이 흔들립니다.",
-    author: "익명 새벽",
-    timeAgo: "6분 전",
-    minutesAgo: 6,
-    comments: 15,
-    views: 112,
-  },
-  {
-    id: 7,
-    category: "연애",
-    title: "헤어지자는 말이 무서워요",
-    summary: "끝을 말할까 봐 불안해서 평범한 대화도 자꾸 겁이 납니다.",
-    author: "익명 호수",
-    timeAgo: "4분 전",
-    minutesAgo: 4,
-    comments: 19,
-    views: 141,
-  },
-  {
-    id: 8,
-    category: "진로",
-    title: "준비만 하다 시간이 가요",
-    summary: "해야 할 건 아는데 시작보다 망설임이 더 길어졌어요.",
-    author: "익명 민들레",
-    timeAgo: "6분 전",
-    minutesAgo: 6,
-    comments: 15,
-    views: 112,
-  },
-  {
-    id: 9,
-    category: "기타",
-    title: "오늘따라 괜히 울컥해요",
-    summary: "이유 없이 마음이 출렁이는 날, 어디라도 털어놓고 싶어요.",
-    author: "익명 해빛",
-    timeAgo: "8분 전",
-    minutesAgo: 8,
-    comments: 27,
-    views: 163,
-  },
-];
+type PostListItem = {
+  id: number;
+  title: string;
+  viewCount: number;
+  createDate: string;
+  modifyDate: string;
+  thumbnail: string | null;
+  category: BackendPostCategory;
+  nickname: string;
+};
+
+type PostSlice = {
+  content: PostListItem[];
+};
+
+const API_CATEGORY_TO_FILTER: Record<BackendPostCategory, StoryCategoryFilter> = {
+  DAILY: "일상",
+  WORRY: "고민",
+  QUESTION: "질문",
+};
+
+const FILTER_TO_API_CATEGORY: Record<StoryCategoryFilter, BackendPostCategory> = {
+  고민: "WORRY",
+  일상: "DAILY",
+  질문: "QUESTION",
+};
 
 const STORY_CARD_THEMES: Record<
   CommunityStory["category"],
   { hero: string; badge: string; avatar: string }
 > = {
-  연애: {
+  고민: {
     hero: "from-[#f9d8e7] to-[#fff1f6]",
     badge: "bg-white/78 text-[#a34f74]",
     avatar: "bg-[#fbe4ec] text-[#a34f74]",
   },
-  친구: {
+  일상: {
     hero: "from-[#dde8ff] to-[#f3f7ff]",
     badge: "bg-white/78 text-[#4f6fa8]",
     avatar: "bg-[#e7efff] text-[#4f6fa8]",
   },
-  진로: {
+  질문: {
     hero: "from-[#d9f0e6] to-[#effaf4]",
     badge: "bg-white/78 text-[#4f8d6b]",
     avatar: "bg-[#e2f4ea] text-[#4f8d6b]",
   },
-  가족: {
-    hero: "from-[#f7e6d5] to-[#fdf5ec]",
-    badge: "bg-white/78 text-[#9a6a46]",
-    avatar: "bg-[#faecdf] text-[#9a6a46]",
-  },
-  직장: {
-    hero: "from-[#e0e4f6] to-[#f3f5fc]",
-    badge: "bg-white/78 text-[#5b6898]",
-    avatar: "bg-[#e9edfb] text-[#5b6898]",
-  },
-  기타: {
-    hero: "from-[#efe3fb] to-[#faf5ff]",
-    badge: "bg-white/78 text-[#7a5eab]",
-    avatar: "bg-[#f3ebff] text-[#7a5eab]",
-  },
 };
+
+function formatRelativeTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) {
+    return "방금 전";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}시간 전`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}일 전`;
+}
+
+function mapPostToCommunityStory(post: PostListItem): CommunityStory {
+  const createdAt = new Date(post.createDate);
+
+  return {
+    id: post.id,
+    category: API_CATEGORY_TO_FILTER[post.category] ?? "고민",
+    title: post.title,
+    timeAgo: formatRelativeTime(post.createDate),
+    createdAt: post.createDate,
+    createdAtMs: Number.isNaN(createdAt.getTime()) ? 0 : createdAt.getTime(),
+    viewCount: post.viewCount,
+  };
+}
 
 export default function StoriesPage() {
   const [activeCategory, setActiveCategory] = useState<StoryCategory>("전체");
   const [activeSort, setActiveSort] = useState<StorySort>("최신순");
   const [query, setQuery] = useState("");
+  const [stories, setStories] = useState<CommunityStory[]>([]);
+  const [isLoadingStories, setIsLoadingStories] = useState(true);
+  const [storiesError, setStoriesError] = useState<string | null>(null);
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
   const storyWriteHref = isAuthenticated ? "/stories/write" : "/login?next=%2Fstories%2Fwrite";
+  const deferredQuery = useDeferredValue(query);
 
-  const visibleStories = COMMUNITY_STORIES.filter((story) => {
-    const categoryMatch = activeCategory === "전체" || story.category === activeCategory;
-    const queryText = query.trim().toLowerCase();
-    const queryMatch =
-      queryText.length === 0 ||
-      story.title.toLowerCase().includes(queryText) ||
-      story.category.toLowerCase().includes(queryText) ||
-      story.author.toLowerCase().includes(queryText);
+  useEffect(() => {
+    let cancelled = false;
 
-    return categoryMatch && queryMatch;
-  }).sort((a, b) => {
-    if (activeSort === "댓글순") {
-      return b.comments - a.comments;
+    async function fetchStories(): Promise<void> {
+      setIsLoadingStories(true);
+      setStoriesError(null);
+
+      try {
+        const params = new URLSearchParams({
+          page: "0",
+          size: "30",
+        });
+
+        const trimmedQuery = deferredQuery.trim();
+        if (trimmedQuery.length > 0) {
+          params.set("title", trimmedQuery);
+        }
+
+        if (activeCategory !== "전체") {
+          params.set("category", FILTER_TO_API_CATEGORY[activeCategory]);
+        }
+
+        const slice = await requestData<PostSlice>(`/api/v1/posts?${params.toString()}`, {
+          skipAuth: true,
+          retryOnAuthFailure: false,
+          authFailureRedirect: false,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setStories(slice.content.map(mapPostToCommunityStory));
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+
+        setStories([]);
+        setStoriesError(toErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingStories(false);
+        }
+      }
     }
 
+    void fetchStories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCategory, deferredQuery]);
+
+  const visibleStories = [...stories].sort((a, b) => {
     if (activeSort === "조회순") {
-      return b.views - a.views;
+      return b.viewCount - a.viewCount;
     }
 
-    return a.minutesAgo - b.minutesAgo;
+    return b.createdAtMs - a.createdAtMs;
   });
 
   return (
@@ -239,7 +236,7 @@ export default function StoriesPage() {
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="제목, 태그 검색"
+                  placeholder="제목 검색"
                   className="w-full bg-transparent text-base text-[#2b4162] outline-none placeholder:text-[#9ab0cc]"
                 />
               </label>
@@ -274,17 +271,32 @@ export default function StoriesPage() {
 
           <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_272px]">
             <div>
-              {visibleStories.length > 0 ? (
+              {isLoadingStories ? (
+                <div className="home-panel rounded-[24px] px-6 py-10 text-center text-[#6f84a5]">
+                  고민 목록을 불러오는 중입니다.
+                </div>
+              ) : null}
+
+              {!isLoadingStories && storiesError ? (
+                <div className="home-panel rounded-[24px] border border-[#f3d0d0] bg-[#fff8f8] px-6 py-10 text-center">
+                  <p className="text-[18px] font-semibold text-[#7a3d3d]">고민 목록을 불러오지 못했습니다.</p>
+                  <p className="mt-2 text-sm text-[#9a4b4b]">{storiesError}</p>
+                </div>
+              ) : null}
+
+              {!isLoadingStories && !storiesError && visibleStories.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {visibleStories.map((story) => (
                     <CommunityStoryCard key={story.id} story={story} />
                   ))}
                 </div>
-              ) : (
+              ) : null}
+
+              {!isLoadingStories && !storiesError && visibleStories.length === 0 ? (
                 <div className="home-panel rounded-[24px] px-6 py-10 text-center text-[#6f84a5]">
                   검색 결과가 없어요. 다른 카테고리나 키워드로 다시 찾아보세요.
                 </div>
-              )}
+              ) : null}
             </div>
 
             <aside className="space-y-4">
@@ -310,12 +322,18 @@ export default function StoriesPage() {
                   <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
                     <LetterBottleIcon size={42} />
                   </div>
-                  <div>
+                  <div className="flex flex-wrap items-center gap-3">
                     <Link
                       href="/letters/write"
                       className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
                     >
                       편지 띄우기
+                    </Link>
+                    <Link
+                      href="/letters/mailbox"
+                      className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
+                    >
+                      편지함 보기
                     </Link>
                   </div>
                 </div>
@@ -366,16 +384,11 @@ function CommunityStoryCard({ story }: { story: CommunityStory }) {
           <div className="absolute -bottom-4 right-5 h-20 w-20 rounded-full bg-white/30" />
         </div>
         <div className="flex flex-1 flex-col px-6 pb-6 pt-5">
-          <h2 className="line-clamp-2 text-[18px] font-semibold leading-8 tracking-[-0.03em] text-[#223552] transition group-hover:text-[#33527d]">
+          <h2 className="line-clamp-3 text-[18px] font-semibold leading-8 tracking-[-0.03em] text-[#223552] transition group-hover:text-[#33527d]">
             {story.title}
           </h2>
-          <p className="mt-3 line-clamp-3 text-[15px] leading-7 text-[#667c9b]">
-            {story.summary}
-          </p>
           <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
             <span>{story.timeAgo}</span>
-            <span className="h-1 w-1 rounded-full bg-[#b8c7dc]" />
-            <span>{story.comments}개의 댓글</span>
           </div>
         </div>
       </Link>

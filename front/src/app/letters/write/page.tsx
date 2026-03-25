@@ -1,48 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
-import { Mailbox, RefreshCcw, SendHorizontal, Waves } from "lucide-react";
+import { RefreshCcw, Waves } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
+import SendingAnimation from "@/components/letters/SendingAnimation";
 import { useAuthStore } from "@/lib/auth/auth-store";
 import { requestData } from "@/lib/api/http-client";
-
-function SendingOverlay() {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#edf5ff]/90 px-6 backdrop-blur-sm"
-    >
-      <motion.div
-        initial={{ y: 12, scale: 0.98 }}
-        animate={{ y: 0, scale: 1 }}
-        className="home-panel w-full max-w-md rounded-[28px] px-8 py-8 text-center"
-      >
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#e8f1ff] text-[#5f95f3]">
-          <Waves size={30} />
-        </div>
-        <h2 className="mt-5 text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">
-          편지를 띄우는 중...
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-[#6f84a5]">
-          마음을 담은 편지가 바다를 건너고 있어요.
-        </p>
-        <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#e8f1ff]">
-          <motion.div
-            className="h-full rounded-full bg-[#5f95f3]"
-            initial={{ width: "0%" }}
-            animate={{ width: "100%" }}
-            transition={{ duration: 2.1, ease: "easeInOut" }}
-          />
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
 
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -62,11 +26,11 @@ function resolveErrorMessage(error: unknown): string {
 
 export default function WriteLetterPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const { isAuthenticated } = useAuthStore();
-  const diaryHref = isAuthenticated ? "/dashboard" : "/login";
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const currentDateText = useMemo(
     () =>
@@ -81,14 +45,21 @@ export default function WriteLetterPage() {
   );
 
   const letterLength = title.trim().length + content.trim().length;
+  const hasDraft = title.trim().length > 0 || content.trim().length > 0;
   const canSend = title.trim().length > 0 && content.trim().length > 0 && !isSending;
 
   async function handleSend() {
     if (!canSend) {
-      alert("제목과 내용을 모두 채워주세요.");
+      setSubmitError("제목과 내용을 모두 채워주세요.");
       return;
     }
 
+    if (!isAuthenticated) {
+      router.push("/login?next=%2Fletters%2Fwrite");
+      return;
+    }
+
+    setSubmitError(null);
     setIsSending(true);
 
     try {
@@ -102,129 +73,117 @@ export default function WriteLetterPage() {
 
       setTimeout(() => {
         router.push("/letters/mailbox");
-      }, 2200);
+      }, 3800);
     } catch (error: unknown) {
       setIsSending(false);
-      alert(resolveErrorMessage(error));
+      setSubmitError(resolveErrorMessage(error));
     }
   }
 
   function handleReset() {
-    const hasContent = title.trim().length > 0 || content.trim().length > 0;
-    if (!hasContent) {
+    if (!hasDraft) {
       return;
     }
 
     if (window.confirm("작성 중인 내용을 모두 지울까요?")) {
       setTitle("");
       setContent("");
+      setSubmitError(null);
     }
   }
 
   return (
     <div className="home-atmosphere min-h-screen">
-      <AnimatePresence>{isSending ? <SendingOverlay /> : null}</AnimatePresence>
+      {isSending ? <SendingAnimation /> : null}
 
-      <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
+      <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-14 pt-7">
         <MainHeader />
 
-        <section className="home-hero mt-8 rounded-[36px] px-6 py-9 text-white sm:px-10">
-          <h1 className="text-[30px] font-semibold tracking-[-0.03em] sm:text-[34px]">비밀 편지 쓰기</h1>
-          <p className="mt-2 text-sm leading-6 text-white/88 sm:text-base">
-            지금 마음을 솔직하게 적어주세요. 상대에게는 익명으로 전달되고, 당신의 정보는 노출되지 않습니다.
+        <section className="mx-auto mt-8 w-full max-w-3xl text-center">
+          <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#1f3150] sm:text-[40px]">
+            걱정을 놓아주세요
+          </h1>
+          <p className="mt-4 text-[15px] leading-7 text-[#7a8da9] sm:text-[17px]">
+            <span className="block">무거운 마음을 양피지에 적어보세요.</span>
+            <span className="block">준비가 되면, 파도가 당신의 고민을 영원히 가져가게 두세요.</span>
           </p>
         </section>
 
-        <section className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="home-panel rounded-[34px] px-6 py-6 sm:px-7">
-            <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e5eefb] pb-5">
-              <div>
-                <p className="text-xs font-semibold tracking-[0.08em] text-[#89a0c2] uppercase">Today</p>
-                <p className="mt-1 text-sm text-[#5f7599]">{currentDateText}</p>
+        <section className="mx-auto mt-10 w-full max-w-4xl">
+          <div className="relative rounded-[44px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.66),rgba(238,247,255,0.92))] px-4 pb-8 pt-14 shadow-[0_36px_90px_-54px_rgba(92,139,203,0.52)] sm:px-8 sm:pb-10 sm:pt-16">
+            <div className="absolute left-1/2 top-0 h-7 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#c59f74] shadow-[0_10px_18px_-14px_rgba(88,61,34,0.7)]" />
+
+            <div className="rounded-[34px] border border-[#f3eadb] bg-[#fffdf7] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_60px_-48px_rgba(125,150,188,0.68)] sm:px-8 sm:py-8">
+              <label htmlFor="letter-title" className="sr-only">
+                편지 제목
+              </label>
+              <div className="flex items-center justify-between gap-4 border-b border-[#efe6d5] pb-4">
+                <input
+                  id="letter-title"
+                  type="text"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="바다에게 보내는 편지..."
+                  className="w-full bg-transparent text-[15px] italic text-[#7d92b2] outline-none placeholder:text-[#aebcd2]"
+                />
+                <span className="shrink-0 text-[13px] font-medium text-[#bcc8da]">{currentDateText}</span>
               </div>
-              <p className="text-xs text-[#8ca1c0]">전송 후에는 내용을 수정할 수 없어요.</p>
-            </div>
 
-            <label className="mt-6 block text-xs font-semibold tracking-[0.08em] text-[#89a0c2] uppercase">
-              제목
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="예: 요즘 마음이 너무 복잡해요"
-              className="mt-2 w-full rounded-[16px] border border-[#d8e6fb] bg-[#fbfdff] px-4 py-3 text-[17px] text-[#2b4162] outline-none transition focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
-            />
+              <label htmlFor="letter-content" className="sr-only">
+                편지 내용
+              </label>
+              <textarea
+                id="letter-content"
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                placeholder="여기에 당신의 걱정을 담아주세요..."
+                className="mt-6 h-[420px] w-full resize-none bg-transparent text-[18px] leading-9 tracking-[-0.02em] text-[#516885] outline-none placeholder:text-[#b8c6d9] sm:h-[520px]"
+              />
 
-            <label className="mt-5 block text-xs font-semibold tracking-[0.08em] text-[#89a0c2] uppercase">
-              내용
-            </label>
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder="오늘 있었던 일, 감정, 원하는 조언을 자유롭게 적어주세요."
-              className="mt-2 h-[300px] w-full resize-y rounded-[20px] border border-[#d8e6fb] bg-[#fbfdff] px-4 py-3 text-[15px] leading-7 text-[#2b4162] outline-none transition placeholder:text-[#9ab0cc] focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20 sm:h-[340px]"
-            />
-
-            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[#8ca1c0]">
-              <p>현재 글자 수 {letterLength}자</p>
-              <p>따뜻한 설명이 있으면 답장을 받기 쉬워요.</p>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="inline-flex items-center gap-2 rounded-full border border-[#d8e6fb] bg-white px-4 py-2 text-sm font-semibold text-[#506582] transition hover:border-[#bfd3f6] hover:text-[#2f4b73]"
-              >
-                <RefreshCcw size={16} />
-                초기화
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSend()}
-                disabled={!canSend}
-                className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-white transition ${
-                  canSend ? "bg-[#5f95f3] hover:bg-[#4a82e5]" : "cursor-not-allowed bg-[#b7c9e7]"
-                }`}
-              >
-                <SendHorizontal size={16} />
-                {isSending ? "전송 중..." : "편지 보내기"}
-              </button>
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-[#efe6d5] pt-4">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-[#9aaac1] transition hover:text-[#6f84a5]"
+                >
+                  <RefreshCcw size={15} />
+                  다시 쓰기
+                </button>
+                <div className="text-sm font-medium text-[#b2bfd2]">{letterLength}자</div>
+              </div>
             </div>
           </div>
 
-          <aside className="space-y-5">
-            <section className="home-panel rounded-[28px] px-5 py-5">
-              <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#233552]">작성 가이드</h2>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-[#6f84a5]">
-                <li>1. 상황과 감정을 함께 적으면 공감받기 쉬워요.</li>
-                <li>2. 상대는 익명으로 답장을 보내며, 개인정보는 노출되지 않아요.</li>
-                <li>3. 비방/개인정보 포함 문장은 AI 검열로 제한될 수 있어요.</li>
-              </ul>
-            </section>
+          {submitError ? (
+            <div className="mx-auto mt-5 max-w-2xl rounded-[18px] border border-[#ffd7d7] bg-[#fff5f5] px-4 py-3 text-center text-sm text-[#c24a4a]">
+              {submitError}
+            </div>
+          ) : null}
 
-            <section className="home-panel rounded-[28px] px-5 py-5">
-              <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#233552]">빠른 이동</h2>
-              <div className="mt-4 space-y-3">
-                <Link
-                  href="/letters/mailbox"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#5279b7] transition hover:bg-[#cfe1ff]"
-                >
-                  <Mailbox size={16} />
-                  편지함 보기
-                </Link>
-                <Link
-                  href={diaryHref}
-                  className="inline-flex w-full items-center justify-center rounded-full border border-[#d8e6fb] bg-white px-4 py-2 text-sm font-semibold text-[#506582] transition hover:border-[#bfd3f6] hover:text-[#2f4b73]"
-                >
-                  {isAuthenticated ? "내 상태 확인하기" : "로그인하고 내 상태 보기"}
-                </Link>
-              </div>
-            </section>
-          </aside>
+          <div className="mt-8 flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => void handleSend()}
+              disabled={!canSend}
+              className={`inline-flex min-w-[320px] items-center justify-center gap-2 rounded-full px-8 py-4 text-[20px] font-semibold tracking-[-0.03em] text-white shadow-[0_24px_46px_-28px_rgba(52,152,219,0.76)] transition ${
+                canSend
+                  ? "bg-[linear-gradient(180deg,#49b6f2,#31a7ee)] hover:translate-y-[-1px] hover:brightness-[1.02]"
+                  : "cursor-not-allowed bg-[#bad4ea] shadow-none"
+              }`}
+            >
+              <Waves size={20} />
+              {isSending ? "병을 닫는 중..." : "병을 닫아 바다로 보내기"}
+            </button>
+            <p className="mt-5 text-[13px] text-[#a6b5ca]">
+              이 메시지는 보내는 즉시 바다로 흘러가 사라집니다
+            </p>
+            {!isAuthenticated ? (
+              <p className="mt-2 text-[13px] text-[#91a4bf]">
+                보내기 전에 로그인 화면으로 이동합니다.
+              </p>
+            ) : null}
+          </div>
         </section>
-
       </div>
     </div>
   );
