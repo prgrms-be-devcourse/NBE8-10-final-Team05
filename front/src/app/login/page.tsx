@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api/rs-data";
 import { login, startOidcLogin, type OidcProvider } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -9,29 +10,34 @@ import { useAuthStore } from "@/lib/auth/auth-store";
 /** 로그인 페이지: 성공 시 next 파라미터 또는 대시보드로 이동한다. */
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated, isLoggingIn, errorMessage } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [oidcLoadingProvider, setOidcLoadingProvider] = useState<OidcProvider | null>(null);
   const nextPath = useMemo(() => {
-    if (typeof window === "undefined") {
-      return "/dashboard";
-    }
-
-    const next = new URLSearchParams(window.location.search).get("next");
+    const next = searchParams.get("next");
     if (next && next.startsWith("/")) {
       return next;
     }
 
     return "/dashboard";
-  }, []);
+  }, [searchParams]);
+  const signupCompleted = searchParams.get("signup") === "success";
+  const signupEmail = searchParams.get("email");
 
   useEffect(() => {
     if (isAuthenticated) {
       router.replace(nextPath);
     }
   }, [isAuthenticated, nextPath, router]);
+
+  useEffect(() => {
+    if (signupEmail && email.length === 0) {
+      setEmail(signupEmail);
+    }
+  }, [email.length, signupEmail]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,6 +70,12 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-zinc-500">
           인증이 필요한 페이지 접근 시 이 화면으로 이동합니다.
         </p>
+
+        {signupCompleted ? (
+          <p className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            회원가입이 완료되었습니다. 로그인 후 바로 이용할 수 있어요.
+          </p>
+        ) : null}
 
         <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
           <label className="flex flex-col gap-1 text-sm text-zinc-700">
@@ -124,6 +136,13 @@ export default function LoginPage() {
             {oidcLoadingProvider === "kakao" ? "Kakao 이동 중..." : "Kakao로 로그인"}
           </button>
         </div>
+
+        <p className="mt-6 text-center text-sm text-zinc-500">
+          계정이 없다면{" "}
+          <Link href="/signup" className="font-semibold text-zinc-800 underline underline-offset-4">
+            회원가입
+          </Link>
+        </p>
       </section>
     </div>
   );

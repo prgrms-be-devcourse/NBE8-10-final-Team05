@@ -102,7 +102,7 @@ export default function MainHeader() {
                 로그인
               </Link>
               <span className="text-[#c6ccd4]">|</span>
-              <Link href="/login" className="transition hover:text-[#5a6372]">
+              <Link href="/signup" className="transition hover:text-[#5a6372]">
                 회원가입
               </Link>
             </div>
@@ -162,7 +162,7 @@ export default function MainHeader() {
                 </Link>
                 <span className="mx-2 text-[#c6ccd4]">|</span>
                 <Link
-                  href="/login"
+                  href="/signup"
                   className="transition hover:text-[#5a6372]"
                   onClick={() => setMobileMenuOpen(false)}
                 >

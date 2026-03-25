@@ -30,3 +30,10 @@ export interface LoginRequest {
   email: string;
   password: string;
 }
+
+/** 회원가입 요청 바디 모델. */
+export interface SignupRequest {
+  email: string;
+  password: string;
+  nickname: string;
+}

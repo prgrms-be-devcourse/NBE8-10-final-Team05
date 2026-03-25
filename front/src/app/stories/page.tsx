@@ -351,32 +351,34 @@ function CommunityStoryCard({ story }: { story: CommunityStory }) {
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[12px] border border-[#dbe6f5] bg-white text-[#324763] shadow-[0_18px_34px_-24px_rgba(73,107,167,0.32)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_42px_-22px_rgba(73,107,167,0.42)]">
-      <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
-        <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
-          <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
-            {story.category}
-          </span>
-          <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+      <Link href={`/stories/${story.id}`} className="group flex h-full flex-col">
+        <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
+          <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
+            <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
+              {story.category}
+            </span>
+            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+          </div>
+          <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
+            <span className="block h-[4px] w-16 rounded-full bg-white/75" />
+            <span className="block h-[4px] w-10 rounded-full bg-white/55" />
+          </div>
+          <div className="absolute -bottom-4 right-5 h-20 w-20 rounded-full bg-white/30" />
         </div>
-        <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
-          <span className="block h-[4px] w-16 rounded-full bg-white/75" />
-          <span className="block h-[4px] w-10 rounded-full bg-white/55" />
+        <div className="flex flex-1 flex-col px-6 pb-6 pt-5">
+          <h2 className="line-clamp-2 text-[18px] font-semibold leading-8 tracking-[-0.03em] text-[#223552] transition group-hover:text-[#33527d]">
+            {story.title}
+          </h2>
+          <p className="mt-3 line-clamp-3 text-[15px] leading-7 text-[#667c9b]">
+            {story.summary}
+          </p>
+          <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
+            <span>{story.timeAgo}</span>
+            <span className="h-1 w-1 rounded-full bg-[#b8c7dc]" />
+            <span>{story.comments}개의 댓글</span>
+          </div>
         </div>
-        <div className="absolute -bottom-4 right-5 h-20 w-20 rounded-full bg-white/30" />
-      </div>
-      <div className="flex flex-1 flex-col px-6 pb-6 pt-5">
-        <h2 className="line-clamp-2 text-[18px] font-semibold leading-8 tracking-[-0.03em] text-[#223552]">
-          {story.title}
-        </h2>
-        <p className="mt-3 line-clamp-3 text-[15px] leading-7 text-[#667c9b]">
-          {story.summary}
-        </p>
-        <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
-          <span>{story.timeAgo}</span>
-          <span className="h-1 w-1 rounded-full bg-[#b8c7dc]" />
-          <span>{story.comments}개의 댓글</span>
-        </div>
-      </div>
+      </Link>
     </article>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   BookOpenText,
   CalendarDays,
@@ -184,7 +185,7 @@ export default function DashboardPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>): void {
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>): void {
     const file = event.target.files?.[0] ?? null;
     setImageFile(file);
 
@@ -350,11 +351,15 @@ export default function DashboardPage() {
                       </h3>
 
                       {thumbnail ? (
-                        <img
-                          src={thumbnail}
-                          alt="일기 썸네일"
-                          className="mt-3 h-28 w-full rounded-[14px] border border-[#dbe7fb] object-cover"
-                        />
+                        <div className="relative mt-3 h-28 w-full overflow-hidden rounded-[14px] border border-[#dbe7fb]">
+                          <Image
+                            src={thumbnail}
+                            alt="일기 썸네일"
+                            fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                            className="object-cover"
+                          />
+                        </div>
                       ) : (
                         <div className="mt-3 flex h-28 w-full items-center justify-center rounded-[14px] border border-dashed border-[#dbe7fb] bg-[#f8fbff] text-[#9ab0cc]">
                           <ImagePlus size={18} />
@@ -477,11 +482,16 @@ export default function DashboardPage() {
                 </label>
 
                 {imagePreviewUrl ? (
-                  <img
-                    src={imagePreviewUrl}
-                    alt="선택한 이미지 미리보기"
-                    className="h-40 w-full rounded-[16px] border border-[#dbe7fb] object-cover"
-                  />
+                  <div className="relative h-40 w-full overflow-hidden rounded-[16px] border border-[#dbe7fb]">
+                    <Image
+                      src={imagePreviewUrl}
+                      alt="선택한 이미지 미리보기"
+                      fill
+                      sizes="(max-width: 1024px) 100vw, 360px"
+                      className="object-cover"
+                      unoptimized={imagePreviewUrl.startsWith("blob:")}
+                    />
+                  </div>
                 ) : null}
 
                 <label className="flex items-center justify-between rounded-[14px] border border-[#d8e6fb] bg-[#fbfdff] px-3 py-2">
