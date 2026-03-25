@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
 // 1. 백엔드 LetterStatus와 일치하는 타입 정의
@@ -24,25 +25,30 @@ interface SentLetter {
   createdDate: string;
 }
 
+type SentLettersResponse = SentLetter[] | { letters?: SentLetter[] };
+
 export default function SentLettersPage() {
   const router = useRouter();
   const [letters, setLetters] = useState<SentLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 2. 편지 목록 가져오기
+  function handleGoBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/letters/mailbox");
+  }
+
   useEffect(() => {
     const fetchSentLetters = async () => {
       try {
-        // 백엔드 컨트롤러의 @GetMapping("/sent") 호출
-        const response = await requestData<any>("/api/v1/letters/sent");
-
-        // RsData 구조 대응 (response.data 내부에 LetterListRes가 있는 경우)
-        const targetData = response.data ? response.data : response;
-
-        if (targetData && Array.isArray(targetData.letters)) {
-          setLetters(targetData.letters);
-        } else if (Array.isArray(targetData)) {
-          setLetters(targetData);
+        const response = await requestData<SentLettersResponse>("/api/v1/letters/sent");
+        if (Array.isArray(response)) {
+          setLetters(response);
+        } else if (Array.isArray(response?.letters)) {
+          setLetters(response.letters);
         } else {
           setLetters([]);
         }
@@ -90,23 +96,29 @@ export default function SentLettersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#EBF5FF] text-slate-800 font-sans pb-20 selection:bg-sky-200">
-      <header className="p-6 flex items-center justify-between max-w-6xl mx-auto w-full sticky top-0 z-50 bg-[#EBF5FF]/80 backdrop-blur-md">
-        <button
-          onClick={() => router.back()}
-          className="p-2 hover:bg-white/50 rounded-full transition-all text-slate-500 active:scale-90"
-        >
-          <ChevronLeft size={28} />
-        </button>
-        <h1 className="text-xl font-bold text-sky-900 flex items-center gap-2">
-          <Send size={20} className="text-sky-400" />
-          보낸 편지함
-        </h1>
-        <div className="w-10" />
-      </header>
+    <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800 selection:bg-sky-200">
+      <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+        <MainHeader />
+      </div>
 
-      <main className="max-w-6xl mx-auto px-6 mt-8">
-        {/* 상단 요약 섹션 */}
+      <main className="mx-auto mt-10 max-w-6xl px-6">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+          >
+            <ChevronLeft size={16} />
+            돌아가기
+          </button>
+
+          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900 shadow-sm sm:self-auto">
+            <Send size={18} className="text-sky-400" />
+            보낸 편지함
+          </div>
+        </div>
+
+        {/* 요약 카드 */}
         <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/40 shadow-sm">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">

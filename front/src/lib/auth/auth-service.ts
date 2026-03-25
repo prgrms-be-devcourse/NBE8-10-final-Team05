@@ -10,11 +10,12 @@ import {
   setLoggingIn,
   setRestoring,
 } from "@/lib/auth/auth-store";
-import type { AuthMember, AuthTokenPayload, LoginRequest } from "@/lib/auth/types";
+import type { AuthMember, AuthTokenPayload, LoginRequest, SignupRequest } from "@/lib/auth/types";
 import { requestData, requestVoid, configureHttpClient } from "@/lib/api/http-client";
 import { toErrorMessage } from "@/lib/api/rs-data";
 
 const AUTH_ME_PATH = "/api/v1/auth/me";
+const AUTH_SIGNUP_PATH = "/api/v1/auth/signup";
 const AUTH_LOGIN_PATH = "/api/v1/auth/login";
 const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
 const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
@@ -81,6 +82,19 @@ export async function restoreSession(): Promise<void> {
   })();
 
   return restorePromise;
+}
+
+/** 회원가입 API를 호출하고 생성된 회원 기본 정보를 반환한다. */
+export async function signup(request: SignupRequest): Promise<AuthMember> {
+  bindHttpClientHandlers();
+  return requestData<AuthMember>(AUTH_SIGNUP_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+    skipAuth: true,
+    retryOnAuthFailure: false,
+    authFailureRedirect: false,
+  });
 }
 
 /** 로그인 API 호출 후 access 토큰/회원 상태를 스토어에 반영한다. */

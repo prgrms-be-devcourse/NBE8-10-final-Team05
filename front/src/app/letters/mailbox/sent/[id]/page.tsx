@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
   Calendar,
-  Send,
   MailOpen,
   Waves,
   Heart,
   MessageCircle,
 } from "lucide-react";
+import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
 interface SentLetterDetail {
@@ -29,6 +29,15 @@ export default function SentLetterDetailPage() {
   const [letter, setLetter] = useState<SentLetterDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/letters/mailbox/sent");
+  }, [router]);
+
   // 1. 데이터 불러오기
   useEffect(() => {
     const fetchLetterDetail = async () => {
@@ -40,18 +49,23 @@ export default function SentLetterDetailPage() {
       } catch (error) {
         console.error("편지 상세 내용을 가져오는데 실패했습니다.", error);
         alert("편지를 찾을 수 없습니다.");
-        router.back();
+        handleGoBack();
       } finally {
         setIsLoading(false);
       }
     };
     fetchLetterDetail();
-  }, [params.id, router]);
+  }, [handleGoBack, params.id, router]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#EBF5FF] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-400"></div>
+      <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+        <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+          <MainHeader />
+        </div>
+        <div className="flex items-center justify-center py-24">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-400"></div>
+        </div>
       </div>
     );
   }
@@ -59,23 +73,28 @@ export default function SentLetterDetailPage() {
   if (!letter) return null;
 
   return (
-    <div className="min-h-screen bg-[#EBF5FF] text-slate-800 font-sans pb-20">
-      {/* 1. Header (네비게이션) */}
-      <header className="p-6 flex items-center justify-between max-w-6xl mx-auto w-full sticky top-0 z-50">
-        <button
-          onClick={() => router.back()}
-          className="p-3 bg-white/60 hover:bg-white rounded-full transition-all text-slate-500 shadow-sm active:scale-95"
-        >
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-xl font-bold text-sky-900 flex items-center gap-2.5">
-          <MailOpen size={22} className="text-sky-400" />
-          마음의 흔적
-        </h1>
-        <div className="w-12" /> {/* 밸런스를 위한 빈 공간 */}
-      </header>
+    <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+      <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+        <MainHeader />
+      </div>
 
-      <main className="max-w-4xl mx-auto px-6 mt-10">
+      <main className="mx-auto mt-10 max-w-4xl px-6">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+          >
+            <ChevronLeft size={16} />
+            돌아가기
+          </button>
+
+          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900 shadow-sm sm:self-auto">
+            <MailOpen size={18} className="text-sky-400" />
+            마음의 흔적
+          </div>
+        </div>
+
         {/* 2. 메인 편지 카드 (첫 번째 이미지의 양피지 느낌) */}
         <section className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 md:p-14 shadow-[0_30px_70px_-15px_rgba(186,215,233,0.6)] border border-white flex flex-col relative overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-700">
           {/* 상단 장식 라인 */}

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Component
@@ -34,6 +35,19 @@ public class DiaryPersistenceAdapter implements DiaryPort {
     @Override
     public Page<Diary> findAllPublic(Pageable pageable) {
         return diaryRepository.findAllByIsPrivateFalseOrderByCreateDateDesc(pageable);
+    }
+
+    @Override
+    public boolean existsByMemberIdAndCreateDateBetween(
+            Long memberId,
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive
+    ) {
+        return diaryRepository.existsByMemberIdAndCreateDateGreaterThanEqualAndCreateDateLessThan(
+                memberId,
+                startInclusive,
+                endExclusive
+        );
     }
 
     @Override
