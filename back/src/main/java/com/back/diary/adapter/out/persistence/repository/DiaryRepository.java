@@ -9,7 +9,6 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
     // 본인 일기 페이징 조회
     Page<Diary> findAllByMemberIdOrderByCreateDateDesc(Long memberId, Pageable pageable);
 
-    // 공개된 타인 일기 페이징 조회 (선택 사항)
     Page<Diary> findAllByIsPrivateFalseOrderByCreateDateDesc(Pageable pageable);
 
 }

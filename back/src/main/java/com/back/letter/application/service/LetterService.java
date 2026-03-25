@@ -24,6 +24,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private final MemberRepository memberRepository;
     private final AiService aiService;
 
+
     /**
      * [AI 검수 로직]
      * 기존의 프라이빗 메서드 구조를 유지하여 코드 가독성을 높였습니다.
@@ -32,7 +33,6 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         var auditResponse = aiService.auditContent(new AuditAiRequest(content, type));
 
         if (!auditResponse.isPassed()) {
-            // 통과 실패 시 AI가 제안한 부드러운 거절 메시지 사용
             throw new ServiceException("400-AI", auditResponse.message());
         }
     }
@@ -76,7 +76,6 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
-        // 권한 체크: 기본 타입 long 비교는 equals 또는 == 사용
         if (!letter.getSender().getId().equals(accessorId) && !letter.getReceiver().getId().equals(accessorId)) {
             throw new ServiceException("403-1", "이 편지를 볼 권한이 없습니다.");
         }
@@ -98,8 +97,6 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         }
 
         auditContent(req.replyContent(), "Reply");
-
-        // 도메인 내부 로직 호출 (이미 답장했는지 여부 체크 등은 도메인에 위임됨)
         letter.reply(req.replyContent());
     }
 
@@ -113,18 +110,77 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     }
 
     @Override
+    public LettersStatsRes getMailboxStats(long memberId) {
+        long receivedCount = letterPort.countByReceiverId(memberId);
+
+        LettersStatsRes.LetterSummary latestReceived = letterPort.findLatestReceived(memberId)
+                .map(l -> LettersStatsRes.LetterSummary.builder()
+                        .id(l.getId())
+                        .title(l.getTitle())
+                        .createdDate(l.getCreateDate().toString())
+                        .replied(l.getStatus() == LetterStatus.REPLIED)
+                        .build())
+                .orElse(null);
+
+        LettersStatsRes.LetterSummary latestSent = letterPort.findLatestSent(memberId)
+                .map(l -> LettersStatsRes.LetterSummary.builder()
+                        .id(l.getId())
+                        .title(l.getTitle())
+                        .createdDate(l.getCreateDate().toString())
+                        .build())
+                .orElse(null);
+
+        return LettersStatsRes.builder()
+                .receivedCount(receivedCount)
+                .latestReceivedLetter(latestReceived)
+                .latestSentLetter(latestSent)
+                .build();
+    }
+
+    @Override
     public LetterListRes getMySentBox(long memberId, int page, int size) {
         Page<Letter> letterPage = letterPort.findBySenderId(memberId, getPageable(page, size));
         return getLetterList(letterPage);
     }
 
-    // 기존의 공통 정렬 로직 유지
     private Pageable getPageable(int page, int size) {
         return PageRequest.of(page, size, Sort.by("id").descending());
     }
 
-    // 기존의 공통 변환 로직 유지
     private LetterListRes getLetterList(Page<Letter> letterPage) {
         return LetterListRes.from(letterPage.map(LetterItem::from));
     }
+
+    @Override
+    @Transactional
+    public void acceptLetter(long id, long accessorId) {
+        Letter letter = letterPort.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
+
+        if (letter.getStatus() == LetterStatus.SENT) {
+            letter.setStatus(LetterStatus.ACCEPTED);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void updateWritingStatus(long id) {
+        Letter letter = letterPort.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
+
+        if (letter.getStatus() != LetterStatus.REPLIED) {
+            letter.setStatus(LetterStatus.WRITING);
+        }
+    }
+
+    @Override
+    public String getLiveStatus(long id) {
+        return letterPort.findById(id)
+                .map(letter -> letter.getStatus().name())
+                .orElse("NOT_FOUND");
+    }
+
+
+
+
 }

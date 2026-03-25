@@ -6,7 +6,6 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 
-// 위치: com.back.diary.adapter.application.port.out
 public interface DiaryPort {
     Diary save(Diary diary);
     Optional<Diary> findById(Long id);

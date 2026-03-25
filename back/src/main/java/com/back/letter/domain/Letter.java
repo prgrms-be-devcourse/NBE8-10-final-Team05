@@ -44,5 +44,9 @@ public class Letter extends BaseEntity {
         this.replyCreatedDate = LocalDateTime.now();
     }
 
+    public void setStatus(LetterStatus status) {
+        this.status = status;
+    }
+
 
 }

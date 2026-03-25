@@ -11,6 +11,7 @@ public record LetterInfoRes(
         String content,
         String replyContent,
         LetterStatus status,
+        boolean replied,
         LocalDateTime createdDate,
         LocalDateTime replyCreatedDate
 ) {
@@ -21,6 +22,7 @@ public record LetterInfoRes(
                 letter.getContent(),
                 letter.getReplyContent(),
                 letter.getStatus(),
+                letter.getStatus() == LetterStatus.REPLIED,
                 letter.getCreateDate(),
                 letter.getReplyCreatedDate()
         );

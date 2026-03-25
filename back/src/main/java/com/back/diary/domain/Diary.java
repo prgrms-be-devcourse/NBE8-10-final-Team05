@@ -1,6 +1,7 @@
 package com.back.diary.domain;
 
 import com.back.global.jpa.entity.BaseEntity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import lombok.AccessLevel;
@@ -31,7 +32,7 @@ public class Diary extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String imageUrl;
 
-    @Column(nullable = false)
+    @JsonProperty("isPrivate")
     private boolean isPrivate = true;
 
     @Builder
