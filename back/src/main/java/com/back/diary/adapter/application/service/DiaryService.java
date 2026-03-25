@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
 @Transactional(readOnly = true)
 public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
 
-    // 2. 외부 어댑터(JPA)가 아닌 포트(인터페이스)에 의존
     private final DiaryPort diaryRepositoryPort;
     private final ImageService imageService;
 

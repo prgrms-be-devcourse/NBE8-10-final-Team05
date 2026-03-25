@@ -13,10 +13,9 @@ import java.nio.file.Paths;
 import java.util.UUID;
 
 @Service
-@Primary // 우선 로컬 서비스를 사용하도록 설정
+@Primary
 public class LocalImageService implements ImageService {
 
-    // application.yml에 설정한 저장 경로
     @Value("${custom.file.upload-dir}")
     private String uploadDir;
 
@@ -35,8 +34,6 @@ public class LocalImageService implements ImageService {
         } catch (IOException e) {
             throw new ServiceException("500-1", "로컬 파일 저장 중 오류가 발생했습니다.");
         }
-
-        // 브라우저에서 접근 가능한 URL 경로 반환 (예: /gen/2026/03/uuid_test.png)
         return "/gen/" + fileName;
     }
 
@@ -47,7 +44,6 @@ public class LocalImageService implements ImageService {
         try {
             Files.deleteIfExists(Paths.get(uploadDir, fileName));
         } catch (IOException e) {
-            // 삭제 실패는 로그만 남기고 진행
             System.err.println("파일 삭제 실패: " + e.getMessage());
         }
     }

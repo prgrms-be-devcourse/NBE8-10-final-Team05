@@ -49,6 +49,7 @@ const MAILBOX_TAB_CONTENT: Record<
 };
 
 export default function MailboxPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const current = MAILBOX_TAB_CONTENT[activeTab];
 

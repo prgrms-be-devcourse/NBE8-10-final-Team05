@@ -13,4 +13,9 @@ public interface LetterPort {
     Page<Letter> findByReceiverId(long memberId, Pageable pageable);
     Page<Letter> findBySenderId(long memberId, Pageable pageable);
     Optional<Member> findRandomMemberExceptMe(long myId);
+    Optional<Letter> findLatestReceived(Long receiverId);
+
+    Optional<Letter> findLatestSent(Long senderId);
+
+    long countByReceiverId(Long receiverId);
 }
