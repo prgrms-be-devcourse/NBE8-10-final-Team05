@@ -244,6 +244,8 @@ export default function Home() {
             <button
               type="button"
               className="inline-flex rounded-full border border-[var(--border-soft)] bg-white px-4 py-2 text-sm font-medium text-slate-700 lg:hidden"
+              aria-controls="home-mobile-nav"
+              aria-expanded={isMobileMenuOpen}
               onClick={() => setIsMobileMenuOpen((current) => !current)}
             >
               {isMobileMenuOpen ? "닫기" : "메뉴"}
@@ -251,6 +253,7 @@ export default function Home() {
           </div>
 
           <div
+            id="home-mobile-nav"
             className={`overflow-hidden transition-[max-height,opacity,margin] duration-300 lg:hidden ${
               isMobileMenuOpen ? "mt-4 max-h-[420px] opacity-100" : "max-h-0 opacity-0"
             }`}
@@ -346,14 +349,14 @@ export default function Home() {
                       href="/dashboard"
                       className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/16"
                     >
-                      {member.nickname}님의 내 정보
+                      {member.nickname}님의 상태 확인하기
                     </Link>
                   ) : (
                     <Link
                       href="/login"
                       className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/16"
                     >
-                      로그인하고 마음 남기기
+                      로그인 후 내 기록 이어가기
                     </Link>
                   )}
                 </div>
@@ -436,19 +439,16 @@ export default function Home() {
                 <div className="flex flex-col gap-3 rounded-[26px] bg-[#f5f8ff] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium text-[var(--brand-deep)]">
-                      오늘의 피드 큐레이션
+                      오늘의 피드 상태
                     </p>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      지금은 실제 API 연결 전 단계라 대표 고민 카드와 읽기 흐름을
-                      먼저 고정해 두었습니다.
+                      지금은 실제 API 연결 전 단계라, 대표 카드와 읽기 흐름을
+                      먼저 정돈해 둔 상태입니다.
                     </p>
                   </div>
-                  <Link
-                    href="#"
-                    className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_18px_32px_-28px_rgba(73,105,160,0.55)]"
-                  >
-                    더 많은 이야기 보기
-                  </Link>
+                  <span className="rounded-full border border-[var(--border-soft)] bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-[0_18px_32px_-28px_rgba(73,105,160,0.55)]">
+                    실데이터 연결 예정
+                  </span>
                 </div>
               </div>
             </section>
@@ -545,7 +545,7 @@ export default function Home() {
                       </p>
                       <p className="mt-2 text-sm leading-6 text-slate-500">
                         일기 공간은 아직 연결 전이지만, 메인에서는 기록의 톤과
-                        흐름을 먼저 보여줍니다. 지금은 내 상태 확인 흐름으로
+                        흐름을 먼저 보여줍니다. 지금은 내 상태 확인 화면으로
                         이어집니다.
                       </p>
                     </div>
