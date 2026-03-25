@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #eef4fb;
+  --foreground: #23334f;
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-strong: rgba(255, 255, 255, 0.84);
+  --brand: #78a7e6;
+  --brand-deep: #5f86cc;
+  --border-soft: rgba(188, 209, 244, 0.78);
+  --shadow-soft: 0 24px 60px -36px rgba(72, 105, 160, 0.45);
 }
 
 @theme inline {
@@ -12,15 +18,67 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    radial-gradient(circle at top left, rgba(183, 211, 246, 0.55), transparent 24%),
+    radial-gradient(circle at top right, rgba(222, 236, 255, 0.85), transparent 20%),
+    linear-gradient(180deg, #f7fbff 0%, #eef4fb 48%, #f6fbff 100%);
+}
+
+::selection {
+  background: rgba(120, 167, 230, 0.28);
+}
+
+@layer components {
+  .home-atmosphere {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .home-atmosphere::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(circle at 10% 12%, rgba(132, 176, 239, 0.28), transparent 22%),
+      radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.9), transparent 15%),
+      radial-gradient(circle at 55% 100%, rgba(166, 200, 245, 0.26), transparent 26%);
+    pointer-events: none;
+  }
+
+  .home-shell {
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(18px);
+  }
+
+  .home-panel {
+    border: 1px solid rgba(255, 255, 255, 0.84);
+    background: var(--surface-strong);
+    box-shadow: 0 22px 56px -36px rgba(72, 105, 160, 0.42);
+    backdrop-filter: blur(20px);
+  }
+
+  .home-card {
+    border: 1px solid var(--border-soft);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, #f9fbff 100%);
+    box-shadow: 0 22px 44px -34px rgba(84, 120, 178, 0.42);
+  }
+
+  .home-hero {
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 22%),
+      linear-gradient(135deg, #80afe8 0%, #6c97dc 50%, #5d84ca 100%);
+    box-shadow: 0 30px 70px -36px rgba(58, 109, 182, 0.78);
+  }
 }
