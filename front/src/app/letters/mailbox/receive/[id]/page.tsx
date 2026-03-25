@@ -65,7 +65,7 @@ export default function ReceivedLetterDetailPage() {
         setIsLoading(false);
       }
     };
-    fetchLetterDetail();
+    initPage();
   }, [handleGoBack, params.id, router]);
 
   // 2. 작성 중 신호 전송 (Debounce)

@@ -22,14 +22,26 @@ function remotePatternFromApiBaseUrl(baseUrl: string | undefined) {
   }
 }
 
-const apiBasePattern = remotePatternFromApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+const apiBasePattern = remotePatternFromApiBaseUrl(
+  process.env.NEXT_PUBLIC_API_BASE_URL,
+);
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
   images: {
     remotePatterns: [
-      { protocol: "http", hostname: "localhost", port: "8080", pathname: "/gen/**" },
-      { protocol: "http", hostname: "127.0.0.1", port: "8080", pathname: "/gen/**" },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "8080",
+        pathname: "/gen/**",
+      },
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
+        port: "8080",
+        pathname: "/gen/**",
+      },
       ...(apiBasePattern ? [apiBasePattern] : []),
     ],
   },

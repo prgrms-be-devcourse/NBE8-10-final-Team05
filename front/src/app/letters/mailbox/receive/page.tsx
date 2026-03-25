@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox,
@@ -16,7 +16,21 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
-// 1. 백엔드 LetterStatus와 일치하는 타입 정의
+// --- 인터페이스 정의 ---
+interface LetterSummary {
+  id: number;
+  title: string;
+  createdDate: string;
+  replied: boolean;
+}
+
+interface MailboxStats {
+  totalReceivedCount: number;
+  totalSentCount: number;
+  latestReceivedLetter?: LetterSummary;
+  latestSentLetter?: LetterSummary;
+}
+
 interface ReceivedLetter {
   id: number;
   title: string;
@@ -26,42 +40,68 @@ interface ReceivedLetter {
   createdDate: string;
 }
 
-type ReceivedLettersResponse = ReceivedLetter[] | { letters?: ReceivedLetter[] };
-
 export default function ReceivedLettersPage() {
   const router = useRouter();
+
+  // 상태 관리
   const [letters, setLetters] = useState<ReceivedLetter[]>([]);
+  const [stats, setStats] = useState<MailboxStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  function handleGoBack() {
+  // 뒤로가기 핸들러
+  const handleGoBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
-      return;
+    } else {
+      router.push("/letters/mailbox");
     }
+  }, [router]);
 
-    router.push("/letters/mailbox");
-  }
-
+  // 1. 데이터 통합 페칭 (목록 + 통계)
   useEffect(() => {
-    const fetchReceivedLetters = async () => {
+    const initData = async () => {
+      setIsLoading(true);
       try {
-        const response = await requestData<ReceivedLettersResponse>("/api/v1/letters/received");
-        const data = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.letters)
-            ? response.letters
-            : [];
-        setLetters(data);
+        // 병렬 호출로 성능 최적화
+        const [lettersRes, statsRes] = await Promise.all([
+          requestData<ReceivedLetter[]>("/api/v1/letters/received"),
+          requestData<MailboxStats>("/api/v1/letters/stats"),
+        ]);
+
+        setLetters(Array.isArray(lettersRes) ? lettersRes : []);
+        setStats(statsRes);
       } catch (error) {
-        console.error("받은 편지를 가져오는데 실패했습니다.", error);
+        console.error("데이터 로드 실패:", error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchReceivedLetters();
+
+    initData();
   }, []);
 
-  // 2. 상태에 따른 디자인 매핑
+  // 2. 시간 계산 헬퍼 함수
+  const getRelativeTime = (dateString?: string) => {
+    if (!dateString) return "";
+    const now = new Date();
+    const past = new Date(dateString);
+    const diffInMs = now.getTime() - past.getTime();
+    const diffInMins = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMins < 1) return "방금 전";
+    if (diffInMins < 60) return `${diffInMins}분 전`;
+    if (diffInHours < 24) return `${diffInHours}시간 전`;
+    return `${diffInDays}일 전`;
+  };
+
+  // 3. 최신 편지 및 노출 로직 계산
+  const latestLetter = stats?.latestReceivedLetter;
+  // 받은 편지함이므로: 최신 편지가 존재하고 + 아직 답장하지 않았을 때 'New' UI 노출
+  const isLetterAvailable = !!latestLetter && !latestLetter.replied;
+
+  // 4. 상태별 디자인 매핑
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "REPLIED":
@@ -106,6 +146,7 @@ export default function ReceivedLettersPage() {
       </div>
 
       <main className="mx-auto mt-10 max-w-6xl px-6">
+        {/* 상단 네비게이션 */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
@@ -122,23 +163,49 @@ export default function ReceivedLettersPage() {
           </div>
         </div>
 
-        {/* 요약 카드: 받은 편지만의 감성 문구 */}
-        <section className="bg-white/70 backdrop-blur-lg rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/50 shadow-sm">
+        {/* 요약 카드 섹션 */}
+        <section className="bg-white/70 backdrop-blur-lg rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/50 shadow-sm transition-all">
           <div className="text-center md:text-left">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center md:justify-start gap-2">
-              누군가의 진심이 도착했어요{" "}
-              <Sparkles size={24} className="text-amber-400" />
-            </h2>
-            <p className="text-slate-500">
-              바다를 건너 당신에게 닿은 {letters.length}개의 소중한
-              이야기입니다.
-            </p>
+            {isLetterAvailable ? (
+              <>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center md:justify-start gap-2">
+                  새로운 진심이 도착했어요{" "}
+                  <Sparkles
+                    size={24}
+                    className="text-amber-400 animate-pulse"
+                  />
+                </h2>
+                <p className="text-slate-500">
+                  <span className="font-semibold text-sky-600">
+                    {getRelativeTime(latestLetter?.createdDate)}
+                  </span>
+                  에 도착한 소중한 이야기입니다. ({letters.length}개의 편지)
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold text-slate-400 mb-2 flex items-center justify-center md:justify-start gap-2">
+                  오늘의 바다는 고요하네요
+                </h2>
+                <p className="text-slate-400 italic">
+                  아직 답장을 기다리는 새로운 편지가 없습니다.
+                </p>
+              </>
+            )}
           </div>
-          <div className="mt-6 md:mt-0 p-5 bg-gradient-to-br from-sky-400 to-blue-500 text-white rounded-[2rem] shadow-lg shadow-sky-200">
+
+          <div
+            className={`mt-6 md:mt-0 p-5 rounded-[2rem] shadow-lg transition-colors duration-500 ${
+              isLetterAvailable
+                ? "bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-sky-200"
+                : "bg-slate-200 text-slate-400 shadow-none"
+            }`}
+          >
             <Inbox size={32} />
           </div>
         </section>
 
+        {/* 리스트 섹션 */}
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <Loader2 className="animate-spin h-10 w-10 text-sky-400" />
@@ -168,7 +235,6 @@ export default function ReceivedLettersPage() {
                       {new Date(letter.createdDate).toLocaleDateString()}
                     </div>
 
-                    {/* 상태 표시 배지 */}
                     <div
                       className={`flex items-center gap-1 text-[10px] font-black px-3 py-1.5 rounded-full border transition-all ${statusInfo.className}`}
                     >
