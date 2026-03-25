@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, CircleAlert } from "lucide-react";
-import BrandWordmark from "@/components/branding/BrandWordmark";
 import MainHeader from "@/components/layout/MainHeader";
 import { ApiError } from "@/lib/api/rs-data";
 import { signup } from "@/lib/auth/auth-service";
@@ -121,38 +120,9 @@ export default function SignupPage() {
           <h1 className="text-[32px] font-semibold tracking-[-0.04em] text-[#1f3150] sm:text-[38px]">
             회원가입
           </h1>
-          <p className="mt-3 text-[15px] leading-7 text-[#7a8da9] sm:text-[17px]">
-            마음온에서 익명의 위로와 기록을 시작해 보세요. 필요한 정보만 간단히 입력하면 됩니다.
-          </p>
         </section>
 
-        <section className="mx-auto mt-8 grid w-full max-w-5xl gap-6 lg:grid-cols-[0.82fr_1.18fr]">
-          <aside className="home-hero rounded-[34px] px-7 py-8 text-white">
-            <p className="text-sm font-semibold tracking-[0.18em] text-white/72 uppercase">welcome</p>
-            <h2 className="mt-4 text-[30px] font-semibold tracking-[-0.04em] text-white">
-              익명과 온기를 지키는 시작
-            </h2>
-            <p className="mt-4 text-[15px] leading-7 text-white/82">
-              공개적인 고민 나누기, 비밀 편지, 나만의 일기까지. 마음을 안전하게 남길 수 있는 공간을
-              준비했습니다.
-            </p>
-
-            <div className="mt-8 space-y-3">
-              {[
-                "닉네임은 자유롭게 정할 수 있고 언제든 바꿀 수 있어요.",
-                "회원가입 후 로그인 페이지로 이동해 바로 이용할 수 있어요.",
-                "가입 후에는 고민공유, 비밀편지, 일기 기능을 같은 계정으로 이어서 사용할 수 있어요.",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[22px] border border-white/18 bg-white/10 px-4 py-4 text-sm leading-6 text-white/88 backdrop-blur-sm"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </aside>
-
+        <section className="mx-auto mt-6 w-full max-w-3xl">
           <section className="home-panel rounded-[34px] px-6 py-7 sm:px-8 sm:py-8">
             <form className="flex flex-col gap-7" onSubmit={handleSubmit}>
               <div>
@@ -269,7 +239,7 @@ export default function SignupPage() {
           </section>
         </section>
 
-        <section className="mx-auto mt-8 w-full max-w-5xl">
+        <section className="mx-auto mt-8 w-full max-w-3xl">
           <div className="rounded-[30px] border border-[#dce7fb] bg-[#eaf3ff] px-6 py-8 text-center shadow-[0_24px_48px_-36px_rgba(73,107,167,0.38)]">
             <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#4f8cf0]">
               이미 계정이 있으신가요?
@@ -286,13 +256,6 @@ export default function SignupPage() {
             </Link>
           </div>
         </section>
-
-        <footer className="mt-8 rounded-[28px] bg-[#78A7E6] px-5 py-4 text-white/92">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <BrandWordmark size="footer" tone="inverse" />
-            <p className="text-sm">마음 온</p>
-          </div>
-        </footer>
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, CircleAlert } from "lucide-react";
-import BrandWordmark from "@/components/branding/BrandWordmark";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -207,13 +206,6 @@ export default function WriteStoryPage() {
               </Link>
             </div>
           </section>
-
-        <footer className="mt-8 rounded-[28px] bg-[#78A7E6] px-5 py-4 text-white/92">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <BrandWordmark size="footer" tone="inverse" />
-            <p className="text-sm">마음 온</p>
-          </div>
-        </footer>
       </div>
     </div>
   );
