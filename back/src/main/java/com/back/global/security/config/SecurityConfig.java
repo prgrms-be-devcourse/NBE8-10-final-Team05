@@ -99,7 +99,8 @@ public class SecurityConfig {
                         HttpMethod.GET,
                         "/api/v1/health",
                         "/api/v1/auth/oidc/authorize/**",
-                        "/api/v1/auth/oidc/callback/**")
+                        "/api/v1/auth/oidc/callback/**",
+                            "/gen/**")
                     .permitAll()
                     .requestMatchers("/oauth2/**", "/login/oauth2/**")
                     .permitAll()
@@ -109,7 +110,8 @@ public class SecurityConfig {
                         "/api/v1/auth/signup",
                         "/api/v1/auth/login",
                         "/api/v1/auth/refresh",
-                        "/api/v1/auth/logout")
+                        "/api/v1/auth/logout",
+                        "/api/v1/images/upload")
                     .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/diaries/public").permitAll()
                     // 관리자 경로는 ADMIN 권한이 필요하다.

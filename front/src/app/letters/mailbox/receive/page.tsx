@@ -40,6 +40,8 @@ interface ReceivedLetter {
   createdDate: string;
 }
 
+type ReceivedLettersResponse = ReceivedLetter[] | { letters?: ReceivedLetter[] };
+
 export default function ReceivedLettersPage() {
   const router = useRouter();
 
@@ -146,7 +148,6 @@ export default function ReceivedLettersPage() {
       </div>
 
       <main className="mx-auto mt-10 max-w-6xl px-6">
-        {/* 상단 네비게이션 */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"

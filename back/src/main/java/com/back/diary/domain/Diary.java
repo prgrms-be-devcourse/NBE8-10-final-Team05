@@ -29,14 +29,20 @@ public class Diary extends BaseEntity {
     @Column(nullable = false)
     private String categoryName;
 
-    @Column(columnDefinition = "TEXT")
     private String imageUrl;
+    private String newImageUrl;
 
     @JsonProperty("isPrivate")
     private boolean isPrivate = true;
 
+
+    public void updateImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+
     @Builder
-    public Diary(Long memberId, String nickname, String title, String content, String categoryName, String imageUrl, boolean isPrivate) {
+    public Diary(Long memberId, String nickname, String title, String content,String imageUrl, String categoryName, boolean isPrivate) {
         this.memberId = memberId;
         this.nickname = (nickname == null) ? "익명" : nickname;
         this.title = title;
@@ -46,13 +52,11 @@ public class Diary extends BaseEntity {
         this.isPrivate = isPrivate;
     }
 
-    public void modify(String title, String content, String categoryName, String imageUrl, boolean isPrivate) {
+    public void modify(String title, String content,String newImageUrl, String categoryName,boolean isPrivate) {
         this.title = title;
         this.content = content;
+        this.newImageUrl = newImageUrl;
         this.categoryName = categoryName;
-        if (imageUrl != null) {
-            this.imageUrl = imageUrl;
-        }
         this.isPrivate = isPrivate;
     }
 
