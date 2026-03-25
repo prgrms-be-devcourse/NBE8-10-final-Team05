@@ -1,22 +1,130 @@
 import Link from "next/link";
 
-const storyShellItems = [
-  { category: "연애", title: "짝사랑, 전할까?", age: "3분전" },
-  { category: "진로", title: "이 길이 맞을까?", age: "15분전" },
-  { category: "친구", title: "너무 서운해요", age: "30분전" },
-  { category: "연애", title: "자꾸 마음이 흔들려요", age: "1시간전" },
-  { category: "진로", title: "비교가 멈추지 않아요", age: "2시간전" },
-  { category: "친구", title: "어색해진 사이를 풀고 싶어요", age: "3시간전" },
+type StoryItem = {
+  category: string;
+  title: string;
+  excerpt: string;
+  age: string;
+  empathyLabel: string;
+  reactions: number;
+  comments: number;
+  accentClassName: string;
+};
+
+const heroSignals = [
+  { label: "오늘 올라온 이야기", value: "128", note: "가볍게 둘러보기 좋은 새 글" },
+  { label: "공감이 모인 순간", value: "54", note: "답장보다 먼저 도착한 공감" },
+  { label: "조용한 키워드", value: "6", note: "오늘 많이 언급된 마음의 결" },
+];
+
+const storyTopics = ["#위로", "#관계", "#진로고민", "#혼자인기분", "#용기", "#쉼"];
+
+const storyFeedItems: StoryItem[] = [
+  {
+    category: "연애",
+    title: "짝사랑을 정리해야 할지, 한번은 꼭 말해봐야 할지 모르겠어요",
+    excerpt:
+      "좋아하는 마음이 길어질수록 일상도 같이 흔들리는 기분이에요. 지금은 끝내야 할지, 한 번쯤은 솔직해져야 할지 망설이고 있어요.",
+    age: "3분전",
+    empathyLabel: "따뜻한 한마디가 필요한 글",
+    reactions: 28,
+    comments: 9,
+    accentClassName: "from-[#ffe7ef] to-[#fff8fb] text-[#cb6f94]",
+  },
+  {
+    category: "진로",
+    title: "열심히 가고는 있는데 이 길이 정말 내 방향인지 계속 흔들려요",
+    excerpt:
+      "남들은 다 앞서가는 것 같고, 저는 자꾸 돌아가는 느낌이 들어요. 지금 버티는 게 맞는지 조언을 듣고 싶어요.",
+    age: "15분전",
+    empathyLabel: "경험 기반 조언이 잘 어울리는 글",
+    reactions: 17,
+    comments: 12,
+    accentClassName: "from-[#e8f1ff] to-[#f9fbff] text-[#5e83c1]",
+  },
+  {
+    category: "친구",
+    title: "오래 친했던 친구가 갑자기 멀게 느껴질 때 먼저 손 내밀어도 될까요",
+    excerpt:
+      "서로 바빠진 뒤로 대화가 툭툭 끊기기 시작했어요. 괜히 더 어색해질까 봐 다가가지 못하고 있어요.",
+    age: "30분전",
+    empathyLabel: "조심스러운 위로가 필요한 글",
+    reactions: 21,
+    comments: 7,
+    accentClassName: "from-[#edf7ef] to-[#fbfffc] text-[#5b9a76]",
+  },
+  {
+    category: "가족",
+    title: "부모님 기대가 버거운데 실망시키고 싶지 않아서 더 답답해요",
+    excerpt:
+      "잘하고 싶다는 마음은 있는데, 점점 제 선택보다 기대를 먼저 생각하게 돼요. 숨이 막히는 날이 많아졌어요.",
+    age: "1시간전",
+    empathyLabel: "천천히 읽히는 공감 글",
+    reactions: 33,
+    comments: 11,
+    accentClassName: "from-[#fff4df] to-[#fffbf3] text-[#c48a45]",
+  },
+  {
+    category: "일상",
+    title: "별일 없는데도 하루가 자꾸 무겁게 가라앉는 기분이 들어요",
+    excerpt:
+      "특별히 힘든 일이 있었던 건 아닌데, 계속 멍하고 아무것도 하고 싶지 않은 날이 길어지고 있어요.",
+    age: "2시간전",
+    empathyLabel: "조용히 머물다 가도 되는 글",
+    reactions: 41,
+    comments: 15,
+    accentClassName: "from-[#eef4fb] to-[#fdfefe] text-[#6b89b2]",
+  },
+  {
+    category: "학교",
+    title: "내가 좋아하는 속도로 가고 싶은데 자꾸 비교 때문에 조급해져요",
+    excerpt:
+      "남들보다 늦는 것 같을 때마다 제 리듬을 잃어버려요. 나답게 가는 방법을 다시 찾고 싶어요.",
+    age: "3시간전",
+    empathyLabel: "응원이 힘이 되는 글",
+    reactions: 19,
+    comments: 6,
+    accentClassName: "from-[#efe8ff] to-[#fbf9ff] text-[#8a6ac7]",
+  },
 ];
 
 function BottleSymbol() {
   return (
-    <div className="relative h-28 w-20">
-      <div className="absolute left-1/2 top-0 h-6 w-7 -translate-x-1/2 rounded-t-xl border-2 border-white/70 bg-white/20" />
-      <div className="absolute left-1/2 top-4 h-20 w-14 -translate-x-1/2 rounded-[1.8rem_1.8rem_1rem_1rem] border-2 border-white/70 bg-white/15 shadow-[0_18px_40px_-18px_rgba(13,37,67,0.45)]" />
-      <div className="absolute left-1/2 top-11 h-8 w-6 -translate-x-1/2 rounded-sm bg-white/80" />
-      <div className="absolute left-1/2 top-[3.2rem] h-1 w-6 -translate-x-1/2 bg-[#78a7e6]" />
+    <div className="relative h-32 w-24">
+      <div className="absolute left-1/2 top-0 h-7 w-8 -translate-x-1/2 rounded-t-xl border-2 border-white/70 bg-white/20" />
+      <div className="absolute left-1/2 top-4 h-24 w-16 -translate-x-1/2 rounded-[2rem_2rem_1.1rem_1.1rem] border-2 border-white/70 bg-white/15 shadow-[0_18px_40px_-18px_rgba(13,37,67,0.45)]" />
+      <div className="absolute left-1/2 top-12 h-9 w-7 -translate-x-1/2 rounded-sm bg-white/85" />
+      <div className="absolute left-1/2 top-[3.65rem] h-1 w-7 -translate-x-1/2 bg-[#78a7e6]" />
     </div>
+  );
+}
+
+function StoryCard({ item }: { item: StoryItem }) {
+  return (
+    <article className="home-card group rounded-[24px] px-5 py-5 transition-transform duration-200 hover:-translate-y-1">
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className={`rounded-full bg-gradient-to-r px-3 py-1 text-xs font-semibold ${item.accentClassName}`}
+        >
+          {item.category}
+        </div>
+        <span className="text-xs font-medium text-slate-400">{item.age}</span>
+      </div>
+
+      <h3 className="mt-4 text-lg font-semibold leading-7 tracking-[-0.03em] text-slate-900">
+        {item.title}
+      </h3>
+      <p className="mt-3 text-sm leading-6 text-slate-500">{item.excerpt}</p>
+
+      <div className="mt-5 rounded-[18px] bg-[#f4f8ff] px-4 py-3 text-sm font-medium text-slate-600">
+        {item.empathyLabel}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between text-sm text-slate-400">
+        <span>공감 {item.reactions}</span>
+        <span>이야기 {item.comments}</span>
+      </div>
+    </article>
   );
 }
 
@@ -71,20 +179,74 @@ export default function Home() {
           <section className="home-hero relative overflow-hidden rounded-[38px] px-6 py-10 text-white sm:px-10 lg:px-14 lg:py-14">
             <div className="pointer-events-none absolute -left-8 top-8 h-28 w-28 rounded-full bg-white/12 blur-2xl sm:h-36 sm:w-36" />
             <div className="pointer-events-none absolute bottom-0 right-8 h-36 w-36 rounded-full bg-[#9dc2f2]/30 blur-3xl" />
-            <div className="relative flex flex-col items-center gap-8 text-center">
-              <div className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white/85">
-                오늘의 마음을 살피는 메인 홈
+
+            <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.25fr)_320px] lg:items-center">
+              <div className="flex flex-col items-start gap-6 text-left">
+                <div className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white/85">
+                  오늘의 마음을 살피는 메인 홈
+                </div>
+
+                <div className="space-y-4">
+                  <h1 className="text-4xl font-semibold tracking-[-0.06em] sm:text-5xl lg:text-6xl">
+                    말하지 못한 마음이
+                    <br />
+                    조용히 놓여도 괜찮은 곳
+                  </h1>
+                  <p className="max-w-2xl text-base leading-7 text-white/85 sm:text-lg">
+                    무거운 하루를 흘려보내고, 비슷한 결의 고민을 천천히 읽으며
+                    오늘의 마음이 덜 외로워지는 랜딩 화면입니다.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href="#stories"
+                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#5f86cc] transition hover:bg-[#f2f7ff]"
+                  >
+                    오늘의 이야기 둘러보기
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/16"
+                  >
+                    로그인하고 마음 남기기
+                  </Link>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {storyTopics.map((topic) => (
+                    <span
+                      key={topic}
+                      className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white/88"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                </div>
               </div>
+
               <div className="space-y-4">
-                <h1 className="text-5xl font-semibold tracking-[-0.06em] sm:text-6xl">
-                  마음온
-                </h1>
-                <p className="mx-auto max-w-2xl text-base leading-7 text-white/85 sm:text-lg">
-                  무거운 하루를 흘려보내고, 다른 사람의 마음 이야기를 조용히
-                  들여다보는 첫 화면입니다.
-                </p>
+                <div className="flex items-center justify-center rounded-[30px] border border-white/18 bg-white/10 px-6 py-7 shadow-[0_24px_48px_-28px_rgba(24,46,87,0.55)] backdrop-blur-md">
+                  <BottleSymbol />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                  {heroSignals.map((signal) => (
+                    <div
+                      key={signal.label}
+                      className="rounded-[24px] border border-white/16 bg-white/12 px-5 py-4 shadow-[0_22px_44px_-30px_rgba(24,46,87,0.55)] backdrop-blur-md"
+                    >
+                      <p className="text-sm text-white/72">{signal.label}</p>
+                      <p className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white">
+                        {signal.value}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-white/72">
+                        {signal.note}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <BottleSymbol />
             </div>
           </section>
 
@@ -93,32 +255,56 @@ export default function Home() {
               id="stories"
               className="home-panel rounded-[32px] p-6 sm:p-8"
             >
-              <div className="flex flex-col gap-2">
-                <h2 className="text-2xl font-semibold tracking-[-0.03em] text-slate-900">
-                  고민 공유
-                </h2>
-                <p className="text-sm leading-6 text-slate-500">
-                  오늘의 마음 이야기가 놓일 메인 피드 영역입니다.
-                </p>
-              </div>
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-medium uppercase tracking-[0.22em] text-[var(--brand-deep)]">
+                      Shared Stories
+                    </span>
+                    <h2 className="text-2xl font-semibold tracking-[-0.03em] text-slate-900">
+                      고민 공유
+                    </h2>
+                    <p className="max-w-2xl text-sm leading-6 text-slate-500">
+                      감정을 빠르게 소비하지 않고, 읽는 사람이 천천히 머무를 수
+                      있게 구성한 오늘의 이야기 피드입니다.
+                    </p>
+                  </div>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {storyShellItems.map((item) => (
-                  <article
-                    key={`${item.category}-${item.title}`}
-                    className="home-card rounded-[24px] px-5 py-4"
-                  >
+                  <div className="flex flex-wrap gap-2">
+                    {storyTopics.map((topic) => (
+                      <span
+                        key={topic}
+                        className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1.5 text-sm text-slate-500"
+                      >
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {storyFeedItems.map((item) => (
+                    <StoryCard key={`${item.category}-${item.title}`} item={item} />
+                  ))}
+                </div>
+
+                <div className="flex flex-col gap-3 rounded-[26px] bg-[#f5f8ff] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
                     <p className="text-sm font-medium text-[var(--brand-deep)]">
-                      [{item.category}]
+                      오늘의 피드 큐레이션
                     </p>
-                    <p className="mt-3 min-h-14 text-lg font-semibold leading-7 tracking-[-0.03em] text-slate-900">
-                      {item.title}
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      지금은 실제 API 연결 전 단계라 대표 고민 카드와 읽기 흐름을
+                      먼저 고정해 두었습니다.
                     </p>
-                    <p className="mt-6 text-right text-sm text-slate-400">
-                      {item.age}
-                    </p>
-                  </article>
-                ))}
+                  </div>
+                  <Link
+                    href="#"
+                    className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-[0_18px_32px_-28px_rgba(73,105,160,0.55)]"
+                  >
+                    더 많은 이야기 보기
+                  </Link>
+                </div>
               </div>
             </section>
 
