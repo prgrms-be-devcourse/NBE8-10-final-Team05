@@ -6,6 +6,8 @@ import com.back.diary.adapter.application.port.in.dto.DiaryRes;
 import com.back.diary.adapter.application.port.out.DiaryPort;
 import com.back.diary.domain.Diary;
 import com.back.global.exception.ServiceException;
+import com.back.image.application.service.ImageService;
+import com.back.image.domain.Image;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,19 +26,28 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
     @Override
     @Transactional
     public Long write(DiaryCreateReq req, MultipartFile image, Long memberId) {
-        String imageUrl = imageService.upload(image);
+        Image savedImage = null;
+
+        if (image != null && !image.isEmpty()) {
+            savedImage = imageService.upload(image, "DIARY");
+        }
 
         Diary diary = Diary.builder()
                 .memberId(memberId)
                 .nickname("익명")
                 .title(req.title())
                 .content(req.content())
+                .imageUrl(savedImage != null ? savedImage.getAccessUrl() : null)
                 .categoryName(req.categoryName())
-                .imageUrl(imageUrl)
                 .isPrivate(req.isPrivate())
                 .build();
 
-        return diaryRepositoryPort.save(diary).getId();
+        Diary savedDiary = diaryRepositoryPort.save(diary);
+
+        if(savedImage != null){
+            savedImage.connectTo("DIARY", savedDiary.getId());
+        }
+        return savedDiary.getId();
     }
 
     @Override
@@ -77,11 +88,15 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
 
         String newImageUrl = diary.getImageUrl();
 
+        // 새 이미지가 업로드된 경우
         if (image != null && !image.isEmpty()) {
+            // 기존 이미지가 있다면 삭제 실행 (DB 레코드 + 물리 파일)
             if (diary.getImageUrl() != null) {
                 imageService.delete(diary.getImageUrl());
             }
-            newImageUrl = imageService.upload(image);
+            // 새 이미지 업로드
+            Image savedImage = imageService.upload(image, "DIARY");
+            newImageUrl = savedImage.getAccessUrl();
         }
 
         diary.modify(
@@ -89,9 +104,7 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
                 req.content(),
                 req.categoryName(),
                 newImageUrl,
-                req.isPrivate()
-        );
-        diaryRepositoryPort.save(diary);
+                req.isPrivate());
     }
 
     @Override
@@ -102,6 +115,10 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
 
         if (!diary.getMemberId().equals(currentMemberId)) {
             throw new ServiceException("403-1", "삭제 권한이 없습니다.");
+        }
+
+        if(diary.getImageUrl() != null){
+            imageService.delete(diary.getImageUrl());
         }
 
         diaryRepositoryPort.delete(diary);

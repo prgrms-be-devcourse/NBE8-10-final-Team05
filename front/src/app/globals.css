@@ -19,8 +19,52 @@
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Tailwind의 기본 스타일 레이어에 추가 */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  /* 에디터 관련 커스텀 스타일 */
+  .editor-area:empty:before {
+    content: attr(data-placeholder);
+    color: #cbd5e1;
+    cursor: text;
+    transition: opacity 0.3s;
+  }
+
+  .editor-area:focus:empty:before {
+    opacity: 0.5;
+  }
+
+  .editor-area p {
+    margin-bottom: 1.8rem;
+    min-height: 1.5em;
+  }
+
+  /* 이미지(figure) 스타일 및 드래그 애니메이션 */
+  .editor-area figure {
+    transition:
+      transform 0.3s cubic-bezier(0.2, 0, 0, 1),
+      opacity 0.3s;
+    margin: 3rem 0;
+    cursor: grab;
+  }
+
+  .editor-area figure:active {
+    cursor: grabbing;
+  }
+
+  .editor-area figure.opacity-40 {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+
+  .editor-area figure img {
+    border-radius: 2rem;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
+    border: 4px solid white;
+  }
 }
