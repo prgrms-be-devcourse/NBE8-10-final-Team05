@@ -1,4 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { logout } from "@/lib/auth/auth-service";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 type StoryItem = {
   category: string;
@@ -29,6 +35,13 @@ const diaryPreviewItems = [
   "오늘 하루를 한 문장으로 남기기",
   "기분의 결을 색으로 저장하기",
   "다시 읽고 싶은 순간 표시하기",
+];
+
+const primaryNavItems = [
+  { href: "#stories", label: "고민공유" },
+  { href: "#diary", label: "나의 일기" },
+  { href: "/letters/write", label: "비밀편지" },
+  { href: "/dashboard", label: "내 정보" },
 ];
 
 const storyFeedItems: StoryItem[] = [
@@ -156,54 +169,150 @@ function SideSignalPill({
 }
 
 export default function Home() {
+  const router = useRouter();
+  const { member, isAuthenticated, isRestoring } = useAuthStore();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  async function handleLogout() {
+    await logout();
+    setIsMobileMenuOpen(false);
+    router.replace("/");
+  }
+
   return (
     <div className="home-atmosphere min-h-screen text-slate-900">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="home-shell flex flex-col gap-4 rounded-[30px] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-lg font-semibold text-white shadow-[0_12px_24px_-12px_rgba(55,108,188,0.8)]">
-              온
-            </div>
-            <div>
-              <p className="text-[2rem] font-semibold leading-none tracking-[-0.04em] text-slate-800">
-                마음온
-              </p>
-              <p className="mt-1 text-sm text-slate-400">
-                오늘의 마음이 가벼워지는 곳
-              </p>
-            </div>
-          </Link>
+        <header className="home-shell rounded-[30px] px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-4">
+            <Link href="/" className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--brand)] text-lg font-semibold text-white shadow-[0_12px_24px_-12px_rgba(55,108,188,0.8)] sm:h-12 sm:w-12">
+                온
+              </div>
+              <div>
+                <p className="text-[1.8rem] font-semibold leading-none tracking-[-0.04em] text-slate-800 sm:text-[2rem]">
+                  마음온
+                </p>
+                <p className="mt-1 hidden text-sm text-slate-400 sm:block">
+                  오늘의 마음이 가벼워지는 곳
+                </p>
+              </div>
+            </Link>
 
-          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
-            <Link href="#stories" className="transition-colors hover:text-slate-900">
-              고민공유
-            </Link>
-            <Link href="#diary" className="transition-colors hover:text-slate-900">
-              나의 일기
-            </Link>
-            <Link
-              href="/letters/write"
-              className="transition-colors hover:text-slate-900"
+            <div className="hidden items-center gap-3 lg:flex">
+              <nav className="flex items-center gap-x-5 text-sm font-medium text-slate-600">
+                {primaryNavItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="transition-colors hover:text-slate-900"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+
+              {isRestoring ? (
+                <span className="rounded-full bg-[#f5f8ff] px-4 py-2 text-sm font-medium text-slate-500">
+                  세션 확인 중...
+                </span>
+              ) : isAuthenticated && member ? (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/dashboard"
+                    className="rounded-full border border-[var(--border-soft)] bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-[var(--brand)]"
+                  >
+                    {member.nickname}
+                  </Link>
+                  <button
+                    type="button"
+                    className="rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--brand-deep)]"
+                    onClick={() => void handleLogout()}
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="rounded-full border border-[var(--border-soft)] bg-[#f6f9ff] px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-[var(--brand)] hover:text-slate-900"
+                >
+                  로그인
+                </Link>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex rounded-full border border-[var(--border-soft)] bg-white px-4 py-2 text-sm font-medium text-slate-700 lg:hidden"
+              onClick={() => setIsMobileMenuOpen((current) => !current)}
             >
-              비밀편지
-            </Link>
-            <Link
-              href="/dashboard"
-              className="transition-colors hover:text-slate-900"
-            >
-              내 정보
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-full border border-[var(--border-soft)] bg-[#f6f9ff] px-4 py-2 text-slate-700 transition hover:border-[var(--brand)] hover:text-slate-900"
-            >
-              로그인
-            </Link>
-          </nav>
+              {isMobileMenuOpen ? "닫기" : "메뉴"}
+            </button>
+          </div>
+
+          <div
+            className={`overflow-hidden transition-[max-height,opacity,margin] duration-300 lg:hidden ${
+              isMobileMenuOpen ? "mt-4 max-h-[420px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="rounded-[24px] border border-[var(--border-soft)] bg-white/80 p-4 shadow-[0_18px_36px_-30px_rgba(73,105,160,0.45)]">
+              <nav className="grid gap-2">
+                {primaryNavItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="rounded-[16px] px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-[#f4f8ff]"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                {isRestoring ? (
+                  <p className="text-sm font-medium text-slate-500">세션 확인 중...</p>
+                ) : isAuthenticated && member ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-slate-500">
+                      현재 사용자
+                      <span className="ml-2 font-semibold text-slate-800">
+                        {member.nickname}
+                      </span>
+                    </p>
+                    <div className="flex gap-2">
+                      <Link
+                        href="/dashboard"
+                        className="inline-flex rounded-full border border-[var(--border-soft)] bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        내 정보
+                      </Link>
+                      <button
+                        type="button"
+                        className="inline-flex rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white"
+                        onClick={() => void handleLogout()}
+                      >
+                        로그아웃
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <Link
+                    href="/login"
+                    className="inline-flex rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    로그인
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
         </header>
 
         <main className="mt-4 flex flex-1 flex-col gap-4">
-          <section className="home-hero relative overflow-hidden rounded-[38px] px-6 py-10 text-white sm:px-10 lg:px-14 lg:py-14">
+          <section className="home-hero relative overflow-hidden rounded-[34px] px-5 py-8 text-white sm:rounded-[38px] sm:px-10 sm:py-10 lg:px-14 lg:py-14">
             <div className="pointer-events-none absolute -left-8 top-8 h-28 w-28 rounded-full bg-white/12 blur-2xl sm:h-36 sm:w-36" />
             <div className="pointer-events-none absolute bottom-0 right-8 h-36 w-36 rounded-full bg-[#9dc2f2]/30 blur-3xl" />
 
@@ -214,7 +323,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-4">
-                  <h1 className="text-4xl font-semibold tracking-[-0.06em] sm:text-5xl lg:text-6xl">
+                  <h1 className="text-3xl font-semibold tracking-[-0.06em] sm:text-5xl lg:text-6xl">
                     말하지 못한 마음이
                     <br />
                     조용히 놓여도 괜찮은 곳
@@ -232,12 +341,21 @@ export default function Home() {
                   >
                     오늘의 이야기 둘러보기
                   </Link>
-                  <Link
-                    href="/login"
-                    className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/16"
-                  >
-                    로그인하고 마음 남기기
-                  </Link>
+                  {isAuthenticated && member ? (
+                    <Link
+                      href="/dashboard"
+                      className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/16"
+                    >
+                      {member.nickname}님의 내 정보
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/login"
+                      className="rounded-full border border-white/35 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/16"
+                    >
+                      로그인하고 마음 남기기
+                    </Link>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -335,7 +453,7 @@ export default function Home() {
               </div>
             </section>
 
-            <aside className="flex flex-col gap-4">
+            <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start">
               <section className="home-panel rounded-[30px] p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
