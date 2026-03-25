@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #eef4fb;
-  --foreground: #23334f;
+  --background: #edf5ff;
+  --foreground: #25324a;
   --surface: #ffffff;
-  --surface-strong: #ffffff;
-  --brand: #7da7e4;
-  --brand-deep: #5f86cc;
-  --border-soft: #7da7e4;
-  --shadow-soft: none;
+  --surface-strong: #fbfdff;
+  --brand: #7eaef3;
+  --brand-deep: #3f89f6;
+  --border-soft: #dbe7fb;
+  --shadow-soft: 0 28px 60px -38px rgba(73, 107, 167, 0.45);
 }
 
 @theme inline {
@@ -24,7 +24,10 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 32%),
+    radial-gradient(circle at top right, rgba(214, 232, 255, 0.7) 0%, rgba(214, 232, 255, 0) 26%),
+    var(--background);
   color: var(--foreground);
 }
 
@@ -38,24 +41,25 @@ body {
   }
 
   .home-shell {
-    border: 0;
-    background: transparent;
-    box-shadow: none;
+    border: 1px solid #e3ecfb;
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
   }
 
   .home-panel {
-    background: transparent;
-    box-shadow: none;
+    border: 1px solid #e3ecfb;
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
   }
 
   .home-card {
-    border: 2px solid var(--border-soft);
-    background: #ffffff;
-    box-shadow: none;
+    border: 1px solid #e1ebfb;
+    background: var(--surface-strong);
+    box-shadow: 0 22px 44px -34px rgba(73, 107, 167, 0.42);
   }
 
   .home-hero {
-    background: var(--brand);
-    box-shadow: none;
+    background: linear-gradient(135deg, #9dc3fb 0%, #77aaf4 38%, #5e95f3 100%);
+    box-shadow: 0 30px 70px -40px rgba(58, 105, 176, 0.55);
   }
 }

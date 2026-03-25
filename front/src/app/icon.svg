@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">마음온 파비콘</title>
+  <desc id="desc">파란 사각형 안에 흰 물결 세 줄이 들어간 마음온 파비콘</desc>
+  <rect width="64" height="64" rx="16" fill="#18A9ED" />
+  <g
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="3.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M18 24C21 20.8 24 20.8 27 24C30 27.2 33 27.2 36 24C39 20.8 42 20.8 46 24" />
+    <path d="M18 32C21 28.8 24 28.8 27 32C30 35.2 33 35.2 36 32C39 28.8 42 28.8 46 32" />
+    <path d="M18 40C21 36.8 24 36.8 27 40C30 43.2 33 43.2 36 40C39 36.8 42 36.8 46 40" />
+  </g>
+</svg>
