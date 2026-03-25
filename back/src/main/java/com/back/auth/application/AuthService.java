@@ -14,6 +14,7 @@ import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
+import java.time.Clock;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,6 +47,7 @@ public class AuthService {
   private final JwtTokenService jwtTokenService;
   private final JwtProperties jwtProperties;
   private final RefreshTokenDomainService refreshTokenDomainService;
+  private final Clock clock;
 
   /** 회원 가입 처리: 이메일 중복 체크 후 비밀번호 해시를 저장한다. */
   @Transactional
@@ -98,7 +100,7 @@ public class AuthService {
   }
 
   /** refresh 회전 처리: 기존 토큰 폐기 + 신규 refresh/access 토큰 발급. */
-  @Transactional
+  @Transactional(noRollbackFor = ServiceException.class)
   public AuthTokenIssueResult refresh(String rawRefreshToken) {
     if (!StringUtils.hasText(rawRefreshToken)) {
       throw AuthErrorCode.REFRESH_TOKEN_REQUIRED.toException();
@@ -108,10 +110,10 @@ public class AuthService {
     }
 
     JwtRefreshSubject refreshSubject = parseRefreshSubject(rawRefreshToken);
-    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime now = currentDateTime();
     RefreshToken current =
         refreshTokenDomainService
-            .findByJti(refreshSubject.jti())
+            .findByJtiForUpdate(refreshSubject.jti())
             .orElseThrow(AuthErrorCode.REFRESH_TOKEN_INVALID::toException);
 
     if (!matchesRefreshToken(rawRefreshToken, current.getTokenHash())) {
@@ -139,7 +141,7 @@ public class AuthService {
     String nextRefreshTokenHash = hashRefreshToken(nextRefreshToken);
 
     refreshTokenDomainService.rotate(
-        current.getJti(),
+        current,
         nextJti,
         nextRefreshTokenHash,
         now.plusSeconds(jwtProperties.refreshTokenExpireSeconds()),
@@ -167,9 +169,9 @@ public class AuthService {
         .findByJti(refreshSubject.jti())
         .filter(stored -> matchesRefreshToken(rawRefreshToken, stored.getTokenHash()))
         .filter(stored -> stored.getRevokedAt() == null)
-        .filter(stored -> stored.getExpiresAt().isAfter(LocalDateTime.now()))
+        .filter(stored -> stored.getExpiresAt().isAfter(currentDateTime()))
         .ifPresent(
-            stored -> refreshTokenDomainService.revoke(stored.getJti(), LocalDateTime.now()));
+            stored -> refreshTokenDomainService.revoke(stored.getJti(), currentDateTime()));
   }
 
   /** 현재 로그인한 사용자 정보 조회. */
@@ -182,6 +184,7 @@ public class AuthService {
         memberRepository
             .findById(authenticatedMember.memberId())
             .orElseThrow(AuthErrorCode.MEMBER_NOT_FOUND::toException);
+    assertMemberCanAuthenticate(member);
     return AuthMemberResponse.from(member);
   }
 
@@ -198,7 +201,7 @@ public class AuthService {
     String refreshToken =
         jwtTokenService.generateRefreshToken(member.getId(), refreshJti, familyId);
     String refreshTokenHash = hashRefreshToken(refreshToken);
-    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime now = currentDateTime();
 
     refreshTokenDomainService.saveIssuedToken(
         member,
@@ -237,6 +240,10 @@ public class AuthService {
     if (member.getStatus() == MemberStatus.WITHDRAWN) {
       throw AuthErrorCode.MEMBER_WITHDRAWN.toException();
     }
+  }
+
+  private LocalDateTime currentDateTime() {
+    return LocalDateTime.now(clock);
   }
 
   private String normalizeEmail(String email) {

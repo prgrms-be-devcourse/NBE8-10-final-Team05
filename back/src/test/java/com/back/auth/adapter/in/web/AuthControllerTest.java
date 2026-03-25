@@ -25,6 +25,7 @@ import com.back.global.security.config.SecurityConfig;
 import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtTokenService;
+import com.back.member.domain.MemberRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +59,7 @@ class AuthControllerTest {
   @MockitoBean private OidcAuthorizationRequestService oidcAuthorizationRequestService;
   @MockitoBean private OidcCallbackService oidcCallbackService;
   @MockitoBean private JwtTokenService jwtTokenService;
+  @MockitoBean private MemberRepository memberRepository;
 
   @Test
   @DisplayName("회원 가입 API는 회원 정보를 반환한다")

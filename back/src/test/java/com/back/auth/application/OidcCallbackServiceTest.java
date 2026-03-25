@@ -49,7 +49,11 @@ class OidcCallbackServiceTest {
     OidcAuthorizeProperties properties =
         new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
     OidcAuthorizationRequestService authorizationRequestService =
-        new OidcAuthorizationRequestService(properties, clientRegistrationRepository, clock);
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
     OidcCallbackService callbackService =
         new OidcCallbackService(
             properties,
@@ -124,7 +128,11 @@ class OidcCallbackServiceTest {
     OidcAuthorizeProperties properties =
         new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
     OidcAuthorizationRequestService authorizationRequestService =
-        new OidcAuthorizationRequestService(properties, clientRegistrationRepository, clock);
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
     OidcCallbackService callbackService =
         new OidcCallbackService(
             properties,
@@ -162,7 +170,11 @@ class OidcCallbackServiceTest {
     OidcAuthorizeProperties properties =
         new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
     OidcAuthorizationRequestService authorizationRequestService =
-        new OidcAuthorizationRequestService(properties, clientRegistrationRepository, clock);
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
     OidcCallbackService callbackService =
         new OidcCallbackService(
             properties,
@@ -209,7 +221,11 @@ class OidcCallbackServiceTest {
     OidcAuthorizeProperties properties =
         new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
     OidcAuthorizationRequestService authorizationRequestService =
-        new OidcAuthorizationRequestService(properties, clientRegistrationRepository, clock);
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
     OidcCallbackService callbackService =
         new OidcCallbackService(
             properties,
@@ -270,7 +286,11 @@ class OidcCallbackServiceTest {
     OidcAuthorizeProperties properties =
         new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
     OidcAuthorizationRequestService authorizationRequestService =
-        new OidcAuthorizationRequestService(properties, clientRegistrationRepository, clock);
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
     OidcCallbackService callbackService =
         new OidcCallbackService(
             properties,

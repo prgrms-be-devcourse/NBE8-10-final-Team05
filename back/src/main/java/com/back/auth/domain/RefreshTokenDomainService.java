@@ -39,6 +39,11 @@ public class RefreshTokenDomainService {
     return refreshTokenRepository.findByJti(jti);
   }
 
+  /** refresh 회전 직전 현재 토큰을 배타 잠금으로 조회한다. */
+  public Optional<RefreshToken> findByJtiForUpdate(String jti) {
+    return refreshTokenRepository.findByJtiForUpdate(jti);
+  }
+
   /** 리프레시 토큰 회전: 기존 토큰 폐기 후 같은 familyId로 새 토큰을 저장한다. */
   @Transactional
   public RefreshToken rotate(
@@ -47,7 +52,21 @@ public class RefreshTokenDomainService {
       String nextTokenHash,
       LocalDateTime nextExpiresAt,
       LocalDateTime now) {
-    RefreshToken current = findByJtiOrThrow(currentJti);
+    RefreshToken current = findByJtiForUpdateOrThrow(currentJti);
+    return rotate(current, nextJti, nextTokenHash, nextExpiresAt, now);
+  }
+
+  /** 이미 잠금으로 확보한 현재 토큰 기준으로 회전을 완료한다. */
+  @Transactional
+  public RefreshToken rotate(
+      RefreshToken current,
+      String nextJti,
+      String nextTokenHash,
+      LocalDateTime nextExpiresAt,
+      LocalDateTime now) {
+    if (current == null) {
+      throw new ServiceException(ERROR_CODE_REFRESH_TOKEN_NOT_FOUND, ERROR_MSG_REFRESH_TOKEN_NOT_FOUND);
+    }
 
     if (!current.isActive(now)) {
       throw new ServiceException(ERROR_CODE_REFRESH_TOKEN_INACTIVE, ERROR_MSG_REFRESH_TOKEN_INACTIVE);
@@ -80,6 +99,15 @@ public class RefreshTokenDomainService {
   private RefreshToken findByJtiOrThrow(String jti) {
     return refreshTokenRepository
         .findByJti(jti)
+        .orElseThrow(
+            () ->
+                new ServiceException(
+                    ERROR_CODE_REFRESH_TOKEN_NOT_FOUND, ERROR_MSG_REFRESH_TOKEN_NOT_FOUND));
+  }
+
+  private RefreshToken findByJtiForUpdateOrThrow(String jti) {
+    return refreshTokenRepository
+        .findByJtiForUpdate(jti)
         .orElseThrow(
             () ->
                 new ServiceException(

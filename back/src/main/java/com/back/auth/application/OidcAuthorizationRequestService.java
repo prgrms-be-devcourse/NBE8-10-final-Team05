@@ -12,11 +12,11 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -32,8 +32,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  *   <li>오픈 리다이렉트 방어: redirect_uri allowlist 강제
  * </ul>
  *
- * <p>현재 저장소는 인메모리(ConcurrentHashMap)이며, 단일 인스턴스 기준으로 동작한다.
- * 멀티 인스턴스 환경에서는 Redis 같은 중앙 저장소로 대체가 필요하다.
+ * <p>state 저장은 별도 저장소 인터페이스를 통해 처리한다.
+ * 운영 환경에서는 DB/Redis 같은 외부 저장소를 사용해 멀티 인스턴스에서도 replay 방어가 유지된다.
  */
 @Service
 @RequiredArgsConstructor
@@ -49,13 +49,8 @@ public class OidcAuthorizationRequestService {
 
   private final OidcAuthorizeProperties properties;
   private final ClientRegistrationRepository clientRegistrationRepository;
+  private final OidcAuthorizationStateStore oidcAuthorizationStateStore;
   private final Clock clock;
-  /**
-   * state 기준 인증 진행 상태 저장소.
-   *
-   * <p>값에는 provider/redirectUri/nonce/codeVerifier/만료시각/소비시각이 포함된다.
-   */
-  private final Map<String, OidcAuthorizationState> stateStore = new ConcurrentHashMap<>();
 
   /**
    * authorize 시작 요청을 처리하고 provider authorize URL을 생성한다.
@@ -70,7 +65,8 @@ public class OidcAuthorizationRequestService {
    *   <li>provider authorize URL 생성 후 반환
    * </ol>
    */
-  public synchronized OidcAuthorizationStartResult startAuthorization(
+  @Transactional
+  public OidcAuthorizationStartResult startAuthorization(
       String provider, String redirectUri, String baseUrl) {
     // 1) 기능 플래그 off면 즉시 차단
     if (!properties.authorizeEnabled()) {
@@ -101,7 +97,7 @@ public class OidcAuthorizationRequestService {
     OidcAuthorizationState savedState =
         OidcAuthorizationState.issue(
             state, normalizedProvider, normalizedRedirectUri, nonce, codeVerifier, now, expiresAt);
-    stateStore.put(state, savedState);
+    oidcAuthorizationStateStore.save(savedState);
 
     // 7) provider callback 용 redirect_uri 템플릿 확장
     String providerRedirectUri =
@@ -127,7 +123,8 @@ public class OidcAuthorizationRequestService {
    *   <li>재사용(replay): 401-8
    * </ul>
    */
-  public synchronized OidcAuthorizationState consumeState(String state) {
+  @Transactional
+  public OidcAuthorizationState consumeState(String state) {
     if (!StringUtils.hasText(state)) {
       throw AuthErrorCode.OIDC_STATE_INVALID.toException();
     }
@@ -135,12 +132,12 @@ public class OidcAuthorizationRequestService {
     Instant now = Instant.now(clock);
     cleanupConsumedExpiredStates(now);
 
-    OidcAuthorizationState savedState = stateStore.get(state);
-    if (savedState == null) {
-      throw AuthErrorCode.OIDC_STATE_INVALID.toException();
-    }
+    OidcAuthorizationState savedState =
+        oidcAuthorizationStateStore
+            .findForUpdate(state)
+            .orElseThrow(AuthErrorCode.OIDC_STATE_INVALID::toException);
     if (savedState.isExpired(now)) {
-      stateStore.remove(state);
+      oidcAuthorizationStateStore.delete(state);
       throw AuthErrorCode.OIDC_STATE_EXPIRED.toException();
     }
     if (savedState.isConsumed()) {
@@ -148,17 +145,18 @@ public class OidcAuthorizationRequestService {
     }
 
     OidcAuthorizationState consumed = savedState.consume(now);
-    stateStore.put(state, consumed);
+    oidcAuthorizationStateStore.save(consumed);
     return consumed;
   }
 
   /** 테스트/운영 점검용 state 조회 헬퍼. */
-  public synchronized Optional<OidcAuthorizationState> findState(String state) {
+  @Transactional
+  public Optional<OidcAuthorizationState> findState(String state) {
     if (!StringUtils.hasText(state)) {
       return Optional.empty();
     }
     cleanupConsumedExpiredStates(Instant.now(clock));
-    return Optional.ofNullable(stateStore.get(state));
+    return oidcAuthorizationStateStore.find(state);
   }
 
   /** provider 파라미터를 정규화/검증한다. */
@@ -337,9 +335,7 @@ public class OidcAuthorizationRequestService {
    * 만료 전 consumed state를 유지하는 이유는 동일 state 재사용 시점을 replay(401-8)로 식별하기 위해서다.
    */
   private void cleanupConsumedExpiredStates(Instant now) {
-    stateStore
-        .entrySet()
-        .removeIf(entry -> entry.getValue().isExpired(now) && entry.getValue().isConsumed());
+    oidcAuthorizationStateStore.deleteConsumedExpired(now);
   }
 
   /** URI의 명시/기본 포트를 정규화해서 비교한다. */

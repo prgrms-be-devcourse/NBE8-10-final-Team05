@@ -103,7 +103,10 @@ class OidcAuthorizationRequestServiceTest {
             false, 300L, List.of("http://localhost:3000", "http://127.0.0.1:3000"));
     OidcAuthorizationRequestService service =
         new OidcAuthorizationRequestService(
-            properties, new InMemoryClientRegistrationRepository(createRegistration()), clock);
+            properties,
+            new InMemoryClientRegistrationRepository(createRegistration()),
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
 
     assertThatThrownBy(
             () ->
@@ -155,7 +158,10 @@ class OidcAuthorizationRequestServiceTest {
         new OidcAuthorizeProperties(
             true, ttlSeconds, List.of("http://localhost:3000", "http://127.0.0.1:3000"));
     return new OidcAuthorizationRequestService(
-        properties, new InMemoryClientRegistrationRepository(createRegistration()), clock);
+        properties,
+        new InMemoryClientRegistrationRepository(createRegistration()),
+        new InMemoryOidcAuthorizationStateStore(),
+        clock);
   }
 
   private ClientRegistration createRegistration() {
