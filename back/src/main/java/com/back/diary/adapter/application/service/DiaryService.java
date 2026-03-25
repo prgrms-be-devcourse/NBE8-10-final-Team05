@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -26,10 +31,15 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
     @Override
     @Transactional
     public Long write(DiaryCreateReq req, MultipartFile image, Long memberId) {
-        Image savedImage = null;
+        // 1. 에디터 본문에서 이미지 URL들 추출
+        List<String> imageUrls = extractImageUrls(req.content());
 
+        // 2. 대표 이미지 결정 (파일 업로드 우선, 없으면 본문 첫 이미지)
+        String representativeUrl = null;
         if (image != null && !image.isEmpty()) {
-            savedImage = imageService.upload(image, "DIARY");
+            representativeUrl = imageService.upload(image, "DIARY").getAccessUrl();
+        } else if (!imageUrls.isEmpty()) {
+            representativeUrl = imageUrls.get(0);
         }
 
         Diary diary = Diary.builder()
@@ -37,17 +47,12 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
                 .nickname("익명")
                 .title(req.title())
                 .content(req.content())
-                .imageUrl(savedImage != null ? savedImage.getAccessUrl() : null)
+                .imageUrl(representativeUrl) // 이제 null이 아닌 값이 저장됩니다.
                 .categoryName(req.categoryName())
                 .isPrivate(req.isPrivate())
                 .build();
 
-        Diary savedDiary = diaryRepositoryPort.save(diary);
-
-        if(savedImage != null){
-            savedImage.connectTo("DIARY", savedDiary.getId());
-        }
-        return savedDiary.getId();
+        return diaryRepositoryPort.save(diary).getId();
     }
 
     @Override
@@ -107,6 +112,20 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
                 req.isPrivate());
     }
 
+    private List<String> extractImageUrls(String content) {
+        List<String> urls = new ArrayList<>();
+        if (content == null || content.isBlank()) return urls;
+
+        // <img src="URL"> 패턴 추출 (따옴표 종류 상관없이 대응)
+        Pattern pattern = Pattern.compile("<img[^>]*src=[\"']([^\"']*)[\"']", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(content);
+
+        while (matcher.find()) {
+            urls.add(matcher.group(1));
+        }
+        return urls;
+    }
+
     @Override
     @Transactional
     public void delete(Long diaryId, Long currentMemberId) {
@@ -117,8 +136,17 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
             throw new ServiceException("403-1", "삭제 권한이 없습니다.");
         }
 
-        if(diary.getImageUrl() != null){
-            imageService.delete(diary.getImageUrl());
+        // 1. 본문에 포함된 모든 이미지 URL 추출
+        List<String> allImages = extractImageUrls(diary.getContent());
+
+        // 2. 대표 이미지 필드(imageUrl)가 본문에 없을 경우를 대비해 리스트에 추가
+        if (diary.getImageUrl() != null && !allImages.contains(diary.getImageUrl())) {
+            allImages.add(diary.getImageUrl());
+        }
+
+        // 3. 모든 이미지 삭제 실행
+        for (String url : allImages) {
+            imageService.delete(url);
         }
 
         diaryRepositoryPort.delete(diary);

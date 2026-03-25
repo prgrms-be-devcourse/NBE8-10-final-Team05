@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -64,21 +65,46 @@ public class LocalImageService implements ImageService {
     @Override
     @Transactional
     public void delete(String fileUrl) {
-        if (!StringUtils.hasText(fileUrl)) return;
+        if (!StringUtils.hasText(fileUrl)) {
+            System.out.println("삭제 요청된 URL이 비어있습니다.");
+            return;
+        }
 
-        String storedName = fileUrl.replace("/gen/", "");
+        // 1. 저장된 파일명(storedName)만 안전하게 추출
+        // URL이 "http://localhost:8080/gen/abc.png" 이든 "/gen/abc.png" 이든
+        // 마지막 '/' 뒤의 문자열만 가져오도록 개선합니다.
+        String storedName = fileUrl.contains("/")
+                ? fileUrl.substring(fileUrl.lastIndexOf("/") + 1)
+                : fileUrl;
 
-        // 2. DB 레코드 삭제
-        imageRepository.findByStoredName(storedName).ifPresent(image -> {
+        System.out.println("최종 추출된 storedName: " + storedName);
+
+        // 2. DB 조회 시도
+        Optional<Image> imageOpt = imageRepository.findByStoredName(storedName);
+
+        if (imageOpt.isEmpty()) {
+            System.err.println("DB에서 이미지를 찾을 수 없습니다. (파일명: " + storedName + ")");
+            return;
+        }
+
+        imageOpt.ifPresent(image -> {
+            System.out.println("DB 레코드 확인됨: " + image.getStoredName());
+
+            // DB 레코드 삭제
             imageRepository.delete(image);
 
             // 3. 물리 파일 삭제
-            Path filePath = Paths.get(uploadDir, storedName);
+            Path filePath = Paths.get(uploadDir, storedName).toAbsolutePath();
             try {
-                Files.deleteIfExists(filePath);
+                boolean deleted = Files.deleteIfExists(filePath);
+                if (deleted) {
+                    System.out.println("물리 파일 삭제 완료: " + filePath);
+                } else {
+                    System.err.println("⚠파일이 폴더에 존재하지 않습니다: " + filePath);
+                }
             } catch (IOException e) {
-                // 로그를 남기거나 예외 처리를 하지만, DB가 지워졌다면 로직은 계속 진행 가능
-                System.err.println("파일 삭제 실패: " + e.getMessage());
+                System.err.println("파일 삭제 중 입출력 오류 발생: " + e.getMessage());
+                e.printStackTrace();
             }
         });
     }
