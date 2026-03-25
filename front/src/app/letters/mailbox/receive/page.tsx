@@ -22,6 +22,8 @@ interface ReceivedLetter {
   createdDate: string;
 }
 
+type ReceivedLettersResponse = ReceivedLetter[] | { letters?: ReceivedLetter[] };
+
 export default function ReceivedLettersPage() {
   const router = useRouter();
   const [letters, setLetters] = useState<ReceivedLetter[]>([]);
@@ -30,11 +32,12 @@ export default function ReceivedLettersPage() {
   useEffect(() => {
     const fetchReceivedLetters = async () => {
       try {
-        const response = await requestData<any>("/api/v1/letters/received");
-        // 페이징 처리된 경우 response.letters, 아니면 response 자체 사용
+        const response = await requestData<ReceivedLettersResponse>("/api/v1/letters/received");
         const data = Array.isArray(response)
           ? response
-          : response?.letters || [];
+          : Array.isArray(response?.letters)
+            ? response.letters
+            : [];
         setLetters(data);
       } catch (error) {
         console.error("받은 편지를 가져오는데 실패했습니다.", error);

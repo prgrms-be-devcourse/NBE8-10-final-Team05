@@ -8,9 +8,8 @@ import {
   Heart,
   Droplets,
   ChevronRight,
-  Inbox,
-  Waves,
 } from "lucide-react";
+import MainHeader from "@/components/layout/MainHeader";
 
 type MailboxTab = "received" | "sent";
 
@@ -19,25 +18,9 @@ export default function MailboxPage() {
 
   return (
     <div className="min-h-screen bg-[#EBF5FF] text-slate-800 flex flex-col font-sans selection:bg-blue-100">
-      {/* 1. Header (이미지 상단바 참고) */}
-      <header className="flex items-center justify-between px-8 py-4 bg-white/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-sky-400 rounded-lg flex items-center justify-center text-white">
-            <Waves size={20} />
-          </div>
-          <span className="text-xl font-bold text-sky-900">마음온</span>
-        </div>
-        <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-500">
-          <button className="hover:text-sky-500">홈</button>
-          <button className="text-sky-600 border-b-2 border-sky-500 pb-1">
-            편지함
-          </button>
-          <button className="hover:text-sky-500">커뮤니티</button>
-        </nav>
-        <div className="flex gap-4">
-          <div className="w-8 h-8 rounded-full bg-sky-100 border border-sky-200" />
-        </div>
-      </header>
+      <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+        <MainHeader />
+      </div>
 
       <main className="max-w-5xl mx-auto w-full px-6 py-12 flex flex-col items-center">
         {/* 2. Tab Selector */}

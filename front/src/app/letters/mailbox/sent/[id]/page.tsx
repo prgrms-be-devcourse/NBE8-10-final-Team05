@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
   Calendar,
-  Send,
   MailOpen,
   Waves,
   Heart,

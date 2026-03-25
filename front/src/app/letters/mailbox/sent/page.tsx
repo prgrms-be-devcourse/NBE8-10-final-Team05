@@ -19,6 +19,8 @@ interface SentLetter {
   createdDate: string;
 }
 
+type SentLettersResponse = SentLetter[] | { letters?: SentLetter[] };
+
 export default function SentLettersPage() {
   const router = useRouter();
   const [letters, setLetters] = useState<SentLetter[]>([]);
@@ -27,16 +29,11 @@ export default function SentLettersPage() {
   useEffect(() => {
     const fetchSentLetters = async () => {
       try {
-        // response는 { letters: [...], totalElements: 2, ... } 형태입니다.
-        const response = await requestData<any>("/api/v1/letters/sent");
-
-        console.log("받은 데이터:", response);
-
-        // response 자체가 배열인지, 아니면 안에 letters라는 배열이 있는지 확인
-        if (response && Array.isArray(response.letters)) {
-          setLetters(response.letters); // 이 줄이 핵심!
-        } else if (Array.isArray(response)) {
+        const response = await requestData<SentLettersResponse>("/api/v1/letters/sent");
+        if (Array.isArray(response)) {
           setLetters(response);
+        } else if (Array.isArray(response?.letters)) {
+          setLetters(response.letters);
         } else {
           setLetters([]);
         }
