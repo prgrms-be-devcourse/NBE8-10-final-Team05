@@ -19,6 +19,18 @@ const heroSignals = [
 
 const storyTopics = ["#위로", "#관계", "#진로고민", "#혼자인기분", "#용기", "#쉼"];
 
+const secretLetterSignals = [
+  { label: "익명으로 적기", value: "부담 없이" },
+  { label: "바다에 띄우기", value: "천천히 흘려보내기" },
+  { label: "편지함으로 모으기", value: "나중에 다시 보기" },
+];
+
+const diaryPreviewItems = [
+  "오늘 하루를 한 문장으로 남기기",
+  "기분의 결을 색으로 저장하기",
+  "다시 읽고 싶은 순간 표시하기",
+];
+
 const storyFeedItems: StoryItem[] = [
   {
     category: "연애",
@@ -125,6 +137,21 @@ function StoryCard({ item }: { item: StoryItem }) {
         <span>이야기 {item.comments}</span>
       </div>
     </article>
+  );
+}
+
+function SideSignalPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[var(--border-soft)] bg-white/80 px-4 py-3">
+      <p className="text-xs font-medium text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-700">{value}</p>
+    </div>
   );
 }
 
@@ -310,20 +337,64 @@ export default function Home() {
 
             <aside className="flex flex-col gap-4">
               <section className="home-panel rounded-[30px] p-6">
-                <h2 className="text-2xl font-semibold tracking-[-0.03em] text-slate-900">
-                  비밀 편지
-                </h2>
-                <div className="home-card mt-4 rounded-[24px] p-5">
-                  <p className="text-sm leading-6 text-slate-600">
-                    당신의 고민을 조용히 적어 바다로 보내는 메인 진입 카드
-                    자리입니다.
-                  </p>
-                  <Link
-                    href="/letters/write"
-                    className="mt-5 inline-flex rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--brand-deep)]"
-                  >
-                    편지 쓰기
-                  </Link>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium uppercase tracking-[0.22em] text-[var(--brand-deep)]">
+                      Secret Letter
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-900">
+                      비밀 편지
+                    </h2>
+                  </div>
+                  <span className="rounded-full bg-[#eef5ff] px-3 py-1 text-xs font-semibold text-[var(--brand-deep)]">
+                    조용한 감정 정리
+                  </span>
+                </div>
+
+                <div className="home-card mt-4 rounded-[26px] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-lg font-semibold tracking-[-0.03em] text-slate-900">
+                        말보다 먼저 내려놓고 싶은 걱정이 있다면
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        편지 한 장에 감정을 적고, 파도에 실어 보내듯 가볍게
+                        흘려보낼 수 있는 진입 카드입니다.
+                      </p>
+                    </div>
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[#eef5ff] shadow-[0_18px_36px_-28px_rgba(73,105,160,0.55)]">
+                      <div className="relative h-10 w-8">
+                        <div className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 rounded-t-md border border-[#84ace5] bg-white" />
+                        <div className="absolute left-1/2 top-2 h-8 w-6 -translate-x-1/2 rounded-[1rem_1rem_0.7rem_0.7rem] border border-[#84ace5] bg-white" />
+                        <div className="absolute left-1/2 top-4 h-3 w-3 -translate-x-1/2 rounded-sm bg-[#dbe9ff]" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3">
+                    {secretLetterSignals.map((signal) => (
+                      <SideSignalPill
+                        key={signal.label}
+                        label={signal.label}
+                        value={signal.value}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Link
+                      href="/letters/write"
+                      className="inline-flex rounded-full bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--brand-deep)]"
+                    >
+                      편지 쓰기
+                    </Link>
+                    <Link
+                      href="/letters/mailbox"
+                      className="inline-flex rounded-full border border-[var(--border-soft)] bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-[var(--brand)]"
+                    >
+                      편지함 보기
+                    </Link>
+                  </div>
                 </div>
               </section>
 
@@ -331,15 +402,69 @@ export default function Home() {
                 id="diary"
                 className="home-panel rounded-[30px] p-6"
               >
-                <h2 className="text-2xl font-semibold tracking-[-0.03em] text-slate-900">
-                  나의 일기
-                </h2>
-                <div className="home-card mt-4 flex min-h-40 items-center justify-between gap-4 rounded-[24px] p-5">
-                  <div className="flex h-24 w-20 items-center justify-center rounded-[20px] bg-[#6b89b2] text-sm font-semibold text-white shadow-[0_14px_28px_-18px_rgba(40,64,102,0.8)]">
-                    오늘의 기록
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#6b89b2]">
+                      My Diary
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-900">
+                      나의 일기
+                    </h2>
                   </div>
-                  <div className="flex-1 rounded-[18px] border border-dashed border-[#d3def2] bg-white/80 px-4 py-5 text-sm leading-6 text-slate-500">
-                    일기 미리보기와 최근 기록 요약이 들어갈 영역입니다.
+                  <span className="rounded-full bg-[#f3f6fb] px-3 py-1 text-xs font-semibold text-[#6b89b2]">
+                    준비 중
+                  </span>
+                </div>
+
+                <div className="home-card mt-4 rounded-[26px] p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-24 w-20 shrink-0 items-center justify-center rounded-[20px] bg-[#6b89b2] text-sm font-semibold text-white shadow-[0_14px_28px_-18px_rgba(40,64,102,0.8)]">
+                      오늘의 기록
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold tracking-[-0.03em] text-slate-900">
+                        하루를 오래 붙잡지 않고도 남겨둘 수 있게
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        일기 공간은 아직 연결 전이지만, 메인에서는 기록의 톤과
+                        흐름을 먼저 보여줍니다. 지금은 내 상태 확인 흐름으로
+                        이어집니다.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-[22px] bg-[#f5f8ff] px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6b89b2]">
+                      Preview Prompts
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {diaryPreviewItems.map((item, index) => (
+                        <div
+                          key={item}
+                          className="flex items-center gap-3 text-sm text-slate-600"
+                        >
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-[#6b89b2]">
+                            {index + 1}
+                          </span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex rounded-full bg-[#6b89b2] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#5e7ba3]"
+                    >
+                      내 상태 확인
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="inline-flex rounded-full border border-[#d3def2] bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-[#6b89b2]"
+                    >
+                      로그인하기
+                    </Link>
                   </div>
                 </div>
               </section>
