@@ -10,7 +10,8 @@ public record DiaryRes(
     String content,
     String categoryName,
     String nickname,
-    LocalDateTime createDate
+    LocalDateTime createDate,
+    boolean isPrivate
 ) {
     public static DiaryRes from(Diary diary) {
         return new DiaryRes(
@@ -19,7 +20,8 @@ public record DiaryRes(
             diary.getContent(),
             diary.getCategoryName(),
             diary.getNickname(),
-                diary.getCreateDate()
+                diary.getCreateDate(),
+        diary.isPrivate()
         );
     }
 }

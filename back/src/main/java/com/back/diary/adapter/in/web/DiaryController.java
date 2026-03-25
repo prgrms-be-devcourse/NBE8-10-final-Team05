@@ -21,7 +21,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class DiaryController {
 
-    // 핵심: 구현체인 DiaryService 대신 인터페이스인 DiaryUseCase에 의존합니다.
     private final DiaryUseCase diaryUseCase;
 
     // 일기 작성

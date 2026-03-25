@@ -23,4 +23,8 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
             "ORDER BY RANDOM() LIMIT 1",
             nativeQuery = true)
     Optional<Member> findRandomMemberExceptMe(@Param("myId") long myId);
+
+    Optional<Letter> findFirstByReceiverIdOrderByCreateDateDesc(Long receiverId);
+    Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
+    long countByReceiverId(Long receiverId);
 }
