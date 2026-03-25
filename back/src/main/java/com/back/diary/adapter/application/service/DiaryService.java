@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -28,13 +30,28 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
     private final DiaryPort diaryRepositoryPort;
     private final ImageService imageService;
 
-    @Override
+   @Override
     @Transactional
     public Long write(DiaryCreateReq req, MultipartFile image, Long memberId) {
-        // 1. 에디터 본문에서 이미지 URL들 추출
+        // 1. [develop] 오늘 일기 작성 여부 체크
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfToday = today.atStartOfDay();
+        LocalDateTime startOfTomorrow = today.plusDays(1).atStartOfDay();
+
+        boolean hasTodayDiary = diaryRepositoryPort.existsByMemberIdAndCreateDateBetween(
+                memberId,
+                startOfToday,
+                startOfTomorrow
+        );
+
+        if (hasTodayDiary) {
+            throw new ServiceException("409-1", "오늘은 이미 일기를 작성했습니다. 기존 기록을 수정해주세요.");
+        }
+
+        // 2. [refactor] 에디터 본문에서 이미지 URL들 추출
         List<String> imageUrls = extractImageUrls(req.content());
 
-        // 2. 대표 이미지 결정 (파일 업로드 우선, 없으면 본문 첫 이미지)
+        // 3. [refactor] 대표 이미지 결정 (파일 업로드 우선, 없으면 본문 첫 이미지)
         String representativeUrl = null;
         if (image != null && !image.isEmpty()) {
             representativeUrl = imageService.upload(image, "DIARY").getAccessUrl();
@@ -42,12 +59,13 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
             representativeUrl = imageUrls.get(0);
         }
 
+        // 4. 일기 생성 및 저장
         Diary diary = Diary.builder()
                 .memberId(memberId)
                 .nickname("익명")
                 .title(req.title())
                 .content(req.content())
-                .imageUrl(representativeUrl) // 이제 null이 아닌 값이 저장됩니다.
+                .imageUrl(representativeUrl)
                 .categoryName(req.categoryName())
                 .isPrivate(req.isPrivate())
                 .build();

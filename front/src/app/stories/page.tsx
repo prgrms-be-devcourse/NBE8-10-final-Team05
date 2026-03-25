@@ -1,151 +1,327 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
-import BrandWordmark from "@/components/branding/BrandWordmark";
+import { useDeferredValue, useEffect, useId, useState } from "react";
 import MainHeader from "@/components/layout/MainHeader";
+import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { toErrorMessage } from "@/lib/api/rs-data";
 
-type StoryCardItem = {
-  category: string;
-  title: string;
-  excerpt: string;
-  comfortCount: string;
-  timeAgo: string;
-};
-
-const STORY_CARDS: StoryCardItem[] = [
-  {
-    category: "연애",
-    title: "짝사랑, 전할까?",
-    excerpt: "마음이 커졌는데 관계가 달라질까 봐 망설이고 있어요.",
-    comfortCount: "12개의 위로",
-    timeAgo: "3분 전",
-  },
-  {
-    category: "진로",
-    title: "이 길이 맞을까?",
-    excerpt: "준비는 오래 했는데 확신이 없어 자꾸 멈추게 돼요.",
-    comfortCount: "9개의 위로",
-    timeAgo: "15분 전",
-  },
-  {
-    category: "친구",
-    title: "너무 서운해요 ㅠ",
-    excerpt: "가까운 친구라 더 기대했는데 말 한마디가 오래 남네요.",
-    comfortCount: "18개의 위로",
-    timeAgo: "30분 전",
-  },
-  {
-    category: "연애",
-    title: "연락 텀이 길어질 때",
-    excerpt: "괜히 내가 예민한 건지, 그냥 기다려야 하는 건지 모르겠어요.",
-    comfortCount: "7개의 위로",
-    timeAgo: "42분 전",
-  },
-  {
-    category: "가족",
-    title: "부모님과 대화가 어려워요",
-    excerpt: "이해받고 싶은데 시작만 하면 서로 목소리부터 커져요.",
-    comfortCount: "14개의 위로",
-    timeAgo: "1시간 전",
-  },
-  {
-    category: "진로",
-    title: "퇴사 고민이 깊어져요",
-    excerpt: "지금 버티는 게 맞는지, 여기서 멈추는 게 맞는지 고민이에요.",
-    comfortCount: "11개의 위로",
-    timeAgo: "2시간 전",
-  },
-  {
-    category: "친구",
-    title: "멀어진 사이를 붙잡아도 될까",
-    excerpt: "예전만큼 편하지 않은데 먼저 손 내미는 게 맞는지 모르겠어요.",
-    comfortCount: "6개의 위로",
-    timeAgo: "3시간 전",
-  },
-  {
-    category: "일상",
-    title: "오늘따라 괜히 울컥해요",
-    excerpt: "특별한 일은 없는데 하루가 유난히 길고 버거운 날이에요.",
-    comfortCount: "21개의 위로",
-    timeAgo: "4시간 전",
-  },
-];
-
-const HERO_SIGNALS = [
-  { label: "오늘 올라온 고민", value: "128" },
-  { label: "전달된 비밀 편지", value: "42" },
-  { label: "오늘의 기록", value: "19" },
-];
-
-const STORY_FILTERS = ["#위로", "#사랑", "#고민상담", "#취업", "#응원해", "#오늘의날씨"];
-
+const STORY_CATEGORIES = ["전체", "고민", "일상", "질문"] as const;
+const STORY_SORTS = ["최신순", "조회순"] as const;
 const LETTER_BOTTLE_OUTLINE_PATH =
   "M56.5 43L59.5 43L65 48.5L68.5 53Q70.3 49.4 75.5 49L80 55.5L77 59.5L94.5 76Q101.2 69.7 116.5 72Q133.5 76 142 88.5L172.5 127L181 131L182 135.5L135.5 182L133.5 182L131 181Q129.3 173.5 123.5 169L87.5 141L78 131.5L72 117.5L72 103.5L76 93.5L58.5 77Q58 80.5 53.5 80L49 75.5L49 73.5L53 68.5L43 59.5L43 56.5L56.5 43ZM58 45L45 58L45 60L53 65L55 67L67 55L61 47L58 45ZM74 51L51 74L51 76L55 78L78 56L76 53Q77 50 74 51ZM75 61L61 76L78 92L86 84L87 85Q76 92 73 108L74 119L81 133L127 170L135 164L128 172L132 179L135 180L180 134L173 129L172 128L164 135L170 128L138 87Q129 76 113 73Q100 73 94 78L90 81L92 78L75 61Z";
 
-export default function HomePage() {
+type StoryCategory = (typeof STORY_CATEGORIES)[number];
+type StorySort = (typeof STORY_SORTS)[number];
+type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
+
+type StoryCategoryFilter = Exclude<StoryCategory, "전체">;
+
+type CommunityStory = {
+  id: number;
+  category: StoryCategoryFilter;
+  title: string;
+  timeAgo: string;
+  createdAt: string;
+  createdAtMs: number;
+  viewCount: number;
+};
+
+type PostListItem = {
+  id: number;
+  title: string;
+  viewCount: number;
+  createDate: string;
+  modifyDate: string;
+  thumbnail: string | null;
+  category: BackendPostCategory;
+  nickname: string;
+};
+
+type PostSlice = {
+  content: PostListItem[];
+};
+
+const API_CATEGORY_TO_FILTER: Record<BackendPostCategory, StoryCategoryFilter> = {
+  DAILY: "일상",
+  WORRY: "고민",
+  QUESTION: "질문",
+};
+
+const FILTER_TO_API_CATEGORY: Record<StoryCategoryFilter, BackendPostCategory> = {
+  고민: "WORRY",
+  일상: "DAILY",
+  질문: "QUESTION",
+};
+
+const STORY_CARD_THEMES: Record<
+  CommunityStory["category"],
+  { hero: string; badge: string; avatar: string }
+> = {
+  고민: {
+    hero: "from-[#f9d8e7] to-[#fff1f6]",
+    badge: "bg-white/78 text-[#a34f74]",
+    avatar: "bg-[#fbe4ec] text-[#a34f74]",
+  },
+  일상: {
+    hero: "from-[#dde8ff] to-[#f3f7ff]",
+    badge: "bg-white/78 text-[#4f6fa8]",
+    avatar: "bg-[#e7efff] text-[#4f6fa8]",
+  },
+  질문: {
+    hero: "from-[#d9f0e6] to-[#effaf4]",
+    badge: "bg-white/78 text-[#4f8d6b]",
+    avatar: "bg-[#e2f4ea] text-[#4f8d6b]",
+  },
+};
+
+function formatRelativeTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) {
+    return "방금 전";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}시간 전`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}일 전`;
+}
+
+function mapPostToCommunityStory(post: PostListItem): CommunityStory {
+  const createdAt = new Date(post.createDate);
+
+  return {
+    id: post.id,
+    category: API_CATEGORY_TO_FILTER[post.category] ?? "고민",
+    title: post.title,
+    timeAgo: formatRelativeTime(post.createDate),
+    createdAt: post.createDate,
+    createdAtMs: Number.isNaN(createdAt.getTime()) ? 0 : createdAt.getTime(),
+    viewCount: post.viewCount,
+  };
+}
+
+export default function StoriesPage() {
+  const [activeCategory, setActiveCategory] = useState<StoryCategory>("전체");
+  const [activeSort, setActiveSort] = useState<StorySort>("최신순");
+  const [query, setQuery] = useState("");
+  const [stories, setStories] = useState<CommunityStory[]>([]);
+  const [isLoadingStories, setIsLoadingStories] = useState(true);
+  const [storiesError, setStoriesError] = useState<string | null>(null);
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
+  const storyWriteHref = isAuthenticated ? "/stories/write" : "/login?next=%2Fstories%2Fwrite";
+  const deferredQuery = useDeferredValue(query);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchStories(): Promise<void> {
+      setIsLoadingStories(true);
+      setStoriesError(null);
+
+      try {
+        const params = new URLSearchParams({
+          page: "0",
+          size: "30",
+        });
+
+        const trimmedQuery = deferredQuery.trim();
+        if (trimmedQuery.length > 0) {
+          params.set("title", trimmedQuery);
+        }
+
+        if (activeCategory !== "전체") {
+          params.set("category", FILTER_TO_API_CATEGORY[activeCategory]);
+        }
+
+        const slice = await requestData<PostSlice>(`/api/v1/posts?${params.toString()}`, {
+          skipAuth: true,
+          retryOnAuthFailure: false,
+          authFailureRedirect: false,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setStories(slice.content.map(mapPostToCommunityStory));
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+
+        setStories([]);
+        setStoriesError(toErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingStories(false);
+        }
+      }
+    }
+
+    void fetchStories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCategory, deferredQuery]);
+
+  const visibleStories = [...stories].sort((a, b) => {
+    if (activeSort === "조회순") {
+      return b.viewCount - a.viewCount;
+    }
+
+    return b.createdAtMs - a.createdAtMs;
+  });
 
   return (
     <div className="home-atmosphere min-h-screen">
       <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
         <MainHeader />
 
-        <section className="home-hero mt-7 rounded-[36px] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-16 lg:py-14">
-          <div className="flex flex-col items-center gap-6 text-center">
-            <BrandWordmark size="hero" tone="inverse" />
-            <p className="text-base text-white/88 sm:text-lg">오늘 할 코딩을 내일로 미루지 말라 - 프로그래머스</p>
-            <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
-              {HERO_SIGNALS.map((signal) => (
-                <div
-                  key={signal.label}
-                  className="rounded-[24px] border border-white/25 bg-white/14 px-5 py-4 text-left backdrop-blur-sm"
+        <section className="mx-auto mt-8 w-full max-w-5xl rounded-[34px] bg-[#78A7E6] px-5 py-6 shadow-[0_28px_60px_-40px_rgba(73,107,167,0.5)] sm:px-7">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {STORY_CATEGORIES.map((category) => {
+              const active = category === activeCategory;
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setActiveCategory(category)}
+                  className={`min-w-[108px] rounded-[14px] px-5 py-3 text-lg font-semibold transition ${
+                    active
+                      ? "bg-[#4b81c7] text-white shadow-[0_14px_22px_-18px_rgba(31,60,102,0.9)]"
+                      : "bg-white text-[#223556] hover:bg-[#f7fbff]"
+                  }`}
                 >
-                  <p className="text-xs font-medium tracking-[0.12em] text-white/72 uppercase">
-                    {signal.label}
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{signal.value}</p>
-                </div>
-              ))}
-            </div>
+                  {category}
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div id="stories" className="home-panel rounded-[34px] px-6 py-6 sm:px-7">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#233552]">고민 공유</h2>
-              <p className="text-sm text-[#8090ad]">오늘의 마음 이야기</p>
+        <section className="mx-auto mt-8 w-full max-w-5xl">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-[#233552] sm:text-[32px]">
+                고민 공유
+              </h1>
+              <p className="mt-1 text-lg text-[#5a7093]">오늘의 마음 이야기</p>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              {STORY_FILTERS.map((filter) => (
-                <span
-                  key={filter}
-                  className="rounded-full border border-[#dbe7fb] bg-[#f7fbff] px-3 py-1.5 text-xs font-semibold text-[#6c82a7]"
-                >
-                  {filter}
-                </span>
-              ))}
+          </div>
+
+          <div className="mt-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+              <label className="flex min-w-0 flex-1 items-center gap-3 rounded-[18px] border-2 border-[#8ab6ef] bg-white px-4 py-3 shadow-[0_14px_28px_-26px_rgba(73,107,167,0.9)]">
+                <SearchIcon />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="제목 검색"
+                  className="w-full bg-transparent text-base text-[#2b4162] outline-none placeholder:text-[#9ab0cc]"
+                />
+              </label>
+              <button
+                type="button"
+                className="inline-flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[18px] border-2 border-[#8ab6ef] bg-white text-[#769fd9] shadow-[0_14px_28px_-26px_rgba(73,107,167,0.9)]"
+                aria-label="필터"
+              >
+                <FilterIcon />
+              </button>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {STORY_CARDS.map((story) => (
-                <StoryCard key={`${story.category}-${story.title}`} story={story} />
-              ))}
+            <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#506582]">
+              {STORY_SORTS.map((sort) => {
+                const active = sort === activeSort;
+
+                return (
+                  <button
+                    key={sort}
+                    type="button"
+                    onClick={() => setActiveSort(sort)}
+                    className={`rounded-full px-4 py-2 transition ${
+                      active ? "bg-[#dce9ff] text-[#35537e]" : "text-[#6f84a5] hover:bg-[#edf5ff]"
+                    }`}
+                  >
+                    {sort}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <aside className="space-y-4">
-            <section id="letters" className="home-panel rounded-[22px] px-4 py-4">
-              <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">비밀 편지</h3>
-              <div className="mt-4 flex items-center gap-3">
-                <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
-                  <LetterBottleIcon size={42} />
+          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_272px]">
+            <div>
+              {isLoadingStories ? (
+                <div className="home-panel rounded-[24px] px-6 py-10 text-center text-[#6f84a5]">
+                  고민 목록을 불러오는 중입니다.
                 </div>
-                <div className="min-w-0">
+              ) : null}
+
+              {!isLoadingStories && storiesError ? (
+                <div className="home-panel rounded-[24px] border border-[#f3d0d0] bg-[#fff8f8] px-6 py-10 text-center">
+                  <p className="text-[18px] font-semibold text-[#7a3d3d]">고민 목록을 불러오지 못했습니다.</p>
+                  <p className="mt-2 text-sm text-[#9a4b4b]">{storiesError}</p>
+                </div>
+              ) : null}
+
+              {!isLoadingStories && !storiesError && visibleStories.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {visibleStories.map((story) => (
+                    <CommunityStoryCard key={story.id} story={story} />
+                  ))}
+                </div>
+              ) : null}
+
+              {!isLoadingStories && !storiesError && visibleStories.length === 0 ? (
+                <div className="home-panel rounded-[24px] px-6 py-10 text-center text-[#6f84a5]">
+                  검색 결과가 없어요. 다른 카테고리나 키워드로 다시 찾아보세요.
+                </div>
+              ) : null}
+            </div>
+
+            <aside className="space-y-4">
+              <Link
+                href={storyWriteHref}
+                className="block rounded-[26px] bg-[#5f95f3] px-5 py-5 text-white shadow-[0_26px_50px_-32px_rgba(55,99,174,0.85)] transition hover:-translate-y-0.5 hover:bg-[#568dee] hover:shadow-[0_32px_56px_-34px_rgba(55,99,174,0.9)]"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex size-[60px] shrink-0 items-center justify-center rounded-[18px] bg-white/10">
+                    <ConcernShareIcon size={34} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-[24px] font-semibold leading-tight tracking-[-0.03em] text-white">
+                      고민 나누기
+                    </span>
+                  </div>
+                </div>
+              </Link>
+
+              <section className="home-panel rounded-[22px] px-4 py-4">
+                <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">비밀 편지</h3>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
+                    <LetterBottleIcon size={42} />
+                  </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Link
                       href="/letters/write"
@@ -161,26 +337,26 @@ export default function HomePage() {
                     </Link>
                   </div>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <section id="diary" className="home-panel rounded-[22px] px-4 py-4">
-              <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">나의 일기</h3>
-              <div className="mt-4 flex items-center gap-3">
-                <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
-                  <DiaryBookIcon size={42} />
+              <section id="diary" className="home-panel rounded-[22px] px-4 py-4">
+                <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">나의 일기</h3>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
+                    <DiaryBookIcon size={42} />
+                  </div>
+                  <div>
+                    <Link
+                      href={diaryHref}
+                      className="mt-1 inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
+                    >
+                      비밀일기 적기
+                    </Link>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <Link
-                    href={diaryHref}
-                    className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
-                  >
-                    {isAuthenticated ? "비밀일기 보러가기" : "로그인하고 일기 시작하기"}
-                  </Link>
-                </div>
-              </div>
-            </section>
-          </aside>
+              </section>
+            </aside>
+          </div>
         </section>
 
       </div>
@@ -188,23 +364,96 @@ export default function HomePage() {
   );
 }
 
-function StoryCard({ story }: { story: StoryCardItem }) {
+function CommunityStoryCard({ story }: { story: CommunityStory }) {
+  const theme = STORY_CARD_THEMES[story.category];
+
   return (
-    <article className="home-card rounded-[28px] px-4 py-4 text-[#324763]">
-      <div className="flex items-center justify-between gap-3">
-        <span className="rounded-full bg-[#eef5ff] px-2.5 py-1 text-[11px] font-semibold text-[#6b81a7]">
-          {story.category}
-        </span>
-        <span className="text-[11px] text-[#95a6c0]">{story.timeAgo}</span>
-      </div>
-      <h3 className="mt-4 min-h-[52px] text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[#2b4162]">
-        {story.title}
-      </h3>
-      <p className="mt-2 min-h-[66px] text-sm leading-6 text-[#7b8da9]">{story.excerpt}</p>
-      <div className="mt-4 border-t border-[#e8f0fd] pt-3 text-xs font-medium text-[#8ba0c2]">
-        {story.comfortCount}
-      </div>
+    <article className="flex h-full flex-col overflow-hidden rounded-[12px] border border-[#dbe6f5] bg-white text-[#324763] shadow-[0_18px_34px_-24px_rgba(73,107,167,0.32)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_42px_-22px_rgba(73,107,167,0.42)]">
+      <Link href={`/stories/${story.id}`} className="group flex h-full flex-col">
+        <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
+          <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
+            <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
+              {story.category}
+            </span>
+            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+          </div>
+          <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
+            <span className="block h-[4px] w-16 rounded-full bg-white/75" />
+            <span className="block h-[4px] w-10 rounded-full bg-white/55" />
+          </div>
+          <div className="absolute -bottom-4 right-5 h-20 w-20 rounded-full bg-white/30" />
+        </div>
+        <div className="flex flex-1 flex-col px-6 pb-6 pt-5">
+          <h2 className="line-clamp-3 text-[18px] font-semibold leading-8 tracking-[-0.03em] text-[#223552] transition group-hover:text-[#33527d]">
+            {story.title}
+          </h2>
+          <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
+            <span>{story.timeAgo}</span>
+          </div>
+        </div>
+      </Link>
     </article>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M16 16L20 20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 5H20L14 12V18L10 20V12L4 5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ConcernShareIcon({ size = 34 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 800 800" fill="none" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M242.5 105L547.5 105L561.5 108L574 116.5L581 127.5L584 139.5V301.5Q581.1 319.1 569.5 328Q562.6 333.1 552.5 335H349.5L346 338.5L305 392.5L297.5 400Q291.7 404.7 279.5 403Q271.8 400.8 267 395.5L262 384.5V335H237.5L233.5 334Q222.7 330.8 216 323.5L207 305.5V134.5Q210.6 120.6 220.5 113L229.5 108L242.5 105ZM240 123L233 126L227 132L224 141V301L227 309Q231 315 239 317H280V384L285 386L289 385L339 319L341 317H553L558 315Q564 311 566 303V138L562 130Q558 124 551 123H240Z"
+      />
+      <path
+        fill="currentColor"
+        d="M314.5 170H485.5L490 173.5L492 178.5L488.5 186L482.5 188H317.5L310 184.5L308 177.5L312.5 171L314.5 170Z"
+      />
+      <path
+        fill="currentColor"
+        d="M314.5 207H485.5L490 210.5L492 215.5L490 222L485.5 224H313.5L310 221.5L308 214.5L312.5 208L314.5 207Z"
+      />
+      <path
+        fill="currentColor"
+        d="M313.5 244H402.5L407 246L409 252.5L407 259L402.5 261H313.5Q308.2 258.8 308 251.5L313.5 244Z"
+      />
+      <path
+        fill="currentColor"
+        d="M395.5 354L410.5 355L420.5 358Q435 364.5 444 376.5Q451 385.5 454 398.5Q452.5 404 455 405.5V431.5L452 445.5L446 457.5L432.5 472L414.5 481L397.5 483L379.5 479L362 468L352 454.5L347 442.5L345 433.5V403.5Q349.1 380.6 363.5 368L379.5 358L395.5 354ZM394 372Q382 375 375 382Q367 390 363 403V435Q365 446 372 453Q380 462 395 465L410 464L426 455Q434 447 437 434V404Q435 394 430 388Q423 379 413 374Q405 371 394 372Z"
+      />
+      <path
+        fill="currentColor"
+        d="M212.5 400L225.5 401L235.5 404Q249.4 409.6 258 420.5Q266.8 430.7 270 446.5V482.5Q265 505 249.5 517Q241.7 523.7 230.5 527L219.5 529H211.5L200.5 527L187.5 521L173 508.5Q163.9 498.1 161 481.5V447.5Q165.4 424.9 180.5 413L195.5 404L212.5 400ZM211 418L203 420L192 427Q181 436 178 453V477Q180 478 179 483L186 497Q194 507 210 511Q228 512 238 504Q249 495 253 478V453Q251 451 252 447L244 432Q238 424 229 420L221 418H211Z"
+      />
+      <path
+        fill="currentColor"
+        d="M581.5 400L594.5 401L604.5 404Q616.8 409.2 625 418.5Q634.1 428.4 638 443.5L639 448.5V480.5Q634.6 503.6 619.5 516Q606 528.5 580.5 529L569.5 527L557.5 522L541 507.5Q533.2 497.8 530 483.5Q531.7 477.2 529 475.5V453.5L530 452.5L531 441.5L537 427.5L550.5 412L566.5 403L581.5 400ZM579 418Q568 420 562 426Q554 432 550 441L547 451V479L548 484L557 500Q565 508 579 511L595 510L608 503Q615 497 619 488L622 474L621 449Q619 437 612 431Q605 423 595 419L579 418Z"
+      />
+      <path
+        fill="currentColor"
+        d="M386.5 493H413.5L414.5 494L432.5 496L451.5 501L478.5 513Q491.6 520.4 501 531.5Q507.9 539.1 510 551.5L510.5 591L551.5 549Q559.2 542.2 570.5 539H610.5Q627.3 542.7 637 553.5L646 568.5L649 583.5V685.5L648 689.5L643.5 694L639.5 695L633 691.5L631 687.5V580.5Q628.6 568.4 620.5 562L613.5 558L605.5 556H574.5Q560.6 561.1 553 572.5Q553.8 574.8 551.5 574L547 580L545 580Q546.1 582.7 543.5 582L528.5 598L525.5 600L521.5 605Q519.3 604.3 520 606.5L505.5 620H447.5L446 621.5Q446.5 638 456.5 645L465.5 649H535.5L561 623.5V622L569 615.5Q568.3 613.3 570.5 614L586 598.5V597L594.5 594L601 597.5L602 606.5L565 643.5V688.5L560.5 694L556.5 695L549 690.5L548 688.5V667H252.5L252 667.5V687.5L248.5 693L243.5 695L239.5 694L235 689.5L234 685.5V642.5L198 606.5V599.5L200.5 596L206.5 594Q215.5 596.4 220 603.5L221.5 606L225 608.5L230.5 615Q232.8 614.3 232 616.5L259 642.5L260.5 645L265.5 649H334.5Q343.8 647.3 348 640.5Q353.9 633.9 354 621.5L352.5 620H294.5L232.5 559L225.5 556H194.5Q180.8 558.3 174 567.5L169 579.5V687.5L165.5 693L160.5 695L156.5 694L152 689.5L151 685.5V583.5L154 568.5Q158.5 557.5 166.5 550Q175.4 541.9 189.5 539H229.5L243.5 545L263 563.5L289.5 591L290 549.5Q294.1 536.7 301 528L316.5 516L337.5 505L362.5 497L378.5 494H385.5L386.5 493ZM396 510L395 511H385L384 512L372 513L348 520L327 530L319 536Q310 542 307 554V603L310 604H335L336 603V564L337 562L344 557L349 558L353 564V602L356 604H371L372 611L371 630L369 638L364 648L365 649H436L431 639L428 625V610L429 609Q428 604 430 604H445L446 603V566L448 561L455 557L461 559L464 564V603L466 604H491L493 602V557L488 544Q480 534 470 528L447 518L423 512L396 510Z"
+      />
+    </svg>
   );
 }
 
@@ -234,16 +483,16 @@ function LetterBottleIcon({ size = 56 }: { size?: number }) {
           </filter>
         </defs>
         <path
-          fill="#fffdf7"
+          fill="none"
           filter={`url(#${bottleBodyFilterId})`}
           d="M58 42L56 43L43 56L42 60L52 69L48 74L48 76L53 80Q58 81 59 78L75 94L71 104Q70 114 72 122L80 136L125 171L130 181L134 183L137 182L183 135L182 132L173 126L138 83Q130 74 117 71Q102 69 95 74L94 75L78 60L80 57L80 53L76 48Q70 48 69 52L66 49L60 42L58 42Z"
         />
         <path
-          fill="#bee2fd"
+          fill="none"
           d="M73.5 52Q76.8 50.9 76 53.5L77 55.5L54.5 77L52 76L52 73.5L73.5 52Z"
         />
         <path
-          fill="#bee2fd"
+          fill="none"
           d="M74.5 62L91 77.5L89 80.5Q91.2 84.2 93.5 79Q98.7 74.7 107.5 74L125 90.5L128 94.5Q122.7 96.7 124 105.5L124.5 107L109.5 85Q103.3 85.8 100.5 90L95.5 86Q85.9 92.9 83 106.5L87.5 112L117 131.5L135.5 160L138.5 161L146 158L147 155.5L144 148.5L145.5 149L152.5 152L156.5 147Q159.5 146.1 158 150.5L159 154.5L138.5 175L137 173.5L134 166.5Q137.8 164.8 134.5 163L130.5 164L88 129.5Q78 120.5 78 101.5L80 93.5L87 85.5L87 83L81.5 87L66 70.5L74.5 62Z"
         />
         <path

@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
+import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
 interface ReceivedLetter {
@@ -27,14 +28,27 @@ export default function ReceivedLettersPage() {
   const [letters, setLetters] = useState<ReceivedLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  function handleGoBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/letters/mailbox");
+  }
+
   useEffect(() => {
     const fetchReceivedLetters = async () => {
       try {
+        // [Refactor + Develop 통합] 다양한 응답 형태 대응
         const response = await requestData<any>("/api/v1/letters/received");
-        // 페이징 처리된 경우 response.letters, 아니면 response 자체 사용
-        const data = Array.isArray(response)
-          ? response
-          : response?.letters || [];
+        
+        let data: ReceivedLetter[] = [];
+        if (Array.isArray(response)) {
+          data = response;
+        } else if (response && Array.isArray(response.letters)) {
+          data = response.letters;
+        }
+        
         setLetters(data);
       } catch (error) {
         console.error("받은 편지를 가져오는데 실패했습니다.", error);
@@ -46,24 +60,31 @@ export default function ReceivedLettersPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#EBF5FF] text-slate-800 font-sans pb-20">
-      {/* 상단 네비게이션 */}
-      <header className="p-6 flex items-center justify-between max-w-6xl mx-auto w-full">
-        <button
-          onClick={() => router.push("/")}
-          className="p-2 hover:bg-white/50 rounded-full transition-all text-slate-500 active:scale-95"
-        >
-          <ChevronLeft size={28} />
-        </button>
-        <h1 className="text-xl font-bold text-sky-900 flex items-center gap-2">
-          <Inbox size={22} className="text-sky-400" />
-          받은 편지함
-        </h1>
-        <div className="w-10" />
-      </header>
+    <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
+      {/* [Develop] 메인 헤더 디자인 적용 */}
+      <div className="mx-auto w-full max-w-6xl px-6 pt-7">
+        <MainHeader />
+      </div>
 
-      <main className="max-w-6xl mx-auto px-6 mt-8">
-        {/* 요약 카드: 받은 편지만의 감성 문구 */}
+      <main className="mx-auto mt-10 max-w-6xl px-6">
+        {/* [Develop] 상단 버튼 및 타이틀 영역 디자인 */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+          >
+            <ChevronLeft size={16} />
+            돌아가기
+          </button>
+
+          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900 shadow-sm sm:self-auto">
+            <Inbox size={18} className="text-sky-400" />
+            받은 편지함
+          </div>
+        </div>
+
+        {/* 요약 카드 */}
         <section className="bg-white/70 backdrop-blur-lg rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/50 shadow-sm">
           <div className="text-center md:text-left">
             <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center md:justify-start gap-2">
@@ -71,8 +92,7 @@ export default function ReceivedLettersPage() {
               <Sparkles size={24} className="text-amber-400" />
             </h2>
             <p className="text-slate-500">
-              바다를 건너 당신에게 닿은 {letters.length}개의 소중한
-              이야기입니다.
+              바다를 건너 당신에게 닿은 {letters.length}개의 소중한 이야기입니다.
             </p>
           </div>
           <div className="mt-6 md:mt-0 p-5 bg-gradient-to-br from-sky-400 to-blue-500 text-white rounded-[2rem] shadow-lg shadow-sky-200">
@@ -96,17 +116,14 @@ export default function ReceivedLettersPage() {
             {letters.map((letter) => (
               <div
                 key={letter.id}
-                onClick={() =>
-                  router.push(`/letters/mailbox/receive/${letter.id}`)
-                }
+                onClick={() => router.push(`/letters/mailbox/receive/${letter.id}`)}
                 className={`group relative p-8 rounded-[2.5rem] border transition-all duration-300 cursor-pointer hover:-translate-y-2
                   ${
                     letter.read
                       ? "bg-white/40 border-white/20 grayscale-[0.3]"
-                      : "bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border-white animate-pulse-subtle"
+                      : "bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border-white"
                   }`}
               >
-                {/* 읽음/안읽음 상태 표시 */}
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 bg-slate-100/50 px-3 py-1.5 rounded-full uppercase">
                     <Clock size={14} />
@@ -122,17 +139,13 @@ export default function ReceivedLettersPage() {
                   )}
                 </div>
 
-                {/* 제목 및 미리보기 */}
-                <h3
-                  className={`text-xl font-bold mb-3 line-clamp-1 ${letter.read ? "text-slate-500" : "text-slate-800"}`}
-                >
+                <h3 className={`text-xl font-bold mb-3 line-clamp-1 ${letter.read ? "text-slate-500" : "text-slate-800"}`}>
                   {letter.title}
                 </h3>
                 <p className="text-slate-400 text-sm leading-relaxed line-clamp-2 font-serif mb-8">
                   {letter.content}
                 </p>
 
-                {/* 하단 보낸 이 정보 */}
                 <div className="pt-6 border-t border-slate-100 flex justify-between items-center text-slate-400">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 bg-sky-100 rounded-full flex items-center justify-center text-sky-500">
@@ -142,13 +155,9 @@ export default function ReceivedLettersPage() {
                       From. {letter.senderNickname || "익명의 파도"}
                     </span>
                   </div>
-                  <Waves
-                    size={16}
-                    className="text-sky-200 group-hover:text-sky-400 transition-colors"
-                  />
+                  <Waves size={16} className="text-sky-200 group-hover:text-sky-400 transition-colors" />
                 </div>
 
-                {/* 읽지 않은 편지 강조 효과 */}
                 {!letter.read && (
                   <div className="absolute inset-0 rounded-[2.5rem] ring-2 ring-sky-300/30 pointer-events-none"></div>
                 )}

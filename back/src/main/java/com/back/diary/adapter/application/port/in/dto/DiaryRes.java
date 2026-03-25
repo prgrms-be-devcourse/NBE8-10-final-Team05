@@ -10,8 +10,10 @@ public record DiaryRes(
     String content,
     String categoryName,
     String nickname,
+    String imageUrl,
+    boolean isPrivate,
     LocalDateTime createDate,
-    boolean isPrivate
+    LocalDateTime modifyDate
 ) {
     public static DiaryRes from(Diary diary) {
         return new DiaryRes(
@@ -20,8 +22,10 @@ public record DiaryRes(
             diary.getContent(),
             diary.getCategoryName(),
             diary.getNickname(),
-                diary.getCreateDate(),
-        diary.isPrivate()
+            diary.getImageUrl(),
+            diary.isPrivate(),
+            diary.getCreateDate(),
+            diary.getModifyDate()
         );
     }
 }
