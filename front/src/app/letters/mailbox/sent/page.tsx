@@ -44,7 +44,9 @@ export default function SentLettersPage() {
   useEffect(() => {
     const fetchSentLetters = async () => {
       try {
-        const response = await requestData<SentLettersResponse>("/api/v1/letters/sent");
+        const response = await requestData<SentLettersResponse>(
+          "/api/v1/letters/sent",
+        );
         if (Array.isArray(response)) {
           setLetters(response);
         } else if (Array.isArray(response?.letters)) {
