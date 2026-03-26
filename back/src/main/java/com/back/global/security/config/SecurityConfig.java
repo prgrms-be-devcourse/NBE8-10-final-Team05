@@ -9,6 +9,8 @@ import com.back.global.security.jwt.JwtProperties;
 import jakarta.servlet.DispatcherType;
 import java.time.Clock;
 import java.util.List;
+
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -70,7 +72,16 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
-        .logout(AbstractHttpConfigurer::disable)
+            .logout(logout -> logout
+                    .logoutUrl("/api/v1/auth/logout") // 로그아웃 처리 API 주소
+                    .logoutSuccessHandler((request, response, authentication) -> {
+                      // 로그아웃 성공 시 리다이렉트 하지 않고 200 OK만 응답 (REST API 방식)
+                      response.setStatus(HttpServletResponse.SC_OK);
+                    })
+                    .invalidateHttpSession(true) // 서버 세션 무효화
+                    .clearAuthentication(true)   // 권한 정보 삭제
+                    .deleteCookies("JSESSIONID") // 쿠키 삭제
+            )
         .exceptionHandling(
             handling ->
                 handling
@@ -115,7 +126,6 @@ public class SecurityConfig {
                         "/api/v1/auth/logout",
                         "/api/v1/images/upload")
                     .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/diaries/public").permitAll()
                     // 관리자 경로는 ADMIN 권한이 필요하다.
                     .requestMatchers("/api/v1/admin/**")
                     .hasRole("ADMIN")

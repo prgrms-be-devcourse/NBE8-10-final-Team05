@@ -34,11 +34,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
+
     if (SecurityContextHolder.getContext().getAuthentication() == null) {
       JwtTokenExtractor.extractBearerToken(request.getHeader(HttpHeaders.AUTHORIZATION))
           .ifPresent(token -> tryAuthenticate(token, request));
     }
-
     filterChain.doFilter(request, response);
   }
 
@@ -68,6 +68,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
   /** 권한은 토큰 클레임이 아니라 현재 DB role 기준으로 다시 구성한다. */
   private void authenticate(Member member, String token, HttpServletRequest request) {
+    System.out.println("=======================================");
+    System.out.println("[인증 필터] 요청 들어온 토큰의 주인 정보");
+    System.out.println("ID: " + member.getId());
+    System.out.println("Email: " + member.getEmail());
+    System.out.println("Role: " + member.getRole());
+    System.out.println("=======================================");
     List<String> roles = List.of("ROLE_" + member.getRole().name());
     List<GrantedAuthority> authorities =
         roles.stream().map(SimpleGrantedAuthority::new).map(GrantedAuthority.class::cast).toList();
