@@ -17,7 +17,7 @@ public class Diary extends BaseEntity {
     @Column(nullable = false)
     private Long memberId; // 작성자 식별값
 
-    @Column(nullable = true) // 닉네임을 사용하지 않을 경우 null 허용
+    @Column(nullable = true)
     private String nickname;
 
     @Column(nullable = false, length = 100)
@@ -30,7 +30,6 @@ public class Diary extends BaseEntity {
     private String categoryName;
 
     private String imageUrl;
-    private String newImageUrl;
 
     @JsonProperty("isPrivate")
     private boolean isPrivate = true;
@@ -55,8 +54,8 @@ public class Diary extends BaseEntity {
     public void modify(String title, String content,String newImageUrl, String categoryName,boolean isPrivate) {
         this.title = title;
         this.content = content;
-        this.newImageUrl = newImageUrl;
         this.categoryName = categoryName;
+        this.imageUrl  = newImageUrl;
         this.isPrivate = isPrivate;
     }
 

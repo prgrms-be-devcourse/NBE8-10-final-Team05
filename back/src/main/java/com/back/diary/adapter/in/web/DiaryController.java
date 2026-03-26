@@ -96,4 +96,5 @@ public class DiaryController {
         diaryUseCase.delete(id, authenticatedMember.memberId());
         return new RsData<>("200-1", "%d번 일기가 삭제되었습니다.".formatted(id));
     }
+
 }

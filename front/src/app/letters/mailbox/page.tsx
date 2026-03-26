@@ -12,7 +12,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
-import { requestData } from "@/lib/api/http-client";
 
 type MailboxTab = "received" | "sent";
 
@@ -31,6 +30,7 @@ interface MailboxStats {
 }
 
 export default function MailboxPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
@@ -87,31 +87,29 @@ export default function MailboxPage() {
       </div>
 
       <main className="mx-auto flex w-full max-w-5xl flex-col items-center px-6 py-12">
-        {/* 탭 전환 메뉴 */}
-        <div className="mb-10 flex gap-2 rounded-2xl bg-white/40 p-1.5 shadow-sm">
+        <div className="mb-10 flex items-center justify-center gap-10 border-b border-[#dbe7f7]">
           <button
             onClick={() => setActiveTab("received")}
-            className={`rounded-xl px-8 py-2.5 text-sm font-bold transition-all ${
-              isReceived
-                ? "bg-white text-sky-600 shadow-md"
-                : "text-slate-500 hover:text-sky-400"
+            className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
+              activeTab === "received"
+                ? "border-[#78A7E6] text-[#233552]"
+                : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
             }`}
           >
             받은 편지함
           </button>
           <button
             onClick={() => setActiveTab("sent")}
-            className={`rounded-xl px-8 py-2.5 text-sm font-bold transition-all ${
-              !isReceived
-                ? "bg-white text-sky-600 shadow-md"
-                : "text-slate-500 hover:text-sky-400"
+            className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
+              activeTab === "sent"
+                ? "border-[#78A7E6] text-[#233552]"
+                : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
             }`}
           >
             보낸 편지함
           </button>
         </div>
 
-        {/* 중앙 메인 섹션 */}
         <section className="mb-16 w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="flex flex-col items-center rounded-[3rem] border border-white bg-white/80 p-10 text-center shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] backdrop-blur-xl">
             <span className="mb-6 rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-400">
@@ -172,9 +170,7 @@ export default function MailboxPage() {
           </div>
         </section>
 
-        {/* 하단 정보 카드 그리드 */}
         <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-3">
-          {/* 1. 최근 기록 카드 */}
           <Link
             href={currentPath}
             className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
@@ -194,7 +190,6 @@ export default function MailboxPage() {
             </div>
           </Link>
 
-          {/* 2. ✅ 나의 보관함 카드 (탭에 따라 가변적 노출) */}
           <Link
             href={currentPath}
             className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"

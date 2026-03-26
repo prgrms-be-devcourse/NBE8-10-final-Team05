@@ -1,6 +1,7 @@
 package com.back.report.service;
 
 import com.back.global.exception.ServiceException;
+import com.back.global.notification.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
@@ -30,9 +31,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTest {
@@ -45,7 +46,8 @@ class ReportServiceTest {
     private PostRepository postRepository;
     @Mock
     private LetterRepository letterRepository;
-
+    @Mock
+    private NotificationService notificationService;
     @InjectMocks
     private ReportService reportService;
 
@@ -149,8 +151,15 @@ class ReportServiceTest {
         // given
         Long reportId = 1L;
         Long postId = 10L;
+
+        Member author = Member.create("test@test.com", "pw", "작성자");
+        ReflectionTestUtils.setField(author, "id", 100L);
+
         Report report = Report.create(1L, postId, TargetType.POST, ReportReason.PROFANITY, "욕설");
-        Post post = Post.builder().status(PostStatus.PUBLISHED).build();
+        Post post = Post.builder().
+                status(PostStatus.PUBLISHED)
+                .member(author)
+                .build();
 
         given(reportRepository.findById(reportId)).willReturn(Optional.of(report));
         given(postRepository.findById(postId)).willReturn(Optional.of(post));
@@ -188,6 +197,103 @@ class ReportServiceTest {
         // then
         assertThat(author.getStatus()).isEqualTo(MemberStatus.BLOCKED);
         assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
+    }
+    @Test
+    @DisplayName("게시글 신고 상세 조회 시 조치 이력(processingAction)이 포함된다.")
+    void getReportDetail_success_with_action() {
+        // given
+        Long reportId = 1L;
+        Report report = Report.create(1L, 10L, TargetType.POST, ReportReason.PROFANITY, "신고내용");
+        ReflectionTestUtils.setField(report, "id", reportId);
+        ReflectionTestUtils.setField(report, "processingAction", "DELETE"); // 이력 설정
+
+        Post post = Post.builder().content("내용").member(Member.create("a@a.com", "p", "작성자")).build();
+
+        given(reportRepository.findById(reportId)).willReturn(Optional.of(report));
+        given(postRepository.findById(10L)).willReturn(Optional.of(post));
+
+        // when
+        ReportDetailResponse detail = reportService.getReportDetail(reportId);
+
+        // then
+        assertThat(detail.processingAction()).isEqualTo("DELETE");
+    }
+
+    @Test
+    @DisplayName("신고 처리 - 게시글 삭제(DELETE) 시 상태 변경과 함께 실시간 알림이 발송된다.")
+    void handleReport_delete_post_with_sse() {
+        // given
+        Long reportId = 1L;
+        Long postId = 10L;
+        Long authorId = 100L;
+
+        Member author = Member.create("test@test.com", "pw", "작성자");
+        ReflectionTestUtils.setField(author, "id", authorId);
+
+        Post post = Post.builder().status(PostStatus.PUBLISHED).member(author).build();
+        Report report = Report.create(1L, postId, TargetType.POST, ReportReason.PROFANITY, "욕설");
+
+        given(reportRepository.findById(reportId)).willReturn(Optional.of(report));
+        given(postRepository.findById(postId)).willReturn(Optional.of(post));
+
+        ReportHandleRequest request = new ReportHandleRequest("DELETE", "삭제", false, "");
+
+        // when
+        reportService.handleReport(reportId, request);
+
+        // then
+        assertThat(post.getStatus()).isEqualTo(PostStatus.HIDDEN);
+        assertThat(report.getProcessingAction()).isEqualTo("DELETE");
+
+        // SSE 알림이 피신고자(authorId)에게 발송되었는지 검증
+        verify(notificationService).send(eq(authorId), eq("REPORT_RESULT"), contains("삭제"));
+    }
+
+    @Test
+    @DisplayName("신고 처리 - 유저 정지(BLOCK_USER) 시 유저 상태 변경과 함께 실시간 알림이 발송된다.")
+    void handleReport_block_user_with_sse() {
+        // given
+        Long reportId = 1L;
+        Long authorId = 100L;
+        Member author = Member.create("test@test.com", "hash", "나쁜유저");
+        ReflectionTestUtils.setField(author, "id", authorId);
+
+        Post post = Post.builder().member(author).build();
+        Report report = Report.create(1L, 10L, TargetType.POST, ReportReason.SPAM, "광고");
+
+        given(reportRepository.findById(reportId)).willReturn(Optional.of(report));
+        given(postRepository.findById(10L)).willReturn(Optional.of(post));
+        given(memberRepository.findById(authorId)).willReturn(Optional.of(author));
+
+        ReportHandleRequest request = new ReportHandleRequest("BLOCK_USER", "정지", false, "");
+
+        // when
+        reportService.handleReport(reportId, request);
+
+        // then
+        assertThat(author.getStatus()).isEqualTo(MemberStatus.BLOCKED);
+
+        // SSE 알림 발송 검증
+        verify(notificationService).send(eq(authorId), eq("REPORT_RESULT"), contains("정지"));
+    }
+
+    @Test
+    @DisplayName("신고 처리 - 반려(REJECT) 시 알림이 발송되지 않아야 한다.")
+    void handleReport_reject_no_sse() {
+        // given
+        Long reportId = 1L;
+        Report report = Report.create(1L, 10L, TargetType.POST, ReportReason.OTHER, "내용");
+        given(reportRepository.findById(reportId)).willReturn(Optional.of(report));
+
+        ReportHandleRequest request = new ReportHandleRequest("REJECT", "반려", false, "");
+
+        // when
+        reportService.handleReport(reportId, request);
+
+        // then
+        assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
+        // 알림 서비스가 호출되지 않았음을 검증
+        verify(notificationService, never()).send(anyLong(), anyString(), anyString());
     }
 
 }

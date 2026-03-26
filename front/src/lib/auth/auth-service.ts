@@ -10,8 +10,17 @@ import {
   setLoggingIn,
   setRestoring,
 } from "@/lib/auth/auth-store";
-import type { AuthMember, AuthTokenPayload, LoginRequest, SignupRequest } from "@/lib/auth/types";
-import { requestData, requestVoid, configureHttpClient } from "@/lib/api/http-client";
+import type {
+  AuthMember,
+  AuthTokenPayload,
+  LoginRequest,
+  SignupRequest,
+} from "@/lib/auth/types";
+import {
+  requestData,
+  requestVoid,
+  configureHttpClient,
+} from "@/lib/api/http-client";
 import { toErrorMessage } from "@/lib/api/rs-data";
 
 const AUTH_ME_PATH = "/api/v1/auth/me";
@@ -22,7 +31,8 @@ const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
 const OIDC_CALLBACK_PATH = "/login/callback";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 let restorePromise: Promise<void> | null = null;
 let handlersBound = false;
@@ -134,6 +144,7 @@ export async function logout(): Promise<void> {
     });
   } finally {
     clearAuthSession();
+    restorePromise = null;
   }
 }
 
@@ -161,7 +172,10 @@ export function startOidcLogin(provider: OidcProvider, nextPath: string): void {
     callbackUrl.searchParams.set("next", nextPath);
   }
 
-  const authorizeUrl = new URL(`${AUTH_OIDC_AUTHORIZE_PATH}/${provider}`, API_BASE_URL);
+  const authorizeUrl = new URL(
+    `${AUTH_OIDC_AUTHORIZE_PATH}/${provider}`,
+    API_BASE_URL,
+  );
   authorizeUrl.searchParams.set("redirect_uri", callbackUrl.toString());
   window.location.assign(authorizeUrl.toString());
 }
@@ -179,5 +193,7 @@ function redirectToLoginIfNeeded(): void {
   }
 
   const next = `${pathname}${search}`;
-  window.location.replace(`${LOGIN_PAGE_PATH}?next=${encodeURIComponent(next)}`);
+  window.location.replace(
+    `${LOGIN_PAGE_PATH}?next=${encodeURIComponent(next)}`,
+  );
 }

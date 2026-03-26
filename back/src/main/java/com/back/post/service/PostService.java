@@ -1,9 +1,11 @@
 package com.back.post.service;
 
 
+import com.back.auth.application.AuthErrorCode;
 import com.back.global.exception.ServiceException;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import com.back.post.application.PostErrorCode;
 import com.back.post.dto.PostCreateReq;
 import com.back.post.dto.PostInfoRes;
 import com.back.post.dto.PostListRes;
@@ -21,12 +23,6 @@ import org.springframework.util.StringUtils;
 @Service
 @RequiredArgsConstructor
 public class PostService {
-
-    private static final String ERROR_CODE_NOT_FOUND = "404-1";
-    private static final String ERROR_CODE_FORBIDDEN = "403-1";
-    private static final String ERROR_MSG_POST_NOT_FOUND = "존재하지 않는 게시물 입니다.";
-    private static final String ERROR_MSG_MEMBER_NOT_FOUND = "Member not found.";
-    private static final String ERROR_MSG_FORBIDDEN = "You do not have permission.";
 
     private final PostRepository postRepository;
     private final MemberRepository memberRepository;
@@ -70,7 +66,7 @@ public class PostService {
     @Transactional(readOnly = true)
     public PostInfoRes getPost(Long id) {
         Post post = postRepository.findById(id)
-                .orElseThrow(() -> new ServiceException("401-1","존재하지않는 게시물 입니다."));
+                .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
 
         return PostInfoRes.from(post);
     }
@@ -94,15 +90,15 @@ public class PostService {
 
     private Member findMemberById(Long memberId) {
         return memberRepository.findById(memberId)
-                .orElseThrow(() -> new ServiceException(ERROR_CODE_NOT_FOUND, ERROR_MSG_MEMBER_NOT_FOUND));
+                .orElseThrow(AuthErrorCode.MEMBER_NOT_FOUND::toException);
     }
 
     private Post findOwnedPost(Long postId, Long memberId) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new ServiceException(ERROR_CODE_NOT_FOUND, ERROR_MSG_POST_NOT_FOUND));
+                .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
 
         if (post.getMember() == null || !post.getMember().getId().equals(memberId)) {
-            throw new ServiceException(ERROR_CODE_FORBIDDEN, ERROR_MSG_FORBIDDEN);
+            throw PostErrorCode.FORBIDDEN.toException();
         }
 
         return post;

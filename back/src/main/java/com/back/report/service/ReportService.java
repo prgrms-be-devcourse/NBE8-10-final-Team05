@@ -1,6 +1,7 @@
 package com.back.report.service;
 
 import com.back.global.exception.ServiceException;
+import com.back.global.notification.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.domain.Letter;
 import com.back.member.domain.Member;
@@ -28,6 +29,7 @@ public class ReportService {
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final LetterRepository letterRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public Long createReport(Long reporterId, ReportCreateRequest request) {
@@ -96,6 +98,7 @@ public class ReportService {
                 report.getReason().getContent(),
                 report.getContent(),
                 report.getStatus().name(),
+                report.getProcessingAction(),
                 report.getCreateDate(),
                 new ReportDetailResponse.TargetInfo(
                         report.getTargetType().name(),
@@ -112,24 +115,27 @@ public class ReportService {
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 신고입니다."));
 
+        Long reportedUserId = findAuthorIdByTarget(report.getTargetType(), report.getTargetId());
+
         // 1. 신고 사유가 부적절한 경우 (무시)
         if ("REJECT".equals(request.action())) {
             // 별도 조치 없이 상태만 변경하러 이동
         }
 
-        // 2. 게시글/댓글 삭제 (소프트 딜리트)
+        // 2. 게시글/댓글 삭제
         else if ("DELETE".equals(request.action())) {
             if (report.getTargetType() == TargetType.POST) {
                 Post post = postRepository.findById(report.getTargetId()).orElse(null);
                 if (post != null) {
-                    // status를 HIDDEN으로 변경 (Soft Delete)
+                    // status를 HIDDEN으로 변경
                     post.updateStatus(PostStatus.HIDDEN);
+                    reportedUserId = post.getMember().getId();
                 }
             }
             // else if (report.getTargetType() == TargetType.COMMENT) { ... 댓글 숨김 처리 ... }
         }
 
-        // 3. 작성자 계정 정지 (POST, LETTER, COMMENT 공통)
+        // 3. 작성자 계정 정지 (POST, LETTER, COMMENT)
         else if ("BLOCK_USER".equals(request.action())) {
             Long authorId = null;
             if (report.getTargetType() == TargetType.POST) {
@@ -144,10 +150,34 @@ public class ReportService {
                 Member author = memberRepository.findById(authorId).orElse(null);
                 if (author != null) {
                     author.updateStatus(MemberStatus.BLOCKED); // 계정 정지 처리
+                    reportedUserId = authorId;
                 }
             }
         }
 
         report.updateStatus(ReportStatus.PROCESSED);
+
+        report.markAsProcessed(request.action());
+
+        // 알림
+        if (reportedUserId != null && !"REJECT".equals(request.action())) {
+            String msg = ("DELETE".equals(request.action())) ? "게시물이 삭제되었습니다." : "계정이 정지되었습니다.";
+            notificationService.send(reportedUserId, "REPORT_RESULT", msg);
+        }
     }
+
+    //타겟의 작성자 ID를 추출
+    private Long findAuthorIdByTarget(TargetType type, Long targetId) {
+        if (type == TargetType.POST) {
+            return postRepository.findById(targetId)
+                    .map(p -> p.getMember().getId())
+                    .orElse(null);
+        } else if (type == TargetType.LETTER) {
+            return letterRepository.findById(targetId)
+                    .map(l -> l.getSender().getId())
+                    .orElse(null);
+        }
+        return null;
+    }
+
 }

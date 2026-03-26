@@ -59,7 +59,6 @@ export default function ReceivedLettersPage() {
     }
   }, [router]);
 
-  // 1. 데이터 통합 페칭 (목록 + 통계)
   useEffect(() => {
     const initData = async () => {
       setIsLoading(true);
@@ -206,7 +205,6 @@ export default function ReceivedLettersPage() {
           </div>
         </section>
 
-        {/* 리스트 섹션 */}
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <Loader2 className="animate-spin h-10 w-10 text-sky-400" />

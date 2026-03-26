@@ -27,11 +27,13 @@ public class Report extends BaseEntity {
     private ReportReason reason;
 
     @Column(columnDefinition = "TEXT")
-    private String content;
+    private String content; // 신고 상세 사유
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private ReportStatus status = ReportStatus.RECEIVED;
+
+    private String processingAction; // 관리자 조치 (DELETE, BLOCK_USER, REJECT)
 
     public static Report create(Long reporterId, Long targetId, TargetType targetType,
                                 ReportReason reason, String content) {
@@ -47,5 +49,11 @@ public class Report extends BaseEntity {
     //신고의 처리 상태(RECEIVED, PROCESSED)를 변경합니다.
     public void updateStatus(ReportStatus status) {
         this.status = status;
+    }
+
+    // 처리 결과 기록
+    public void markAsProcessed(String action) {
+        this.status = ReportStatus.PROCESSED;
+        this.processingAction = action;
     }
 }

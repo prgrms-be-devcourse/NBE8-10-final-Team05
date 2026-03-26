@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { Menu, X } from "lucide-react";
 import BrandWordmark from "@/components/branding/BrandWordmark";
 import { logout } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -111,12 +112,13 @@ export default function MainHeader() {
 
         <button
           type="button"
-          className="inline-flex items-center gap-1 px-1 py-1 text-sm font-medium text-[#506582] transition hover:text-[#2f4b73] lg:hidden"
+          className="inline-flex min-h-[46px] items-center gap-2 rounded-full bg-white/78 px-4 py-2.5 text-[15px] font-semibold text-[#4f698c] ring-1 ring-[#dbe8f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#2f4b73] lg:hidden"
           aria-controls="mobile-global-navigation"
           aria-expanded={mobileMenuOpen}
           onClick={() => setMobileMenuOpen((prev) => !prev)}
         >
-          메뉴
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          {mobileMenuOpen ? "닫기" : "메뉴"}
         </button>
       </header>
 
