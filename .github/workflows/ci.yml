@@ -17,10 +17,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: backend
+  checks:
+    name: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16-alpine
@@ -41,9 +41,6 @@ jobs:
       DEV_DB_URL: jdbc:postgresql://localhost:5432/maum_on_ci
       DEV_DB_USERNAME: maum_on
       DEV_DB_PASSWORD: maum_on
-    defaults:
-      run:
-        working-directory: back
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,26 +54,15 @@ jobs:
 
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
+        working-directory: back
 
       - name: Compile backend sources
         run: ./gradlew --no-daemon compileJava compileTestJava
+        working-directory: back
 
       - name: Run backend tests
         run: ./gradlew --no-daemon test
-
-  frontend:
-    name: frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      CI: "true"
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
-    defaults:
-      run:
-        working-directory: front
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+        working-directory: back
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
@@ -87,12 +73,16 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+        working-directory: front
 
       - name: Lint frontend
         run: npm run lint
+        working-directory: front
 
       - name: Run frontend tests
         run: npm run test
+        working-directory: front
 
       - name: Build frontend
         run: npm run build
+        working-directory: front
