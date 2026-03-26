@@ -1,10 +1,11 @@
 package com.back.comment.dto;
 
 import com.back.comment.entity.Comment;
-import java.time.LocalDateTime;
-import java.util.List;
+import org.springframework.data.domain.Slice;
 
-public record CommentInfoRes(
+import java.time.LocalDateTime;
+
+public record ReplyInfoRes(
 
         long id,
         String content,
@@ -13,10 +14,10 @@ public record CommentInfoRes(
         String email,
         long postId,
         LocalDateTime createDate,
-        LocalDateTime modifyDate,
-        List<ReplyInfoRes> replies
+        LocalDateTime modifyDate
+
 ) {
-    public CommentInfoRes(Comment comment, List<ReplyInfoRes> replies){
+    public ReplyInfoRes(Comment comment){
         this(
                 comment.getId(),
                 comment.getContent(),
@@ -25,8 +26,7 @@ public record CommentInfoRes(
                 comment.getAuthor().getEmail(),
                 comment.getPost().getId(),
                 comment.getCreateDate(),
-                comment.getModifyDate(),
-                replies
+                comment.getModifyDate()
         );
     }
 }

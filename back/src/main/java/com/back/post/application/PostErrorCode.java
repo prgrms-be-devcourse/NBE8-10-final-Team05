@@ -1,6 +1,6 @@
 package com.back.post.application;
 
-import com.back.global.exception.ServiceException;
+import com.back.global.exception.PostException;
 
 public enum PostErrorCode {
   POST_NOT_FOUND("404-1", "존재하지 않는 게시물 입니다."),
@@ -14,7 +14,7 @@ public enum PostErrorCode {
     this.message = message;
   }
 
-  public ServiceException toException() {
-    return new ServiceException(code, message);
+  public PostException toException() {
+    return new PostException(code, message);
   }
 }
