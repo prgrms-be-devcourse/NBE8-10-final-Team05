@@ -151,9 +151,7 @@ export default function StoryDetailPage() {
                 {story.title}
               </h1>
 
-              <div className="mt-8 rounded-[24px] border border-[#dce6f5] bg-[#fcfdff] px-5 py-6">
-                <p className="whitespace-pre-wrap text-[16px] leading-8 text-[#415a7d]">{story.content}</p>
-              </div>
+              <p className="mt-8 whitespace-pre-wrap text-[16px] leading-8 text-[#415a7d]">{story.content}</p>
 
               <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#e8f0fd] pt-5 text-sm text-[#6f84a5]">
                 <span className="inline-flex items-center gap-1.5">

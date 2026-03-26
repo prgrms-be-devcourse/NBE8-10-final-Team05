@@ -98,6 +98,8 @@ public class SecurityConfig {
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/health",
+                        "/api/v1/posts",
+                        "/api/v1/posts/*",
                         "/api/v1/auth/oidc/authorize/**",
                         "/api/v1/auth/oidc/callback/**",
                             "/gen/**")

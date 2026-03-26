@@ -66,6 +66,18 @@ class SecurityConfigTest {
   }
 
   @Test
+  @DisplayName("공개 게시글 목록 경로는 토큰 없이도 시큐리티에서 차단하지 않는다")
+  void publicPostListRouteIsNotBlockedBySecurity() throws Exception {
+    mockMvc.perform(get("/api/v1/posts")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("공개 게시글 상세 경로는 토큰 없이도 시큐리티에서 차단하지 않는다")
+  void publicPostDetailRouteIsNotBlockedBySecurity() throws Exception {
+    mockMvc.perform(get("/api/v1/posts/{id}", 1L)).andExpect(status().isNotFound());
+  }
+
+  @Test
   @DisplayName("보호 API를 토큰 없이 호출하면 401을 반환한다")
   void protectedApiWithoutTokenReturns401() throws Exception {
     mockMvc
