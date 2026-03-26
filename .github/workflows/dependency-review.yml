@@ -3,7 +3,7 @@ name: dependency-review
 on:
   pull_request:
     branches:
-      - develope
+      - develop
   workflow_dispatch:
 
 permissions:
