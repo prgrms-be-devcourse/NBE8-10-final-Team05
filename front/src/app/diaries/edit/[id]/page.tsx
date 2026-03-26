@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -54,29 +54,8 @@ export default function DiaryEditPage() {
     offset: "after",
   });
 
-  useEffect(() => {
-    const fetchOriginalData = async () => {
-      try {
-        const data = await requestData<DiaryDetail>(`/api/v1/diaries/${id}`);
-        setTitle(data.title);
-        setIsPrivate(data.isPrivate);
-        if (editorRef.current) {
-          editorRef.current.innerHTML = data.content || "<p><br></p>";
-          // 기존 이미지들에 드래그 및 삭제 기능 주입
-          setTimeout(bindExistingElements, 100);
-        }
-      } catch (error) {
-        alert("기록을 불러올 수 없습니다.");
-        router.back();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchOriginalData();
-  }, [id, router]);
-
   // [중요] 기존 본문에 있던 이미지(figure)들에 이벤트 재연결
-  const bindExistingElements = () => {
+  const bindExistingElements = useCallback(() => {
     if (!editorRef.current) return;
     const figures = editorRef.current.querySelectorAll("figure");
     figures.forEach((fg) => {
@@ -92,7 +71,28 @@ export default function DiaryEditPage() {
         optimizeEmptyLines();
       });
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    const fetchOriginalData = async () => {
+      try {
+        const data = await requestData<DiaryDetail>(`/api/v1/diaries/${id}`);
+        setTitle(data.title);
+        setIsPrivate(data.isPrivate);
+        if (editorRef.current) {
+          editorRef.current.innerHTML = data.content || "<p><br></p>";
+          // 기존 이미지들에 드래그 및 삭제 기능 주입
+          setTimeout(bindExistingElements, 100);
+        }
+      } catch {
+        alert("기록을 불러올 수 없습니다.");
+        router.back();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void fetchOriginalData();
+  }, [bindExistingElements, id, router]);
 
   const optimizeEmptyLines = () => {
     if (!editorRef.current) return;
@@ -262,7 +262,7 @@ export default function DiaryEditPage() {
 
       router.push(`/diaries/${id}`);
       router.refresh();
-    } catch (error) {
+    } catch {
       alert("수정 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);

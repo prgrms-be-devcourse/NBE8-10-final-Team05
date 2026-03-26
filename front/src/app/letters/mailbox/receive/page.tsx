@@ -40,7 +40,7 @@ interface ReceivedLetter {
   createdDate: string;
 }
 
-type ReceivedLettersResponse = ReceivedLetter[] | { letters?: ReceivedLetter[] };
+type ReceivedLettersResponse = ReceivedLetter[] | { letters: ReceivedLetter[] };
 
 export default function ReceivedLettersPage() {
   const router = useRouter();
@@ -63,14 +63,19 @@ export default function ReceivedLettersPage() {
     const initData = async () => {
       setIsLoading(true);
       try {
-        // 병렬 호출로 성능 최적화
-        const [lettersRes, statsRes] = await Promise.all([
-          requestData<ReceivedLetter[]>("/api/v1/letters/received"),
-          requestData<MailboxStats>("/api/v1/letters/stats"),
-        ]);
+        // [Refactor + Develop 통합] 다양한 응답 형태 대응
+        const response = await requestData<ReceivedLettersResponse>(
+          "/api/v1/letters/received",
+        );
 
-        setLetters(Array.isArray(lettersRes) ? lettersRes : []);
-        setStats(statsRes);
+        let data: ReceivedLetter[] = [];
+        if (Array.isArray(response)) {
+          data = response;
+        } else if (response && Array.isArray(response.letters)) {
+          data = response.letters;
+        }
+
+        setLetters(data);
       } catch (error) {
         console.error("데이터 로드 실패:", error);
       } finally {

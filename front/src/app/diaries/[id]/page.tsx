@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { requestData } from "@/lib/api/http-client";
+import { toErrorMessage } from "@/lib/api/rs-data";
 
 interface DiaryDetail {
   id: number;
@@ -65,9 +66,9 @@ export default function DiaryDetailPage() {
       alert("기록이 삭제되었습니다.");
       router.push("/diaries");
       router.refresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error("삭제 실패:", error);
-      alert(error.message || "삭제 중 오류가 발생했습니다.");
+      alert(toErrorMessage(error) || "삭제 중 오류가 발생했습니다.");
     } finally {
       setIsDeleting(false);
     }

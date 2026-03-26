@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -10,11 +10,10 @@ import {
   Heart,
   Send,
   MessageSquareText,
-  Loader2,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
-import { debounce } from "lodash";
+import { toErrorMessage } from "@/lib/api/rs-data";
 
 interface ReceivedLetterDetail {
   id: number;
@@ -33,6 +32,13 @@ export default function ReceivedLetterDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [replyContent, setReplyContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const writingTimeoutRef = useRef<number | null>(null);
+  const letterId =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+        ? params.id[0]
+        : "";
 
   const handleGoBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -47,13 +53,13 @@ export default function ReceivedLetterDetailPage() {
     const initPage = async () => {
       try {
         const data = await requestData<ReceivedLetterDetail>(
-          `/api/v1/letters/${params.id}`,
+          `/api/v1/letters/${letterId}`,
         );
         setLetter(data);
 
         // 답장 전이고 상태가 SENT라면 ACCEPTED(읽음)로 변경 알림
         if (data && !data.replied) {
-          await requestVoid(`/api/v1/letters/${params.id}/accept`, {
+          await requestVoid(`/api/v1/letters/${letterId}/accept`, {
             method: "POST",
           });
         }
@@ -65,12 +71,26 @@ export default function ReceivedLetterDetailPage() {
         setIsLoading(false);
       }
     };
-    initPage();
-  }, [handleGoBack, params.id, router]);
+    if (letterId) {
+      void initPage();
+    }
+  }, [handleGoBack, letterId]);
 
-  // 2. 작성 중 신호 전송 (Debounce)
-  const notifyWriting = useCallback(
-    debounce(async (id: string) => {
+  useEffect(() => {
+    return () => {
+      if (writingTimeoutRef.current !== null) {
+        window.clearTimeout(writingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // 2. 작성 중 신호 전송
+  const notifyWriting = useCallback((id: string) => {
+    if (writingTimeoutRef.current !== null) {
+      window.clearTimeout(writingTimeoutRef.current);
+    }
+
+    writingTimeoutRef.current = window.setTimeout(async () => {
       try {
         await requestVoid(`/api/v1/letters/${id}/writing`, {
           method: "POST",
@@ -78,20 +98,15 @@ export default function ReceivedLetterDetailPage() {
       } catch (error) {
         console.error("작성 중 신호 전송 실패:", error);
       }
-    }, 1000),
-    [],
-  );
+    }, 1000);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setReplyContent(value);
 
-    if (
-      value.trim().length > 0 &&
-      !letter?.replied &&
-      typeof params.id === "string"
-    ) {
-      notifyWriting(params.id);
+    if (value.trim().length > 0 && !letter?.replied && letterId) {
+      notifyWriting(letterId);
     }
   };
 
@@ -101,7 +116,7 @@ export default function ReceivedLetterDetailPage() {
 
     setIsSubmitting(true);
     try {
-      await requestVoid(`/api/v1/letters/${params.id}/reply`, {
+      await requestVoid(`/api/v1/letters/${letterId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ replyContent: replyContent }),
@@ -117,9 +132,8 @@ export default function ReceivedLetterDetailPage() {
       // ✅ 서버 캐시 갱신 및 목록 이동
       router.refresh();
       router.push("/letters/mailbox");
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.msg || "답장 전송에 실패했습니다.";
-      alert(errorMsg);
+    } catch (error) {
+      alert(toErrorMessage(error) || "답장 전송에 실패했습니다.");
     } finally {
       setIsSubmitting(false);
     }

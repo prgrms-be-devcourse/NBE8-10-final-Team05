@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
@@ -11,6 +11,14 @@ import { useAuthStore } from "@/lib/auth/auth-store";
 
 /** 로그인 페이지: 성공 시 next 파라미터 또는 대시보드로 이동한다. */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, hasRestored, isLoggingIn, errorMessage } = useAuthStore();
@@ -210,6 +218,16 @@ export default function LoginPage() {
             </Link>
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function LoginPageFallback() {
+  return (
+    <div className="home-atmosphere min-h-screen">
+      <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
+        <MainHeader />
       </div>
     </div>
   );

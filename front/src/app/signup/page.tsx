@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, CircleAlert } from "lucide-react";
@@ -22,6 +22,14 @@ function resolveSignupError(error: unknown): string {
 }
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupPageFallback />}>
+      <SignupPageContent />
+    </Suspense>
+  );
+}
+
+function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, hasRestored } = useAuthStore();
@@ -256,6 +264,16 @@ export default function SignupPage() {
             </Link>
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function SignupPageFallback() {
+  return (
+    <div className="home-atmosphere min-h-screen">
+      <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
+        <MainHeader />
       </div>
     </div>
   );
