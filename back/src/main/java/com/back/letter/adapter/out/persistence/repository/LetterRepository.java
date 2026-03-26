@@ -27,4 +27,5 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     Optional<Letter> findFirstByReceiverIdOrderByCreateDateDesc(Long receiverId);
     Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
     long countByReceiverId(Long receiverId);
+    boolean existsByTitle(String title);
 }

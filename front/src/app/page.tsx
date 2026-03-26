@@ -1,77 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import BrandWordmark from "@/components/branding/BrandWordmark";
 import MainHeader from "@/components/layout/MainHeader";
+import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { toErrorMessage } from "@/lib/api/rs-data";
+
+type HomeStoryCategory = "전체" | "고민" | "일상" | "질문";
+type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
 
 type StoryCardItem = {
-  category: string;
+  id: number;
+  category: Exclude<HomeStoryCategory, "전체">;
   title: string;
-  excerpt: string;
-  comfortCount: string;
   timeAgo: string;
 };
 
-const STORY_CARDS: StoryCardItem[] = [
-  {
-    category: "연애",
-    title: "짝사랑, 전할까?",
-    excerpt: "마음이 커졌는데 관계가 달라질까 봐 망설이고 있어요.",
-    comfortCount: "12개의 위로",
-    timeAgo: "3분 전",
-  },
-  {
-    category: "진로",
-    title: "이 길이 맞을까?",
-    excerpt: "준비는 오래 했는데 확신이 없어 자꾸 멈추게 돼요.",
-    comfortCount: "9개의 위로",
-    timeAgo: "15분 전",
-  },
-  {
-    category: "친구",
-    title: "너무 서운해요 ㅠ",
-    excerpt: "가까운 친구라 더 기대했는데 말 한마디가 오래 남네요.",
-    comfortCount: "18개의 위로",
-    timeAgo: "30분 전",
-  },
-  {
-    category: "연애",
-    title: "연락 텀이 길어질 때",
-    excerpt: "괜히 내가 예민한 건지, 그냥 기다려야 하는 건지 모르겠어요.",
-    comfortCount: "7개의 위로",
-    timeAgo: "42분 전",
-  },
-  {
-    category: "가족",
-    title: "부모님과 대화가 어려워요",
-    excerpt: "이해받고 싶은데 시작만 하면 서로 목소리부터 커져요.",
-    comfortCount: "14개의 위로",
-    timeAgo: "1시간 전",
-  },
-  {
-    category: "진로",
-    title: "퇴사 고민이 깊어져요",
-    excerpt: "지금 버티는 게 맞는지, 여기서 멈추는 게 맞는지 고민이에요.",
-    comfortCount: "11개의 위로",
-    timeAgo: "2시간 전",
-  },
-  {
-    category: "친구",
-    title: "멀어진 사이를 붙잡아도 될까",
-    excerpt: "예전만큼 편하지 않은데 먼저 손 내미는 게 맞는지 모르겠어요.",
-    comfortCount: "6개의 위로",
-    timeAgo: "3시간 전",
-  },
-  {
-    category: "일상",
-    title: "오늘따라 괜히 울컥해요",
-    excerpt: "특별한 일은 없는데 하루가 유난히 길고 버거운 날이에요.",
-    comfortCount: "21개의 위로",
-    timeAgo: "4시간 전",
-  },
-];
+type PostListItem = {
+  id: number;
+  title: string;
+  viewCount: number;
+  createDate: string;
+  modifyDate: string;
+  thumbnail: string | null;
+  category: BackendPostCategory;
+  nickname: string;
+};
+
+type PostSlice = {
+  content: PostListItem[];
+};
+
+const STORY_CATEGORIES: HomeStoryCategory[] = ["전체", "고민", "일상", "질문"];
 
 const HERO_SIGNALS = [
   { label: "오늘 올라온 고민", value: "128" },
@@ -79,7 +41,32 @@ const HERO_SIGNALS = [
   { label: "오늘의 기록", value: "19" },
 ];
 
-const STORY_FILTERS = ["#위로", "#사랑", "#고민상담", "#취업", "#응원해", "#오늘의날씨"];
+const API_CATEGORY_TO_STORY_CATEGORY: Record<BackendPostCategory, Exclude<HomeStoryCategory, "전체">> = {
+  DAILY: "일상",
+  WORRY: "고민",
+  QUESTION: "질문",
+};
+
+const STORY_CARD_THEMES: Record<
+  StoryCardItem["category"],
+  { hero: string; badge: string; avatar: string }
+> = {
+  고민: {
+    hero: "from-[#f9d8e7] to-[#fff1f6]",
+    badge: "bg-white/78 text-[#a34f74]",
+    avatar: "bg-[#fbe4ec] text-[#a34f74]",
+  },
+  일상: {
+    hero: "from-[#dde8ff] to-[#f3f7ff]",
+    badge: "bg-white/78 text-[#4f6fa8]",
+    avatar: "bg-[#e7efff] text-[#4f6fa8]",
+  },
+  질문: {
+    hero: "from-[#d9f0e6] to-[#effaf4]",
+    badge: "bg-white/78 text-[#4f8d6b]",
+    avatar: "bg-[#e2f4ea] text-[#4f8d6b]",
+  },
+};
 
 const LETTER_BOTTLE_OUTLINE_PATH =
   "M56.5 43L59.5 43L65 48.5L68.5 53Q70.3 49.4 75.5 49L80 55.5L77 59.5L94.5 76Q101.2 69.7 116.5 72Q133.5 76 142 88.5L172.5 127L181 131L182 135.5L135.5 182L133.5 182L131 181Q129.3 173.5 123.5 169L87.5 141L78 131.5L72 117.5L72 103.5L76 93.5L58.5 77Q58 80.5 53.5 80L49 75.5L49 73.5L53 68.5L43 59.5L43 56.5L56.5 43ZM58 45L45 58L45 60L53 65L55 67L67 55L61 47L58 45ZM74 51L51 74L51 76L55 78L78 56L76 53Q77 50 74 51ZM75 61L61 76L78 92L86 84L87 85Q76 92 73 108L74 119L81 133L127 170L135 164L128 172L132 179L135 180L180 134L173 129L172 128L164 135L170 128L138 87Q129 76 113 73Q100 73 94 78L90 81L92 78L75 61Z";
@@ -87,6 +74,60 @@ const LETTER_BOTTLE_OUTLINE_PATH =
 export default function HomePage() {
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
+  const [activeStoryCategory, setActiveStoryCategory] = useState<HomeStoryCategory>("전체");
+  const [stories, setStories] = useState<StoryCardItem[]>([]);
+  const [isStoriesLoading, setIsStoriesLoading] = useState(true);
+  const [storiesError, setStoriesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchStories(): Promise<void> {
+      setIsStoriesLoading(true);
+      setStoriesError(null);
+
+      try {
+        const slice = await requestData<PostSlice>("/api/v1/posts?page=0&size=8", {
+          skipAuth: true,
+          retryOnAuthFailure: false,
+          authFailureRedirect: false,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextStories = slice.content.map((post) => mapPostToStoryCard(post));
+
+        setStories(nextStories);
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+
+        setStories([]);
+        setStoriesError(toErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setIsStoriesLoading(false);
+        }
+      }
+    }
+
+    void fetchStories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleStories = useMemo(() => {
+    if (activeStoryCategory === "전체") {
+      return stories;
+    }
+
+    return stories.filter((story) => story.category === activeStoryCategory);
+  }, [activeStoryCategory, stories]);
 
   return (
     <div className="home-atmosphere min-h-screen">
@@ -121,20 +162,52 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              {STORY_FILTERS.map((filter) => (
-                <span
-                  key={filter}
-                  className="rounded-full border border-[#dbe7fb] bg-[#f7fbff] px-3 py-1.5 text-xs font-semibold text-[#6c82a7]"
+              {STORY_CATEGORIES.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setActiveStoryCategory(category)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    activeStoryCategory === category
+                      ? "border-[#78A7E6] bg-[#78A7E6] text-white"
+                      : "border-[#dbe7fb] bg-[#f7fbff] text-[#6c82a7] hover:border-[#c2d8fa] hover:text-[#53739f]"
+                  }`}
                 >
-                  {filter}
-                </span>
+                  {category}
+                </button>
               ))}
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {STORY_CARDS.map((story) => (
-                <StoryCard key={`${story.category}-${story.title}`} story={story} />
-              ))}
+              {isStoriesLoading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`story-skeleton-${index}`}
+                    className="home-card rounded-[28px] px-4 py-4 text-[#324763]"
+                  >
+                    <div className="h-6 w-16 animate-pulse rounded-full bg-[#eef5ff]" />
+                    <div className="mt-4 h-7 animate-pulse rounded-xl bg-[#f3f7ff]" />
+                    <div className="mt-3 h-16 animate-pulse rounded-2xl bg-[#f7faff]" />
+                    <div className="mt-4 h-5 animate-pulse rounded-xl bg-[#eef5ff]" />
+                  </div>
+                ))
+              ) : null}
+
+              {!isStoriesLoading && storiesError ? (
+                <div className="rounded-[24px] border border-[#f1d7d7] bg-[#fff8f8] px-4 py-5 text-sm text-[#8d5555] sm:col-span-2 xl:col-span-4">
+                  고민공유를 불러오지 못했습니다. {storiesError}
+                </div>
+              ) : null}
+
+              {!isStoriesLoading && !storiesError && visibleStories.length === 0 ? (
+                <div className="rounded-[24px] border border-[#dbe7fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6c82a7] sm:col-span-2 xl:col-span-4">
+                  아직 보여드릴 고민이 없습니다.
+                </div>
+              ) : null}
+
+              {!isStoriesLoading && !storiesError
+                ? visibleStories.map((story) => <StoryCard key={story.id} story={story} />)
+                : null}
             </div>
           </div>
 
@@ -189,23 +262,70 @@ export default function HomePage() {
 }
 
 function StoryCard({ story }: { story: StoryCardItem }) {
+  const theme = STORY_CARD_THEMES[story.category];
+
   return (
-    <article className="home-card rounded-[28px] px-4 py-4 text-[#324763]">
-      <div className="flex items-center justify-between gap-3">
-        <span className="rounded-full bg-[#eef5ff] px-2.5 py-1 text-[11px] font-semibold text-[#6b81a7]">
-          {story.category}
-        </span>
-        <span className="text-[11px] text-[#95a6c0]">{story.timeAgo}</span>
-      </div>
-      <h3 className="mt-4 min-h-[52px] text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[#2b4162]">
-        {story.title}
-      </h3>
-      <p className="mt-2 min-h-[66px] text-sm leading-6 text-[#7b8da9]">{story.excerpt}</p>
-      <div className="mt-4 border-t border-[#e8f0fd] pt-3 text-xs font-medium text-[#8ba0c2]">
-        {story.comfortCount}
-      </div>
+    <article className="flex h-full flex-col overflow-hidden rounded-[12px] border border-[#dbe6f5] bg-white text-[#324763] shadow-[0_18px_34px_-24px_rgba(73,107,167,0.32)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_42px_-22px_rgba(73,107,167,0.42)]">
+      <Link href={`/stories/${story.id}`} className="group flex h-full flex-col">
+        <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
+          <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
+            <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
+              {story.category}
+            </span>
+            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+          </div>
+          <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
+            <span className="block h-[4px] w-16 rounded-full bg-white/75" />
+            <span className="block h-[4px] w-10 rounded-full bg-white/55" />
+          </div>
+          <div className="absolute -bottom-4 right-5 h-20 w-20 rounded-full bg-white/30" />
+        </div>
+        <div className="flex flex-1 flex-col px-6 pb-6 pt-5">
+          <h2 className="line-clamp-3 text-[18px] font-semibold leading-8 tracking-[-0.03em] text-[#223552] transition group-hover:text-[#33527d]">
+            {story.title}
+          </h2>
+          <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
+            <span>{story.timeAgo}</span>
+          </div>
+        </div>
+      </Link>
     </article>
   );
+}
+
+function formatRelativeTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) {
+    return "방금 전";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}시간 전`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}일 전`;
+}
+
+function mapPostToStoryCard(post: PostListItem): StoryCardItem {
+  return {
+    id: post.id,
+    category: API_CATEGORY_TO_STORY_CATEGORY[post.category] ?? "고민",
+    title: post.title,
+    timeAgo: formatRelativeTime(post.createDate),
+  };
 }
 
 function LetterBottleIcon({ size = 56 }: { size?: number }) {

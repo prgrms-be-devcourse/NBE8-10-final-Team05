@@ -49,7 +49,6 @@ const MAILBOX_TAB_CONTENT: Record<
 };
 
 export default function MailboxPage() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const current = MAILBOX_TAB_CONTENT[activeTab];
 
@@ -60,23 +59,23 @@ export default function MailboxPage() {
       </div>
 
       <main className="mx-auto flex w-full max-w-5xl flex-col items-center px-6 py-12">
-        <div className="mb-10 flex gap-2 rounded-2xl bg-white/40 p-1.5 shadow-sm">
+        <div className="mb-10 flex items-center justify-center gap-10 border-b border-[#dbe7f7]">
           <button
             onClick={() => setActiveTab("received")}
-            className={`rounded-xl px-8 py-2.5 text-sm font-bold transition-all ${
+            className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
               activeTab === "received"
-                ? "bg-white text-sky-600 shadow-md"
-                : "text-slate-500 hover:text-sky-400"
+                ? "border-[#78A7E6] text-[#233552]"
+                : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
             }`}
           >
             받은 편지함
           </button>
           <button
             onClick={() => setActiveTab("sent")}
-            className={`rounded-xl px-8 py-2.5 text-sm font-bold transition-all ${
+            className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
               activeTab === "sent"
-                ? "bg-white text-sky-600 shadow-md"
-                : "text-slate-500 hover:text-sky-400"
+                ? "border-[#78A7E6] text-[#233552]"
+                : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
             }`}
           >
             보낸 편지함

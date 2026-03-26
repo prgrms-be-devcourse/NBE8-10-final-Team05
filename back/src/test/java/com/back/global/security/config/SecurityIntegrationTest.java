@@ -12,6 +12,10 @@ import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberStatus;
+import com.back.post.entity.Post;
+import com.back.post.entity.PostCategory;
+import com.back.post.entity.PostStatus;
+import com.back.post.repository.PostRepository;
 import com.google.genai.Client;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -41,6 +45,7 @@ class SecurityIntegrationTest {
   @Autowired private MemberRepository memberRepository;
   @Autowired private JwtTokenService jwtTokenService;
   @Autowired private PasswordEncoder passwordEncoder;
+  @Autowired private PostRepository postRepository;
   @MockitoBean private Client geminiClient;
 
   @Test
@@ -91,6 +96,36 @@ class SecurityIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.resultCode").value("200-5"))
         .andExpect(jsonPath("$.msg").value("Logged out successfully."));
+  }
+
+  @Test
+  @DisplayName("공개 게시글 목록 API는 토큰 없이도 정상 동작한다")
+  void postsListEndpointRemainsPublic() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/posts").param("page", "0").param("size", "8"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-1"));
+  }
+
+  @Test
+  @DisplayName("공개 게시글 상세 API는 토큰 없이도 정상 동작한다")
+  void postDetailEndpointRemainsPublic() throws Exception {
+    Member member = createMember(MemberRole.USER, MemberStatus.ACTIVE);
+    Post post =
+        postRepository.saveAndFlush(
+            Post.builder()
+                .title("public-post")
+                .content("public-content")
+                .member(member)
+                .category(PostCategory.WORRY)
+                .status(PostStatus.PUBLISHED)
+                .build());
+
+    mockMvc
+        .perform(get("/api/v1/posts/{id}", post.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-2"))
+        .andExpect(jsonPath("$.data.id").value(post.getId()));
   }
 
   @Test

@@ -3,9 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, CircleAlert, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
-import { ApiError } from "@/lib/api/rs-data";
+import { toErrorMessage } from "@/lib/api/rs-data";
 import { login, startOidcLogin, type OidcProvider } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
@@ -62,11 +62,7 @@ export default function LoginPage() {
       await login({ email: normalizedEmail, password });
       router.replace(nextPath);
     } catch (error) {
-      if (error instanceof ApiError) {
-        setSubmitError(error.message);
-        return;
-      }
-      setSubmitError("로그인 처리 중 오류가 발생했습니다.");
+      setSubmitError(toErrorMessage(error));
     }
   }
 
@@ -92,32 +88,7 @@ export default function LoginPage() {
           </p>
         </section>
 
-        <section className="mx-auto mt-8 grid w-full max-w-5xl gap-6 lg:grid-cols-[0.82fr_1.18fr]">
-          <aside className="home-hero rounded-[34px] px-7 py-8 text-white">
-            <p className="text-sm font-semibold tracking-[0.18em] text-white/72 uppercase">welcome back</p>
-            <h2 className="mt-4 text-[30px] font-semibold tracking-[-0.04em] text-white">
-              다시 만나서 반가워요
-            </h2>
-            <p className="mt-4 text-[15px] leading-7 text-white/82">
-              로그인하면 이전에 남긴 기록과 고민을 이어서 확인할 수 있습니다.
-            </p>
-
-            <div className="mt-8 space-y-3">
-              {[
-                "이메일 로그인과 소셜 로그인을 모두 지원합니다.",
-                "인증 후에는 원래 보려던 페이지로 자동 이동합니다.",
-                "로그인 세션은 access token + refresh cookie 방식으로 유지됩니다.",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[22px] border border-white/18 bg-white/10 px-4 py-4 text-sm leading-6 text-white/88 backdrop-blur-sm"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </aside>
-
+        <section className="mx-auto mt-8 w-full max-w-2xl">
           <section className="home-panel rounded-[34px] px-6 py-7 sm:px-8 sm:py-8">
             {signupCompleted ? (
               <div className="mb-5 rounded-[18px] border border-[#d4eedb] bg-[#eefbf2] px-4 py-3 text-sm text-[#2f7d49]">
@@ -168,11 +139,6 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-              </div>
-
-              <div className="flex items-start gap-2 text-sm leading-6 text-[#7d8fa8]">
-                <CircleAlert size={16} className="mt-1 shrink-0" />
-                <p>로그인 실패 시 백엔드 응답 메시지를 그대로 안내합니다.</p>
               </div>
 
               {(submitError || errorMessage) && (
@@ -227,7 +193,7 @@ export default function LoginPage() {
           </section>
         </section>
 
-        <section className="mx-auto mt-8 w-full max-w-5xl">
+        <section className="mx-auto mt-8 w-full max-w-2xl">
           <div className="rounded-[30px] border border-[#dce7fb] bg-[#eaf3ff] px-6 py-8 text-center shadow-[0_24px_48px_-36px_rgba(73,107,167,0.38)]">
             <p className="text-[22px] font-semibold tracking-[-0.03em] text-[#4f8cf0]">
               처음 오셨나요?
