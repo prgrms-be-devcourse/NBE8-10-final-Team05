@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Plus,
   Lock,
   Globe,
   Waves,
-  Loader2,
   Calendar,
   User,
   ArrowRight,
@@ -40,7 +39,7 @@ export default function DiaryListPage() {
   const [diaries, setDiaries] = useState<Diary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchDiaries = async () => {
+  const fetchDiaries = useCallback(async () => {
     setIsLoading(true);
     try {
       const endpoint =
@@ -55,11 +54,11 @@ export default function DiaryListPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeTab]);
 
   useEffect(() => {
-    fetchDiaries();
-  }, [activeTab]);
+    void fetchDiaries();
+  }, [fetchDiaries]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-sky-100">

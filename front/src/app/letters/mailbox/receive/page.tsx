@@ -23,6 +23,8 @@ interface ReceivedLetter {
   createdDate: string;
 }
 
+type ReceivedLettersResponse = ReceivedLetter[] | { letters: ReceivedLetter[] };
+
 export default function ReceivedLettersPage() {
   const router = useRouter();
   const [letters, setLetters] = useState<ReceivedLetter[]>([]);
@@ -40,15 +42,17 @@ export default function ReceivedLettersPage() {
     const fetchReceivedLetters = async () => {
       try {
         // [Refactor + Develop 통합] 다양한 응답 형태 대응
-        const response = await requestData<any>("/api/v1/letters/received");
-        
+        const response = await requestData<ReceivedLettersResponse>(
+          "/api/v1/letters/received",
+        );
+
         let data: ReceivedLetter[] = [];
         if (Array.isArray(response)) {
           data = response;
         } else if (response && Array.isArray(response.letters)) {
           data = response.letters;
         }
-        
+
         setLetters(data);
       } catch (error) {
         console.error("받은 편지를 가져오는데 실패했습니다.", error);
