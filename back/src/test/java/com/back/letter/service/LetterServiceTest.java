@@ -4,6 +4,7 @@ import com.back.ai.dto.AuditAiRequest;
 import com.back.ai.dto.AuditAiResponse;
 import com.back.ai.service.AiService;
 import com.back.global.exception.ServiceException;
+import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;
 import com.back.letter.application.port.in.dto.CreateLetterReq;
 import com.back.letter.application.port.in.dto.LetterInfoRes;
@@ -11,7 +12,6 @@ import com.back.letter.application.port.in.dto.LetterListRes;
 import com.back.letter.application.port.in.dto.ReplyLetterReq;
 import com.back.letter.domain.Letter;
 import com.back.letter.domain.LetterStatus;
-import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +40,7 @@ class LetterServiceTest {
     private LetterService letterService;
 
     @Mock
-    private LetterRepository letterRepository;
+    private LetterPort letterPort;
     @Mock
     private MemberRepository memberRepository;
     @Mock
@@ -61,23 +61,25 @@ class LetterServiceTest {
             Member sender = mock(Member.class);
             Member receiver = mock(Member.class);
             given(sender.getId()).willReturn(senderId);
+            given(sender.getEmail()).willReturn("sender@test.com");
             given(receiver.getId()).willReturn(receiverId);
+            given(receiver.getEmail()).willReturn("receiver@test.com");
 
             given(aiService.auditContent(any(AuditAiRequest.class)))
                     .willReturn(new AuditAiResponse(true, "letter", "Pass"));
             given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
-            given(letterRepository.findRandomMemberExceptMe(senderId)).willReturn(Optional.of(receiver));
+            given(letterPort.findRandomMemberExceptMe(senderId)).willReturn(Optional.of(receiver));
 
             Letter savedLetter = Letter.builder().title(req.title()).build();
             ReflectionTestUtils.setField(savedLetter, "id", 100L);
-            given(letterRepository.save(any(Letter.class))).willReturn(savedLetter);
+            given(letterPort.save(any(Letter.class))).willReturn(savedLetter);
 
             // when
             long resultId = letterService.createLetterAndDirectSendLetter(req, senderId);
 
             // then
             assertThat(resultId).isEqualTo(100L);
-            verify(letterRepository, times(1)).save(any(Letter.class));
+            verify(letterPort, times(1)).save(any(Letter.class));
         }
 
         @Test
@@ -106,13 +108,13 @@ class LetterServiceTest {
             given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
 
             // findRandomMemberExceptMe 호출 시 1L이 들어올 것을 기대함
-            given(letterRepository.findRandomMemberExceptMe(senderId)).willReturn(Optional.empty());
+            given(letterPort.findRandomMemberExceptMe(senderId)).willReturn(Optional.empty());
 
             // when & then
             assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(new CreateLetterReq("제목", "내용"), senderId))
                     .isInstanceOf(ServiceException.class)
-                    // 실제 에러 메시지인 "배송"으로 수정하거나 공통적인 단어만 검증
                     .hasMessageContaining("배송 가능한 유저가 없습니다");
+            verify(letterPort, never()).save(any(Letter.class));
         }
 
         @Nested
@@ -129,13 +131,15 @@ class LetterServiceTest {
 
                 Member receiver = mock(Member.class);
                 given(receiver.getId()).willReturn(receiverId);
+                given(aiService.auditContent(any(AuditAiRequest.class)))
+                        .willReturn(new AuditAiResponse(true, "reply", "Pass"));
 
                 Letter letter = Letter.builder()
                         .receiver(receiver)
                         .status(LetterStatus.SENT)
                         .build();
 
-                given(letterRepository.findById(letterId)).willReturn(Optional.of(letter));
+                given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
 
                 // when
                 letterService.replyLetter(letterId, req, receiverId);
@@ -153,7 +157,7 @@ class LetterServiceTest {
                 given(realReceiver.getId()).willReturn(1L);
 
                 Letter letter = Letter.builder().receiver(realReceiver).build();
-                given(letterRepository.findById(10L)).willReturn(Optional.of(letter));
+                given(letterPort.findById(10L)).willReturn(Optional.of(letter));
 
                 // when & then
                 assertThatThrownBy(() -> letterService.replyLetter(10L, new ReplyLetterReq("내용"), 999L))
@@ -181,7 +185,7 @@ class LetterServiceTest {
                 ReflectionTestUtils.setField(letter, "id", 1L);
 
                 Page<Letter> page = new PageImpl<>(List.of(letter), pageable, 1);
-                given(letterRepository.findByReceiverId(eq(memberId), any(Pageable.class))).willReturn(page);
+                given(letterPort.findByReceiverId(eq(memberId), any(Pageable.class))).willReturn(page);
 
                 // when
                 LetterListRes result = letterService.getMyInbox(memberId, 0, 10);
@@ -200,17 +204,18 @@ class LetterServiceTest {
 
                 Member sender = mock(Member.class);
                 given(sender.getId()).willReturn(myId);
+                Member receiver = mock(Member.class);
 
                 Letter letter = Letter.builder()
                         .sender(sender)
-                        .receiver(mock(Member.class))
+                        .receiver(receiver)
                         .title("상세 제목")
                         .content("상세 내용")
                         .status(LetterStatus.SENT)
                         .build();
                 ReflectionTestUtils.setField(letter, "id", letterId);
 
-                given(letterRepository.findById(letterId)).willReturn(Optional.of(letter));
+                given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
 
                 // when
                 LetterInfoRes result = letterService.getLetter(letterId, myId);

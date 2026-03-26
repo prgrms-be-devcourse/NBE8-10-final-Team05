@@ -40,7 +40,7 @@ class DiaryServiceTest {
     @Test
     @DisplayName("오늘 작성한 일기가 없으면 저장된다")
     void write_savesDiary_whenNoDiaryToday() {
-        DiaryCreateReq req = new DiaryCreateReq("제목", "내용", "일상", true);
+        DiaryCreateReq req = new DiaryCreateReq("제목", "내용", "일상", true, null);
         given(diaryPort.existsByMemberIdAndCreateDateBetween(eq(1L), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .willReturn(false);
         given(diaryPort.save(any(Diary.class))).willAnswer(invocation -> {
@@ -62,7 +62,7 @@ class DiaryServiceTest {
     @Test
     @DisplayName("오늘 작성한 일기가 이미 있으면 409 예외가 발생하고 저장하지 않는다")
     void write_throws409_whenDiaryAlreadyExistsToday() {
-        DiaryCreateReq req = new DiaryCreateReq("제목", "내용", "일상", true);
+        DiaryCreateReq req = new DiaryCreateReq("제목", "내용", "일상", true, null);
         given(diaryPort.existsByMemberIdAndCreateDateBetween(eq(1L), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .willReturn(true);
 

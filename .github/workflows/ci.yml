@@ -21,9 +21,26 @@ jobs:
     name: backend
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: maum_on_ci
+          POSTGRES_USER: maum_on
+          POSTGRES_PASSWORD: maum_on
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U maum_on -d maum_on_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
       CI: "true"
       GOOGLE_API_KEY: test_key_dummy
+      DEV_DB_URL: jdbc:postgresql://localhost:5432/maum_on_ci
+      DEV_DB_USERNAME: maum_on
+      DEV_DB_PASSWORD: maum_on
     defaults:
       run:
         working-directory: back
@@ -44,13 +61,8 @@ jobs:
       - name: Compile backend sources
         run: ./gradlew --no-daemon compileJava compileTestJava
 
-      - name: Run targeted backend tests
-        run: >
-          ./gradlew --no-daemon test
-          --tests "com.back.BackApplicationTests"
-          --tests "com.back.global.security.config.SecurityConfigTest"
-          --tests "com.back.global.security.config.SecurityIntegrationTest"
-          --tests "com.back.auth.application.AuthServiceTest"
+      - name: Run backend tests
+        run: ./gradlew --no-daemon test
 
   frontend:
     name: frontend
@@ -78,6 +90,9 @@ jobs:
 
       - name: Lint frontend
         run: npm run lint
+
+      - name: Run frontend tests
+        run: npm run test
 
       - name: Build frontend
         run: npm run build
