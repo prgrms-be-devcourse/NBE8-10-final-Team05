@@ -158,6 +158,10 @@ function resolveImageSrc(imageUrl: string | null): string | null {
   return `${baseUrl}${finalPath}`;
 }
 
+function isDiaryCategory(categoryName: string): categoryName is DiaryCategory {
+  return DIARY_CATEGORIES.includes(categoryName as DiaryCategory);
+}
+
 export default function DashboardPage() {
   // 상태 관리
   const [isLoading, setIsLoading] = useState(true);
@@ -309,9 +313,7 @@ export default function DashboardPage() {
     setTitle(diary.title);
     setContent(diary.content);
     setCategoryName(
-      DIARY_CATEGORIES.includes(diary.categoryName as any)
-        ? (diary.categoryName as any)
-        : "기타",
+      isDiaryCategory(diary.categoryName) ? diary.categoryName : "기타",
     );
     setIsPrivate(diary.isPrivate);
     setUploadedImageUrl(diary.imageUrl);

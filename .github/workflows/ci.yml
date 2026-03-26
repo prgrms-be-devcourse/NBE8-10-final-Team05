@@ -3,10 +3,10 @@ name: ci
 on:
   pull_request:
     branches:
-      - develope
+      - develop
   push:
     branches:
-      - develope
+      - develop
   workflow_dispatch:
 
 permissions:
@@ -17,16 +17,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: backend
+  checks:
+    name: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: maum_on_ci
+          POSTGRES_USER: maum_on
+          POSTGRES_PASSWORD: maum_on
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U maum_on -d maum_on_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
       CI: "true"
       GOOGLE_API_KEY: test_key_dummy
-    defaults:
-      run:
-        working-directory: back
+      DEV_DB_URL: jdbc:postgresql://localhost:5432/maum_on_ci
+      DEV_DB_USERNAME: maum_on
+      DEV_DB_PASSWORD: maum_on
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,31 +54,15 @@ jobs:
 
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
+        working-directory: back
 
       - name: Compile backend sources
         run: ./gradlew --no-daemon compileJava compileTestJava
+        working-directory: back
 
-      - name: Run targeted backend tests
-        run: >
-          ./gradlew --no-daemon test
-          --tests "com.back.BackApplicationTests"
-          --tests "com.back.global.security.config.SecurityConfigTest"
-          --tests "com.back.global.security.config.SecurityIntegrationTest"
-          --tests "com.back.auth.application.AuthServiceTest"
-
-  frontend:
-    name: frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      CI: "true"
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
-    defaults:
-      run:
-        working-directory: front
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Run backend tests
+        run: ./gradlew --no-daemon test
+        working-directory: back
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
@@ -75,9 +73,16 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+        working-directory: front
 
       - name: Lint frontend
         run: npm run lint
+        working-directory: front
+
+      - name: Run frontend tests
+        run: npm run test
+        working-directory: front
 
       - name: Build frontend
         run: npm run build
+        working-directory: front

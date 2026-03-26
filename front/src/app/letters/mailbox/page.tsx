@@ -8,10 +8,10 @@ import {
   Heart,
   Mail,
   Send,
-  Moon,
   Sparkles,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
+import { requestData } from "@/lib/api/http-client";
 
 type MailboxTab = "received" | "sent";
 
@@ -30,7 +30,6 @@ interface MailboxStats {
 }
 
 export default function MailboxPage() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
