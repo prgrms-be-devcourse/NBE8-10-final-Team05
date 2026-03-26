@@ -1,11 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox,
-  ChevronLeft,
-  MessageSquare,
   Sparkles,
   Waves,
   Clock,
@@ -16,7 +14,7 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
-// --- 인터페이스 정의 (Java DTO와 완벽 일치) ---
+// --- 인터페이스 정의 ---
 interface LetterSummary {
   id: number;
   title: string;
@@ -33,10 +31,10 @@ interface MailboxStats {
 interface LetterItem {
   id: number;
   title: string;
-  content: string; // 필요시 추가
+  content: string;
   senderNickname: string;
   status: "SENT" | "ACCEPTED" | "WRITING" | "REPLIED";
-  createdDate: string; // <--- Java DTO의 필드명인 createdDate로 수정 (d 추가)
+  createdDate: string;
 }
 
 interface LetterListRes {
@@ -55,8 +53,6 @@ export default function ReceivedLettersPage() {
   // 날짜 안전 파싱 함수
   const formatDate = (dateInput: any) => {
     if (!dateInput) return "날짜 없음";
-
-    // JSON 직렬화 설정에 따라 배열로 올 경우 대응 [2024, 3, 26...]
     if (Array.isArray(dateInput)) {
       const d = new Date(
         dateInput[0],
@@ -67,12 +63,11 @@ export default function ReceivedLettersPage() {
       );
       return d.toLocaleDateString();
     }
-
     const date = new Date(dateInput);
     return isNaN(date.getTime()) ? "날짜 형식 오류" : date.toLocaleDateString();
   };
 
-  // 상대 시간 계산 (상단 요약용)
+  // 상대 시간 계산
   const getRelativeTime = (dateString?: string) => {
     if (!dateString) return "";
     const past = new Date(dateString);
@@ -90,6 +85,7 @@ export default function ReceivedLettersPage() {
     return `${diffInDays}일 전`;
   };
 
+  // 데이터 초기화 로직 (컨플릭트 해결 포인트: 두 API 호출 통합)
   useEffect(() => {
     const initData = async () => {
       setIsLoading(true);
@@ -98,7 +94,14 @@ export default function ReceivedLettersPage() {
           requestData<LetterListRes>("/api/v1/letters/received?page=0&size=10"),
           requestData<MailboxStats>("/api/v1/letters/stats"),
         ]);
-        setLetters(lettersData?.letters || []);
+
+        // 페이징 처리된 데이터인지, 단순 배열인지에 따라 유연하게 대응
+        if (lettersData && Array.isArray(lettersData.letters)) {
+          setLetters(lettersData.letters);
+        } else if (Array.isArray(lettersData)) {
+          setLetters(lettersData);
+        }
+
         setStats(statsData);
       } catch (error) {
         console.error("데이터 로드 실패:", error);
@@ -151,7 +154,6 @@ export default function ReceivedLettersPage() {
       </div>
 
       <main className="mx-auto mt-10 max-w-6xl px-6">
-        {/* 요약 카드 */}
         <section className="bg-white/70 backdrop-blur-lg rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/50 shadow-sm">
           <div className="text-center md:text-left">
             {stats?.latestReceivedLetter &&
@@ -203,7 +205,6 @@ export default function ReceivedLettersPage() {
                   <div className="flex justify-between items-start mb-6 gap-2">
                     <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 bg-slate-100/50 px-3 py-1.5 rounded-full">
                       <Clock size={14} />
-                      {/* 필드명을 createdDate로 수정 */}
                       {formatDate(letter.createdDate)}
                     </div>
                     <div

@@ -14,18 +14,20 @@ import {
   Hash,
   Waves,
   Sparkles,
-  X,
 } from "lucide-react";
 
 import { requestData } from "@/lib/api/http-client";
 
 import { restoreSession } from "@/lib/auth/auth-service";
 
-interface FileWithId {
-  id: string;
-
-  file: File;
-}
+type ImageUploadResponse =
+  | string
+  | {
+      imageUrl?: string;
+      data?: {
+        imageUrl?: string;
+      };
+    };
 
 export default function DiaryWritePage() {
   const router = useRouter();
@@ -174,14 +176,19 @@ export default function DiaryWritePage() {
       formData.append("image", file);
 
       try {
-        const response = await requestData<any>("/api/v1/images/upload", {
+        const response = await requestData<ImageUploadResponse>(
+          "/api/v1/images/upload",
+          {
           method: "POST",
 
           body: formData,
-        });
+          },
+        );
 
         const relativeUrl =
-          response?.imageUrl || response?.data?.imageUrl || response;
+          typeof response === "string"
+            ? response
+            : response.imageUrl || response.data?.imageUrl || "";
 
         const fullUrl = relativeUrl.startsWith("http")
           ? relativeUrl
@@ -192,7 +199,7 @@ export default function DiaryWritePage() {
         const figure = createFigure(fullUrl, fileId);
 
         executeInsert(figure, dropTarget.node, dropTarget.offset);
-      } catch (error: any) {
+      } catch {
         alert(`이미지 업로드 실패: ${file.name}`);
       }
     }
@@ -301,7 +308,7 @@ export default function DiaryWritePage() {
       await requestData("/api/v1/diaries", { method: "POST", body: formData });
 
       router.push("/diaries");
-    } catch (error) {
+    } catch {
       alert("저장하지 못했습니다.");
     } finally {
       setIsSubmitting(false);
