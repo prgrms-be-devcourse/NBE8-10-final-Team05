@@ -5,10 +5,7 @@ import com.back.image.application.service.ImageService;
 import com.back.image.domain.Image;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
@@ -27,5 +24,11 @@ public class ImageController {
         Map<String, String> data = new HashMap<>();
         data.put("imageUrl", savedImage.getAccessUrl());
         return new RsData<>("200-1", "업로드 성공", data);
+    }
+
+    @DeleteMapping
+    public RsData<Void> deleteFile(@RequestParam("url") String url) {
+        imageService.delete(url);
+        return new RsData<>("200-1", "이미지 삭제 성공", null);
     }
 }

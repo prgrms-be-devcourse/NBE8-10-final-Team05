@@ -11,6 +11,7 @@ import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import net.minidev.json.JSONUtil;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,8 +65,20 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
                 .status(LetterStatus.SENT)
                 .build();
 
+
+
+        Letter saved = letterPort.save(letter);
+
+        System.out.println("=== 편지 발송 ===");
+        System.out.println("letterId: " + saved.getId());
+        System.out.println("발신자: id=" + sender.getId() + " email=" + sender.getEmail());
+        System.out.println("수신자: id=" + receiver.getId() + " email=" + receiver.getEmail());
+        System.out.println("=================");
+
+        return saved.getId();
+
         // 5. Port를 통해 저장 후 ID 반환
-        return letterPort.save(letter).getId();
+//        return letterPort.save(letter).getId();
     }
 
     /**
