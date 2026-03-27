@@ -1,8 +1,8 @@
 package com.back.letter.service;
 
-import com.back.ai.dto.AuditAiRequest;
-import com.back.ai.dto.AuditAiResponse;
-import com.back.ai.service.AiService;
+import com.back.ai.adapter.in.web.dto.AuditAiRequest;
+import com.back.ai.adapter.in.web.dto.AuditAiResponse;
+import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;

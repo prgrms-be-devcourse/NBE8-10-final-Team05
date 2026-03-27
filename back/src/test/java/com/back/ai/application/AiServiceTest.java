@@ -1,8 +1,8 @@
 package com.back.ai.application;
 
-import com.back.ai.dto.AuditAiRequest;
-import com.back.ai.dto.AuditAiResponse;
-import com.back.ai.service.AiService;
+import com.back.ai.adapter.in.web.dto.AuditAiRequest;
+import com.back.ai.adapter.in.web.dto.AuditAiResponse;
+import com.back.ai.application.service.AiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.Models;
