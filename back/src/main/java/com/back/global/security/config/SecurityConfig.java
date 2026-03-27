@@ -115,7 +115,6 @@ public class SecurityConfig {
                         "/api/v1/auth/logout",
                         "/api/v1/images/upload")
                     .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/diaries/public").permitAll()
                     // 관리자 경로는 ADMIN 권한이 필요하다.
                     .requestMatchers("/api/v1/admin/**")
                     .hasRole("ADMIN")

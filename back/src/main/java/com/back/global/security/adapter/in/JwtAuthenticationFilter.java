@@ -38,7 +38,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       JwtTokenExtractor.extractBearerToken(request.getHeader(HttpHeaders.AUTHORIZATION))
           .ifPresent(token -> tryAuthenticate(token, request));
     }
-
     filterChain.doFilter(request, response);
   }
 

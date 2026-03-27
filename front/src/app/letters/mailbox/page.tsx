@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Droplets,
@@ -22,18 +23,19 @@ interface LetterSummary {
   replied: boolean;
 }
 
+// 백엔드 LettersStatsRes.java 구조와 동일하게 필드명 수정
 interface MailboxStats {
-  totalReceivedCount: number;
-  totalSentCount: number;
+  receivedCount: number; // totalReceivedCount -> receivedCount
   latestReceivedLetter?: LetterSummary;
   latestSentLetter?: LetterSummary;
+  // 만약 보낸 편지 개수가 필요하다면 백엔드 DTO에도 추가되어야 합니다.
+  // 현재 백엔드 DTO에는 receivedCount만 있으므로 일단 이를 활용합니다.
 }
 
 export default function MailboxPage() {
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
-  // 1. 통계 데이터 로드
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -46,7 +48,6 @@ export default function MailboxPage() {
     fetchStats();
   }, []);
 
-  // 2. 시간 계산 함수
   const getRelativeTime = (dateString?: string) => {
     if (!dateString) return "기록이 없습니다";
     const now = new Date();
@@ -64,20 +65,21 @@ export default function MailboxPage() {
     return `${diffInDays}일 전`;
   };
 
-  // 3. 현재 탭(activeTab)에 따른 데이터 분기 처리
   const isReceived = activeTab === "received";
 
-  // 탭에 따른 통계 및 최신 편지 설정
-  const currentCount = isReceived
-    ? (stats?.totalReceivedCount ?? 0)
-    : (stats?.totalSentCount ?? 0);
+  // 백엔드 필드명에 맞춰 수정
+  const currentCount = isReceived ? (stats?.receivedCount ?? 0) : 0; // 보낸 편지 개수는 현재 백엔드 DTO(LettersStatsRes)에 필드가 추가되어야 정확히 표시 가능합니다.
+
   const currentLatest = isReceived
     ? stats?.latestReceivedLetter
     : stats?.latestSentLetter;
+
   const currentPath = isReceived
     ? "/letters/mailbox/receive"
     : "/letters/mailbox/sent";
-  const hasLetters = currentCount > 0;
+
+  // 데이터 존재 여부 판단 (개수 혹은 최신 편지 존재 여부)
+  const hasLetters = isReceived ? currentCount > 0 : !!stats?.latestSentLetter;
 
   return (
     <div className="min-h-screen bg-[#EBF5FF] text-slate-800">
@@ -131,7 +133,7 @@ export default function MailboxPage() {
                   : "아직 보낸 편지가 없어요"}
             </h2>
 
-            <p className="mb-10 text-sm leading-relaxed text-slate-500">
+            <p className="mb-10 text-sm leading-relaxed text-slate-500 whitespace-pre-line">
               {isReceived
                 ? "누군가의 소중한 진심이 담긴 편지가\n당신의 마음을 두드리고 있어요."
                 : "당신이 보낸 편지들이 바다 너머\n누군가에게 따뜻한 위로가 되고 있을 거예요."}
@@ -201,12 +203,18 @@ export default function MailboxPage() {
                 {isReceived ? "나의 보관함 (받음)" : "나의 보관함 (보냄)"}
               </p>
               <p className="font-bold text-slate-700">
-                {hasLetters ? `총 ${currentCount}통의 진심` : "비어있음"}
+                {/* 보낸 편지는 개수 필드가 없으므로 '기록 있음' 정도로 표시하거나 DTO 수정을 권장합니다. */}
+                {isReceived
+                  ? hasLetters
+                    ? `총 ${currentCount}통의 진심`
+                    : "비어있음"
+                  : hasLetters
+                    ? "기록 있음"
+                    : "비어있음"}
               </p>
             </div>
           </Link>
 
-          {/* 3. 새 편지 쓰기 카드 */}
           <Link
             href="/letters/write"
             className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
