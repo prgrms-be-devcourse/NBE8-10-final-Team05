@@ -2,6 +2,7 @@ package com.back.ai.application;
 
 import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.adapter.in.web.dto.AuditAiResponse;
+import com.back.ai.application.port.out.AiAuditPort;
 import com.back.ai.application.service.AiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
@@ -27,28 +28,15 @@ import static org.mockito.Mockito.mock;
 class AiServiceTest {
 
     @Mock
-    private Client geminiClient;
-
-    @Spy
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private AiAuditPort aiAuditPort;
 
     @InjectMocks
     private AiService aiService;
 
-    private Models mockModels;
-
-    @BeforeEach
-    void setUp() {
-        mockModels = mock(Models.class);
-        ReflectionTestUtils.setField(geminiClient, "models", mockModels);
-    }
-
     private void mockAiResponse(boolean isPassed, String violationType) {
-        GenerateContentResponse mockResponse = mock(GenerateContentResponse.class);
-        String jsonResponse = String.format("{\"isPassed\": %b, \"violationType\": \"%s\", \"message\": \"test\"}", isPassed, violationType);
-        given(mockResponse.text()).willReturn(jsonResponse);
+        AuditAiResponse mockResponse = new AuditAiResponse(isPassed, violationType, "테스트 메시지");
 
-        given(mockModels.generateContent(anyString(), anyString(), any()))
+        given(aiAuditPort.audit(any(AuditAiRequest.class)))
                 .willReturn(mockResponse);
     }
 
