@@ -3,6 +3,6 @@ package com.back.report.dto;
 public record ReportHandleRequest(
         String action,
         String adminComment,
-        boolean isNotify,
+        Boolean isNotify,
         String notificationMessage
 ) {}

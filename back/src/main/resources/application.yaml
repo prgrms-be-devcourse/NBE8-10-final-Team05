@@ -57,4 +57,6 @@ custom:
     refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
   file:
     upload-dir: C:/javadev/diary_image
-
+gemini:
+  api:
+    key: ${GOOGLE_API_KEY}

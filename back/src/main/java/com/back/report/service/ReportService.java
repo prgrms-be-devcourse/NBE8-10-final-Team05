@@ -1,7 +1,9 @@
 package com.back.report.service;
 
+import com.back.comment.entity.Comment;
+import com.back.comment.repository.CommentRepository;
 import com.back.global.exception.ServiceException;
-import com.back.global.notification.service.NotificationService;
+import com.back.notification.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.domain.Letter;
 import com.back.member.domain.Member;
@@ -29,6 +31,7 @@ public class ReportService {
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final LetterRepository letterRepository;
+    private final CommentRepository commentRepository;
     private final NotificationService notificationService;
 
     @Transactional
@@ -90,6 +93,12 @@ public class ReportService {
                 originalContent = letter.getContent();
                 authorNickname = letter.getSender().getNickname();
             }
+        }else if (report.getTargetType() == TargetType.COMMENT) {
+            Comment comment = commentRepository.findById(report.getTargetId()).orElse(null);
+            if (comment != null) {
+                originalContent = comment.getContent();
+                authorNickname = comment.getAuthor().getNickname();
+            }
         }
 
         return new ReportDetailResponse(
@@ -122,48 +131,45 @@ public class ReportService {
             // 별도 조치 없이 상태만 변경하러 이동
         }
 
-        // 2. 게시글/댓글 삭제
+        // 게시글/댓글 삭제
         else if ("DELETE".equals(request.action())) {
             if (report.getTargetType() == TargetType.POST) {
-                Post post = postRepository.findById(report.getTargetId()).orElse(null);
-                if (post != null) {
-                    // status를 HIDDEN으로 변경
-                    post.updateStatus(PostStatus.HIDDEN);
-                    reportedUserId = post.getMember().getId();
-                }
+                postRepository.findById(report.getTargetId())
+                        .ifPresent(post -> post.updateStatus(PostStatus.HIDDEN));
             }
-            // else if (report.getTargetType() == TargetType.COMMENT) { ... 댓글 숨김 처리 ... }
+            else if (report.getTargetType() == TargetType.COMMENT) {
+                commentRepository.findById(report.getTargetId())
+                        .ifPresent(Comment::markAsDelete);
+            }
         }
-
-        // 3. 작성자 계정 정지 (POST, LETTER, COMMENT)
+        // 작성자 계정 정지 (POST, LETTER, COMMENT)
         else if ("BLOCK_USER".equals(request.action())) {
-            Long authorId = null;
-            if (report.getTargetType() == TargetType.POST) {
-                authorId = postRepository.findById(report.getTargetId())
-                        .map(p -> p.getMember().getId()).orElse(null);
-            } else if (report.getTargetType() == TargetType.LETTER) {
-                authorId = letterRepository.findById(report.getTargetId())
-                        .map(l -> l.getSender().getId()).orElse(null);
-            }
-
-            if (authorId != null) {
-                Member author = memberRepository.findById(authorId).orElse(null);
-                if (author != null) {
-                    author.updateStatus(MemberStatus.BLOCKED); // 계정 정지 처리
-                    reportedUserId = authorId;
-                }
+            if (reportedUserId != null) {
+                memberRepository.findById(reportedUserId)
+                        .ifPresent(member -> member.updateStatus(MemberStatus.BLOCKED));
             }
         }
-
-        report.updateStatus(ReportStatus.PROCESSED);
-
         report.markAsProcessed(request.action());
 
-        // 알림
+        // 피신고자에게 알림 전송 (반려 제외)
         if (reportedUserId != null && !"REJECT".equals(request.action())) {
-            String msg = ("DELETE".equals(request.action())) ? "게시물이 삭제되었습니다." : "계정이 정지되었습니다.";
+            String msg = "계정이 정지되었습니다.";
+            if ("DELETE".equals(request.action())) {
+                msg = (report.getTargetType() == TargetType.COMMENT) ? "댓글이 삭제되었습니다." : "게시물이 삭제되었습니다.";
+            }
+            // 알림 메시지가 요청에 포함되어 있다면 그것을 우선 사용
+            if (request.notificationMessage() != null && !request.notificationMessage().isBlank()) {
+                msg = request.notificationMessage();
+            }
             notificationService.send(reportedUserId, "REPORT_RESULT", msg);
         }
+
+        reportRepository.findAllByTargetTypeAndTargetIdAndStatus(
+                report.getTargetType(),
+                report.getTargetId(),
+                ReportStatus.RECEIVED
+        ).forEach(r -> r.markAsProcessed("중복 신고 건: 관리자에 의해 일괄 처리됨"));
+
     }
 
     //타겟의 작성자 ID를 추출
@@ -175,6 +181,10 @@ public class ReportService {
         } else if (type == TargetType.LETTER) {
             return letterRepository.findById(targetId)
                     .map(l -> l.getSender().getId())
+                    .orElse(null);
+        } else if (type == TargetType.COMMENT) {
+            return commentRepository.findById(targetId)
+                    .map(c -> c.getAuthor().getId())
                     .orElse(null);
         }
         return null;
