@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Droplets,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 type MailboxTab = "received" | "sent";
 
@@ -38,28 +38,39 @@ interface MemberResponse {
 }
 
 export default function MailboxPage() {
+  const { isAuthenticated, sessionRevision } = useAuthStore();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
   const [isRandomAllowed, setIsRandomAllowed] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
     const initData = async () => {
+      // 1. 인증되지 않은 경우 상태 초기화 후 중단
+      if (!isAuthenticated) {
+        setStats(null);
+        return;
+      }
+
       try {
-        // 통계와 유저 정보를 함께 가져옵니다 (API 경로에 따라 조정 필요)
+        // 2. 통계와 유저 설정 정보를 병렬로 호출
         const [statsRes, memberRes] = await Promise.all([
           requestData<MailboxStats>("/api/v1/letters/stats"),
-          requestData<any>("/api/v1/members/me"), // 유저 정보 API
+          requestData<MemberResponse>("/api/v1/members/me"),
         ]);
+
+        // 3. 상태 업데이트
         setStats(statsRes);
         setIsRandomAllowed(memberRes.randomReceiveAllowed);
       } catch (error) {
         console.error("데이터 로드 실패:", error);
       }
     };
-    initData();
-  }, []);
+
+    void initData();
+    // 인증 상태나 세션이 변경될 때마다 다시 실행
+  }, [isAuthenticated, sessionRevision]);
 
   const handleToggleRandom = async () => {
     if (isUpdating) return;

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import SessionRevisionBoundary from "@/components/auth/SessionRevisionBoundary";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -38,5 +39,5 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  return <>{children}</>;
+  return <SessionRevisionBoundary>{children}</SessionRevisionBoundary>;
 }

@@ -30,6 +30,7 @@ const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
 const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
+const FORBIDDEN_PAGE_PATH = "/forbidden";
 const OIDC_CALLBACK_PATH = "/login/callback";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -54,6 +55,9 @@ function bindHttpClientHandlers(): void {
       clearAuthSession();
       redirectToLoginIfNeeded();
     },
+    onAuthorizationFailure: () => {
+      redirectToForbiddenIfNeeded();
+    },
   });
 }
 
@@ -70,6 +74,8 @@ export async function restoreSession(): Promise<void> {
     return;
   }
 
+  const startedRevision = current.sessionRevision;
+
   setRestoring(true);
   setAuthError(null);
 
@@ -81,10 +87,14 @@ export async function restoreSession(): Promise<void> {
         retryOnAuthFailure: false,
         authFailureRedirect: false,
       });
-      applyAuthTokenPayload(payload);
+      if (isRestoreResultStillRelevant(startedRevision)) {
+        applyAuthTokenPayload(payload);
+      }
     } catch {
       // 초기 복원은 비로그인 상태도 정상 케이스이므로 에러를 노출하지 않는다.
-      clearAuthSession();
+      if (isRestoreResultStillRelevant(startedRevision)) {
+        clearAuthSession();
+      }
     } finally {
       markRestoreFinished();
       restorePromise = null;
@@ -123,6 +133,7 @@ export async function login(request: LoginRequest): Promise<void> {
       authFailureRedirect: false,
     });
     applyAuthTokenPayload(payload);
+    markRestoreFinished();
   } catch (error) {
     setAuthError(toErrorMessage(error));
     throw error;
@@ -196,4 +207,25 @@ function redirectToLoginIfNeeded(): void {
   window.location.replace(
     `${LOGIN_PAGE_PATH}?next=${encodeURIComponent(next)}`,
   );
+}
+
+function redirectToForbiddenIfNeeded(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const pathname = window.location.pathname;
+  if (pathname === LOGIN_PAGE_PATH || pathname === FORBIDDEN_PAGE_PATH) {
+    return;
+  }
+
+  const search = window.location.search;
+  const from = `${pathname}${search}`;
+  window.location.replace(
+    `${FORBIDDEN_PAGE_PATH}?from=${encodeURIComponent(from)}`,
+  );
+}
+
+function isRestoreResultStillRelevant(startedRevision: number): boolean {
+  return getAuthState().sessionRevision === startedRevision;
 }

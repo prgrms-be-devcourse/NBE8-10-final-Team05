@@ -6,7 +6,6 @@ import { useState } from "react";
 import { ArrowRight, CircleAlert } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
-import { useAuthStore } from "@/lib/auth/auth-store";
 
 const STORY_WRITE_CATEGORIES = ["연애", "진로", "친구", "가족", "직장", "기타"] as const;
 
@@ -30,7 +29,6 @@ function resolveErrorMessage(error: unknown): string {
 
 export default function WriteStoryPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
   const [selectedCategory, setSelectedCategory] = useState<StoryWriteCategory>("연애");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -43,11 +41,6 @@ export default function WriteStoryPage() {
   async function handleSubmit() {
     if (!canSubmit) {
       setSubmitError("제목과 내용을 모두 입력해 주세요.");
-      return;
-    }
-
-    if (!isAuthenticated) {
-      router.push("/login?next=%2Fstories%2Fwrite");
       return;
     }
 

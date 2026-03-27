@@ -23,6 +23,7 @@ export interface AuthState {
   isLoggingIn: boolean;
   hasRestored: boolean;
   errorMessage: string | null;
+  sessionRevision: number;
 }
 
 /** 로그인 요청 바디 모델. */

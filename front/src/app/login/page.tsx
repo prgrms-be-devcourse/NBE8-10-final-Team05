@@ -21,7 +21,7 @@ export default function LoginPage() {
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, hasRestored, isLoggingIn, errorMessage } = useAuthStore();
+  const { isAuthenticated, isLoggingIn, errorMessage } = useAuthStore();
   const signupEmail = searchParams.get("email") ?? "";
   const [email, setEmail] = useState(signupEmail);
   const [password, setPassword] = useState("");
@@ -47,10 +47,10 @@ function LoginPageContent() {
   const canSubmit = normalizedEmail.length > 0 && password.length > 0 && !isLoggingIn;
 
   useEffect(() => {
-    if (hasRestored && isAuthenticated) {
+    if (isAuthenticated) {
       router.replace(nextPath);
     }
-  }, [hasRestored, isAuthenticated, nextPath, router]);
+  }, [isAuthenticated, nextPath, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

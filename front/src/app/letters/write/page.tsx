@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, RefreshCcw, Waves } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
-import { useAuthStore } from "@/lib/auth/auth-store";
 import { requestData } from "@/lib/api/http-client";
 
 function resolveErrorMessage(error: any): string {
@@ -33,7 +32,6 @@ function resolveErrorMessage(error: any): string {
 
 export default function WriteLetterPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -68,11 +66,6 @@ export default function WriteLetterPage() {
   async function handleSend() {
     if (!canSend) {
       setSubmitError("제목과 내용을 모두 채워주세요.");
-      return;
-    }
-
-    if (!isAuthenticated) {
-      router.push("/login?next=%2Fletters%2Fwrite");
       return;
     }
 
@@ -217,11 +210,6 @@ export default function WriteLetterPage() {
             <p className="mt-5 text-[13px] text-[#a6b5ca]">
               이 메시지는 보내는 즉시 바다로 흘러가 사라집니다
             </p>
-            {!isAuthenticated ? (
-              <p className="mt-2 text-[13px] text-[#91a4bf]">
-                보내기 전에 로그인 화면으로 이동합니다.
-              </p>
-            ) : null}
           </div>
         </section>
       </div>

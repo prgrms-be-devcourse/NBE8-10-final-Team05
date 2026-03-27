@@ -77,6 +77,16 @@ public class Member extends BaseEntity {
     this.status = status;
   }
 
+  /** 운영/초기화 용도로 회원 권한을 갱신한다. */
+  public void updateRole(MemberRole role) {
+    this.role = role;
+  }
+
+  /** 이미 인코딩된 비밀번호 해시를 교체한다. */
+  public void updatePasswordHash(String passwordHash) {
+    this.passwordHash = passwordHash;
+  }
+
   /** 비밀번호 비교는 문자열 비교가 아닌 PasswordEncoder.matches 수행한다. */
   public boolean matchesPassword(String rawPassword, PasswordEncoder passwordEncoder) {
     return passwordEncoder.matches(rawPassword, passwordHash);

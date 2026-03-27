@@ -4,6 +4,8 @@ import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.domain.Letter;
 import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
+import com.back.member.domain.MemberRole;
+import com.back.member.domain.MemberStatus;
 import com.back.member.domain.MemberRepository;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostCategory;
@@ -26,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class BaseInitData implements ApplicationRunner {
 
   private static final String DEV_PASSWORD = "dev1234!";
+  private static final String DEV_ADMIN_EMAIL = "admin@admin.com";
+  private static final String DEV_ADMIN_PASSWORD = "admin";
+  private static final String DEV_ADMIN_NICKNAME = "관리자";
 
   private final MemberRepository memberRepository;
   private final PostRepository postRepository;
@@ -34,6 +39,8 @@ public class BaseInitData implements ApplicationRunner {
 
   @Override
   public void run(ApplicationArguments args) {
+    ensureAdminMember();
+
     Member devMemberA = ensureMember("dev1@maumon.local", "마음온_하늘");
     Member devMemberB = ensureMember("dev2@maumon.local", "마음온_바다");
     Member devMemberC = ensureMember("dev3@maumon.local", "마음온_숲");
@@ -49,6 +56,30 @@ public class BaseInitData implements ApplicationRunner {
             () ->
                 memberRepository.save(
                     Member.create(email, passwordEncoder.encode(DEV_PASSWORD), nickname)));
+  }
+
+  private Member ensureAdminMember() {
+    return memberRepository
+        .findByEmail(DEV_ADMIN_EMAIL)
+        .map(
+            member -> {
+              member.updateNickname(DEV_ADMIN_NICKNAME);
+              member.updateRole(MemberRole.ADMIN);
+              member.updateStatus(MemberStatus.ACTIVE);
+              member.updatePasswordHash(passwordEncoder.encode(DEV_ADMIN_PASSWORD));
+              return member;
+            })
+        .orElseGet(
+            () -> {
+              Member adminMember =
+                  Member.create(
+                      DEV_ADMIN_EMAIL,
+                      passwordEncoder.encode(DEV_ADMIN_PASSWORD),
+                      DEV_ADMIN_NICKNAME);
+              adminMember.updateRole(MemberRole.ADMIN);
+              adminMember.updateStatus(MemberStatus.ACTIVE);
+              return memberRepository.save(adminMember);
+            });
   }
 
   private void seedSamplePosts(Member memberA, Member memberB, Member memberC) {
