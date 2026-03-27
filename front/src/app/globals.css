@@ -22,6 +22,12 @@ html {
   scroll-behavior: smooth;
 }
 
+@keyframes restore-notice {
+  to {
+    opacity: 1;
+  }
+}
+
 /* 1. 기본 스타일 (Base) */
 @layer base {
   body {
