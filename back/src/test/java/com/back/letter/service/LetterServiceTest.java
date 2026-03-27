@@ -100,20 +100,27 @@ class LetterServiceTest {
         @DisplayName("실패: 나를 제외한 활성 사용자가 없어 발송 대상이 없는 경우")
         void createAndSend_NoReceiver() {
             // given
-            long senderId = 1L; // 명확하게 ID 정의
+            long senderId = 1L; // 사용할 ID 정의
             Member sender = mock(Member.class);
-            given(sender.getId()).willReturn(senderId); // 중요: sender.getId()가 1L을 반환하게 함
 
-            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true, "letter", "Pass"));
+            // [수정 포인트] sender.getId()가 호출될 때 1L을 반환하도록 스터빙 추가
+            given(sender.getId()).willReturn(senderId);
+
+            // senderId(1L)로 멤버를 찾을 수 있도록 설정
             given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
 
-            // findRandomMemberExceptMe 호출 시 1L이 들어올 것을 기대함
+            given(aiService.auditContent(any(AuditAiRequest.class)))
+                    .willReturn(new AuditAiResponse(true, "letter", "Pass"));
+
+            // 이제 findRandomMemberExceptMe(1L) 호출과 스터빙이 일치하게 됩니다.
             given(letterPort.findRandomMemberExceptMe(senderId)).willReturn(Optional.empty());
 
             // when & then
             assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(new CreateLetterReq("제목", "내용"), senderId))
                     .isInstanceOf(ServiceException.class)
-                    .hasMessageContaining("배송 가능한 유저가 없습니다");
+                    // [수정 포인트] 실제 서비스에서 던지는 메시지 키워드로 변경
+                    .hasMessageContaining("편지를 받을 수 있는 유저가 없습니다");
+
             verify(letterPort, never()).save(any(Letter.class));
         }
 
