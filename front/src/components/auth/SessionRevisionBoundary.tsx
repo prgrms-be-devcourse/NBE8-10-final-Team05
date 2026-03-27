@@ -1,7 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
 interface SessionRevisionBoundaryProps {

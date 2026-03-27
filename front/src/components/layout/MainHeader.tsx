@@ -36,8 +36,9 @@ export default function MainHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAuthenticated, isRestoring } = useAuthStore();
+  const { isAuthenticated, isRestoring, member } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
+  const isAdmin = member?.role === "ADMIN";
 
   const navigationItems: MainNavItem[] = [
     { key: "home", label: "홈", href: "/" },
@@ -91,13 +92,26 @@ export default function MainHeader() {
           {isRestoring ? (
             <span className="text-sm text-[#8396b6]">세션 확인 중...</span>
           ) : isAuthenticated ? (
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              className="text-sm font-medium text-[#506582] underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
-            >
-              로그아웃
-            </button>
+            <div className="flex items-center gap-2 text-sm font-medium text-[#506582]">
+              {isAdmin ? (
+                <>
+                  <Link
+                    href="/admin/reports"
+                    className="transition hover:text-[#2f4b73]"
+                  >
+                    관리자
+                  </Link>
+                  <span className="text-[#c6ccd4]">|</span>
+                </>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                className="underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
+              >
+                로그아웃
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2 text-sm font-semibold text-[#7f8794]">
               <Link href="/login" className="transition hover:text-[#5a6372]">
@@ -145,15 +159,26 @@ export default function MainHeader() {
             {isRestoring ? (
               <span className="px-3 py-2 text-sm text-[#8396b6]">세션 확인 중...</span>
             ) : isAuthenticated ? (
-              <button
-                type="button"
-                className="px-3 py-2 text-left text-[#506582] underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
-                onClick={() => {
-                  void handleLogout();
-                }}
-              >
-                로그아웃
-              </button>
+              <div className="flex flex-col gap-2 px-3 py-2 text-sm font-medium text-[#506582]">
+                {isAdmin ? (
+                  <Link
+                    href="/admin/reports"
+                    className="transition hover:text-[#2f4b73]"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    관리자
+                  </Link>
+                ) : null}
+                <button
+                  type="button"
+                  className="text-left underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
+                  onClick={() => {
+                    void handleLogout();
+                  }}
+                >
+                  로그아웃
+                </button>
+              </div>
             ) : (
               <div className="px-3 py-2 text-sm font-semibold text-[#7f8794]">
                 <Link
