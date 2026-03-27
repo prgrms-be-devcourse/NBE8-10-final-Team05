@@ -121,6 +121,7 @@ class SecurityIntegrationTest {
             Post.builder()
                 .title("public-post")
                 .content("public-content")
+                .summary("public-content")
                 .member(member)
                 .category(PostCategory.WORRY)
                 .status(PostStatus.PUBLISHED)
