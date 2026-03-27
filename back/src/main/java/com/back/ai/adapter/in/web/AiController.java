@@ -1,8 +1,8 @@
-package com.back.ai.controller;
+package com.back.ai.adapter.in.web;
 
-import com.back.ai.dto.AuditAiRequest;
-import com.back.ai.dto.AuditAiResponse;
-import com.back.ai.service.AiService;
+import com.back.ai.adapter.in.web.dto.AuditAiRequest;
+import com.back.ai.adapter.in.web.dto.AuditAiResponse;
+import com.back.ai.application.service.AiService;
 import com.back.global.rsData.RsData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;

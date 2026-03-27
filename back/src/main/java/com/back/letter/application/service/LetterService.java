@@ -1,7 +1,7 @@
 package com.back.letter.application.service;
 
-import com.back.ai.dto.AuditAiRequest;
-import com.back.ai.service.AiService;
+import com.back.ai.adapter.in.web.dto.AuditAiRequest;
+import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
 import com.back.letter.application.port.in.*;
 import com.back.letter.application.port.in.dto.*; // DTO 패키지 경로 주의
@@ -11,7 +11,6 @@ import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
-import net.minidev.json.JSONUtil;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
