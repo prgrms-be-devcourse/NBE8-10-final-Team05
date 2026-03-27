@@ -85,4 +85,11 @@ public class MemberService {
       throw new ServiceException(ERROR_CODE_BAD_REQUEST, ERROR_MSG_PASSWORD_BLANK);
     }
   }
+
+  @Transactional
+  public MemberResponse toggleRandomReceive(Long memberId) {
+    Member member = findMemberById(memberId);
+    member.updateRandomReceiveAllowed(!member.isRandomReceiveAllowed());
+    return MemberResponse.from(member);
+  }
 }

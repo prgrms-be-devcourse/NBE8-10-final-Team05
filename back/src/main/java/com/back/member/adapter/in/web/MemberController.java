@@ -27,12 +27,13 @@ public class MemberController {
   private static final String CODE_MEMBER_CREATED = "201-1";
   private static final String CODE_MEMBER_FETCHED = "200-1";
   private static final String CODE_PROFILE_UPDATED = "200-2";
+  private static final String CODE_RANDOM_SETTING_UPDATED = "200-3";
   private static final String MSG_MEMBER_CREATED = "Member created.";
   private static final String MSG_MEMBER_FETCHED = "Member fetched.";
   private static final String MSG_PROFILE_UPDATED = "Member profile updated.";
   private static final String CODE_UNAUTHORIZED = "401-1";
   private static final String MSG_UNAUTHORIZED = "Authentication is required.";
-
+  private static final String MSG_RANDOM_SETTING_UPDATED = "Random letter receipt setting updated.";
   private final MemberService memberService;
 
   /** 회원 가입 API. */
@@ -72,6 +73,16 @@ public class MemberController {
       @PathVariable Long memberId, @RequestBody UpdateMemberProfileRequest request) {
     return profileUpdated(memberService.updateProfile(memberId, request));
   }
+
+
+  /** 랜덤 편지 수신 설정 토글 API. */
+  @PatchMapping("/me/random-setting")
+  public RsData<MemberResponse> toggleMyRandomSetting(Authentication authentication) {
+    Long memberId = resolveAuthenticatedMemberId(authentication);
+    MemberResponse response = memberService.toggleRandomReceive(memberId);
+    return new RsData<>(CODE_RANDOM_SETTING_UPDATED, MSG_RANDOM_SETTING_UPDATED, response);
+  }
+
 
   private Long resolveAuthenticatedMemberId(Authentication authentication) {
     if (authentication == null

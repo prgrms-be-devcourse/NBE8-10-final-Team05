@@ -52,9 +52,10 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Member sender = memberRepository.findById(senderId)
                 .orElseThrow(() -> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
 
-        // 3. 랜덤 수신자 매칭 (LetterPort 사용)
+        // 3. 랜덤 수신자 매칭 (수신 수락한 유저가 없을 경우 예외 처리)
         Member receiver = letterPort.findRandomMemberExceptMe(sender.getId())
-                .orElseThrow(() -> new ServiceException("404-2", "배송 가능한 유저가 없습니다."));
+                .orElseThrow(() -> new ServiceException("404-2",
+                        "편지를 받을 수 있는 유저가 없습니다."));
 
         // 4. 편지 생성 및 저장
         Letter letter = Letter.builder()
