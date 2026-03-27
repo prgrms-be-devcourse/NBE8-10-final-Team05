@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 // 1. 백엔드 LetterStatus와 일치하는 타입 정의
 interface SentLetter {
@@ -29,6 +30,7 @@ type SentLettersResponse = SentLetter[] | { letters?: SentLetter[] };
 
 export default function SentLettersPage() {
   const router = useRouter();
+  const { isAuthenticated, sessionRevision } = useAuthStore();
   const [letters, setLetters] = useState<SentLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,6 +45,14 @@ export default function SentLettersPage() {
 
   useEffect(() => {
     const fetchSentLetters = async () => {
+      if (!isAuthenticated) {
+        setLetters([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setLetters([]);
+      setIsLoading(true);
       try {
         const response = await requestData<SentLettersResponse>(
           "/api/v1/letters/sent",
@@ -61,8 +71,8 @@ export default function SentLettersPage() {
         setIsLoading(false);
       }
     };
-    fetchSentLetters();
-  }, []);
+    void fetchSentLetters();
+  }, [isAuthenticated, sessionRevision]);
 
   // 3. 상태에 따른 디자인 매핑 (상태값: SENT, ACCEPTED, WRITING, REPLIED)
   const getStatusDisplay = (status: string) => {

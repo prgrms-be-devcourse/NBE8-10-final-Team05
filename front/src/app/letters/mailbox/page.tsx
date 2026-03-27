@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Droplets,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 type MailboxTab = "received" | "sent";
 
@@ -33,11 +33,18 @@ interface MailboxStats {
 }
 
 export default function MailboxPage() {
+  const { isAuthenticated, sessionRevision } = useAuthStore();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!isAuthenticated) {
+        setStats(null);
+        return;
+      }
+
+      setStats(null);
       try {
         const res = await requestData<MailboxStats>("/api/v1/letters/stats");
         setStats(res);
@@ -45,8 +52,8 @@ export default function MailboxPage() {
         console.error("통계 데이터 로드 실패:", error);
       }
     };
-    fetchStats();
-  }, []);
+    void fetchStats();
+  }, [isAuthenticated, sessionRevision]);
 
   const getRelativeTime = (dateString?: string) => {
     if (!dateString) return "기록이 없습니다";

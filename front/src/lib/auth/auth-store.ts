@@ -2,6 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 import { clearAccessToken, setAccessToken } from "@/lib/auth/token-store";
+import {
+  clearAuthHintCookie,
+  persistAuthHintCookie,
+} from "@/lib/auth/auth-hint-cookie";
 import type { AuthMember, AuthState, AuthTokenPayload } from "@/lib/auth/types";
 
 type AuthStoreListener = () => void;
@@ -15,6 +19,7 @@ const initialState: AuthState = {
   isLoggingIn: false,
   hasRestored: false,
   errorMessage: null,
+  sessionRevision: 0,
 };
 
 let authState: AuthState = initialState;
@@ -23,6 +28,18 @@ let authState: AuthState = initialState;
 function setState(partial: Partial<AuthState>): void {
   authState = { ...authState, ...partial };
   listeners.forEach((listener) => listener());
+}
+
+function shouldAdvanceRevisionForMember(nextMemberId: number): boolean {
+  if (!authState.isAuthenticated) {
+    return true;
+  }
+
+  return authState.member?.id !== nextMemberId;
+}
+
+function shouldAdvanceRevisionForSessionClear(): boolean {
+  return authState.isAuthenticated || authState.member !== null;
 }
 
 /** 현재 인증 상태 스냅샷을 반환한다. */
@@ -43,29 +60,44 @@ export function useAuthStore(): AuthState {
 
 /** 로그인/토큰갱신 결과를 스토어에 반영한다. */
 export function applyAuthTokenPayload(payload: AuthTokenPayload): void {
+  const nextRevision = shouldAdvanceRevisionForMember(payload.member.id)
+    ? authState.sessionRevision + 1
+    : authState.sessionRevision;
   setAccessToken(payload.accessToken);
+  persistAuthHintCookie(payload.member.role);
   setState({
     member: payload.member,
     isAuthenticated: true,
     errorMessage: null,
+    sessionRevision: nextRevision,
   });
 }
 
 /** 회원 정보만 갱신할 때 사용한다. */
 export function applyAuthenticatedMember(member: AuthMember): void {
+  const nextRevision = shouldAdvanceRevisionForMember(member.id)
+    ? authState.sessionRevision + 1
+    : authState.sessionRevision;
+  persistAuthHintCookie(member.role);
   setState({
     member,
     isAuthenticated: true,
     errorMessage: null,
+    sessionRevision: nextRevision,
   });
 }
 
 /** 인증 세션을 완전히 비운다. */
 export function clearAuthSession(): void {
+  const nextRevision = shouldAdvanceRevisionForSessionClear()
+    ? authState.sessionRevision + 1
+    : authState.sessionRevision;
   clearAccessToken();
+  clearAuthHintCookie();
   setState({
     member: null,
     isAuthenticated: false,
+    sessionRevision: nextRevision,
   });
 }
 

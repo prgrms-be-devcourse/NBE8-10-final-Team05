@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.back.auth.application.AuthService;
 import com.back.global.security.jwt.JwtTokenService;
+import com.back.global.security.jwt.JwtProperties;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberRole;
@@ -18,6 +20,7 @@ import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
 import com.google.genai.Client;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +47,8 @@ class SecurityIntegrationTest {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private MemberRepository memberRepository;
   @Autowired private JwtTokenService jwtTokenService;
+  @Autowired private JwtProperties jwtProperties;
+  @Autowired private AuthService authService;
   @Autowired private PasswordEncoder passwordEncoder;
   @Autowired private PostRepository postRepository;
   @MockitoBean private Client geminiClient;
@@ -153,6 +158,42 @@ class SecurityIntegrationTest {
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.resultCode").value("401-1"))
         .andExpect(jsonPath("$.msg").value("Authentication is required."));
+  }
+
+  @Test
+  @DisplayName("차단된 회원의 refresh 쿠키는 실제 컨텍스트에서도 403-2를 반환한다")
+  void blockedMemberRefreshCookieReturns403() throws Exception {
+    Member member = createMember(MemberRole.USER, MemberStatus.ACTIVE);
+    String rawRefreshToken = authService.issueTokenPairForMember(member).refreshToken();
+
+    ReflectionTestUtils.setField(member, "status", MemberStatus.BLOCKED);
+    memberRepository.saveAndFlush(member);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/refresh")
+                .cookie(new Cookie(jwtProperties.refreshTokenCookieName(), rawRefreshToken)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.resultCode").value("403-2"))
+        .andExpect(jsonPath("$.msg").value("Member is blocked."));
+  }
+
+  @Test
+  @DisplayName("탈퇴한 회원의 refresh 쿠키는 실제 컨텍스트에서도 403-3을 반환한다")
+  void withdrawnMemberRefreshCookieReturns403() throws Exception {
+    Member member = createMember(MemberRole.USER, MemberStatus.ACTIVE);
+    String rawRefreshToken = authService.issueTokenPairForMember(member).refreshToken();
+
+    ReflectionTestUtils.setField(member, "status", MemberStatus.WITHDRAWN);
+    memberRepository.saveAndFlush(member);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/refresh")
+                .cookie(new Cookie(jwtProperties.refreshTokenCookieName(), rawRefreshToken)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.resultCode").value("403-3"))
+        .andExpect(jsonPath("$.msg").value("Member is withdrawn."));
   }
 
   @Test

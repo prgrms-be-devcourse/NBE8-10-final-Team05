@@ -16,4 +16,20 @@ class MemberTest {
     assertThat(member.getRole()).isEqualTo(MemberRole.USER);
     assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
   }
+
+  @Test
+  @DisplayName("관리자 초기화 보정 시 role과 passwordHash를 변경할 수 있다")
+  void adminBootstrapCanAdjustRoleAndPasswordHash() {
+    Member member = Member.create("admin@admin.com", "$2a$10$oldHash", "old");
+
+    member.updateNickname("관리자");
+    member.updateRole(MemberRole.ADMIN);
+    member.updateStatus(MemberStatus.ACTIVE);
+    member.updatePasswordHash("$2a$10$newHash");
+
+    assertThat(member.getNickname()).isEqualTo("관리자");
+    assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
+    assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+    assertThat(member.getPasswordHash()).isEqualTo("$2a$10$newHash");
+  }
 }
