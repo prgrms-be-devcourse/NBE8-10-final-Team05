@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthBootstrap from "@/components/auth/AuthBootstrap";
 import AuthHintProvider from "@/components/auth/AuthHintProvider";
 import SiteFooter from "@/components/layout/SiteFooter";
 import {
   AUTH_HINT_COOKIE_NAME,
+  type AuthHintState,
   parseAuthHintCookieValue,
 } from "@/lib/auth/auth-hint-cookie";
 import "./globals.css";
@@ -36,9 +37,25 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
-  const authHint = parseAuthHintCookieValue(
+  const requestHeaders = await headers();
+  const serverValidatedHint = requestHeaders.get("x-maum-on-server-auth");
+  const cookieAuthHint = parseAuthHintCookieValue(
     cookieStore.get(AUTH_HINT_COOKIE_NAME)?.value,
   );
+  const authHint: AuthHintState =
+    serverValidatedHint === "admin"
+      ? {
+          isAuthenticated: true,
+          isAdmin: true,
+          isServerValidated: true,
+        }
+      : serverValidatedHint === "member"
+        ? {
+            isAuthenticated: true,
+            isAdmin: false,
+            isServerValidated: true,
+          }
+        : cookieAuthHint;
 
   return (
     <html lang="ko">

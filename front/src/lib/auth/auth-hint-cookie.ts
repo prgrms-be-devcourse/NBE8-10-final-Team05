@@ -3,6 +3,7 @@ export const AUTH_HINT_COOKIE_NAME = "maumOnAuthHint";
 export interface AuthHintState {
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isServerValidated: boolean;
 }
 
 export function parseAuthHintCookieValue(value: string | undefined): AuthHintState {
@@ -10,6 +11,7 @@ export function parseAuthHintCookieValue(value: string | undefined): AuthHintSta
     return {
       isAuthenticated: true,
       isAdmin: true,
+      isServerValidated: false,
     };
   }
 
@@ -17,12 +19,14 @@ export function parseAuthHintCookieValue(value: string | undefined): AuthHintSta
     return {
       isAuthenticated: true,
       isAdmin: false,
+      isServerValidated: false,
     };
   }
 
   return {
     isAuthenticated: false,
     isAdmin: false,
+    isServerValidated: false,
   };
 }
 
