@@ -1,5 +1,5 @@
 package com.back.report.entity;
 
 public enum TargetType {
-    POST, LETTER
+    POST, LETTER, COMMENT
 }
