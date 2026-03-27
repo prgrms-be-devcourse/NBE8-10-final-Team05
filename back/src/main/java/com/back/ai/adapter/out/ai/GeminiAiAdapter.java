@@ -1,27 +1,25 @@
-package com.back.ai.service;
+package com.back.ai.adapter.out.ai;
 
-import com.back.ai.dto.AuditAiRequest;
-import com.back.ai.dto.AuditAiResponse;
+import com.back.ai.adapter.in.web.dto.AuditAiRequest;
+import com.back.ai.adapter.in.web.dto.AuditAiResponse;
+import com.back.ai.application.port.out.AiAuditPort;
 import com.back.global.exception.ServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+/** Gemini API를 사용하여 AI 검사를 수행하는 어댑터. */
+@Component
 @RequiredArgsConstructor
-public class AiService {
+public class GeminiAiAdapter implements AiAuditPort {
 
     private final Client geminiClient;
     private final ObjectMapper objectMapper;
 
-    public AuditAiResponse auditContent(AuditAiRequest dto) {
-
-        if (dto.content() == null || dto.content().isBlank()) {
-            throw new ServiceException("400-1", "Content must not be blank.");
-        }
-
+    @Override
+    public AuditAiResponse audit(AuditAiRequest dto) {
         // 프롬프트
         //PROFANITY(욕설), PERSONAL_INFO(개인정보), INSINCERE(무성의), NONE
         String systemInstruction = """
