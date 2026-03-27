@@ -7,22 +7,34 @@ import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
 import { requestData } from "@/lib/api/http-client";
 
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      code?: string;
+      msg?: string;
+    };
+  };
+}
+
 function resolveErrorMessage(error: unknown): string {
+  const apiError = error as ApiErrorResponse;
+  const errorData = apiError.response?.data;
+
+  if (errorData) {
+    if (errorData.code === "404-2") {
+      return "지금은 모든 바닷길이 잠시 닫혀 있네요. (수신 가능한 유저가 없습니다) 잠시 후 다시 편지를 띄워보세요.";
+    }
+    if (errorData.msg) {
+      return errorData.msg;
+    }
+  }
+
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
 
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-
-    if (typeof message === "string" && message.trim().length > 0) {
-      return message;
-    }
-  }
-
-  return "편지를 보내지 못했습니다.";
+  return "편지를 바다로 보내지 못했습니다. 네트워크 연결을 확인해주세요.";
 }
-
 export default function WriteLetterPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -44,7 +56,8 @@ export default function WriteLetterPage() {
 
   const letterLength = title.trim().length + content.trim().length;
   const hasDraft = title.trim().length > 0 || content.trim().length > 0;
-  const canSend = title.trim().length > 0 && content.trim().length > 0 && !isSending;
+  const canSend =
+    title.trim().length > 0 && content.trim().length > 0 && !isSending;
 
   function handleGoBack() {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -65,6 +78,7 @@ export default function WriteLetterPage() {
     setIsSending(true);
 
     try {
+      // requestData 내부에서 에러 발생 시 throw 되도록 구현되어 있어야 합니다.
       await requestData("/api/v1/letters", {
         method: "POST",
         headers: {
@@ -73,12 +87,17 @@ export default function WriteLetterPage() {
         body: JSON.stringify({ title, content }),
       });
 
+      // 성공 시 애니메이션을 보여주기 위해 약간의 지연 후 이동
       setTimeout(() => {
         router.push("/letters/mailbox");
       }, 3800);
     } catch (error: unknown) {
+      // 에러 발생 시 전송 중 상태를 해제하고 사용자에게 에러 노출
       setIsSending(false);
       setSubmitError(resolveErrorMessage(error));
+
+      // 사용자 경험을 위해 에러 발생 시 화면 상단으로 스크롤 (선택 사항)
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
 
@@ -107,7 +126,9 @@ export default function WriteLetterPage() {
           </h1>
           <p className="mt-4 text-[15px] leading-7 text-[#7a8da9] sm:text-[17px]">
             <span className="block">무거운 마음을 양피지에 적어보세요.</span>
-            <span className="block">준비가 되면, 파도가 당신의 고민을 영원히 가져가게 두세요.</span>
+            <span className="block">
+              준비가 되면, 파도가 당신의 고민을 영원히 가져가게 두세요.
+            </span>
           </p>
         </section>
 
@@ -139,7 +160,9 @@ export default function WriteLetterPage() {
                   placeholder="바다에게 보내는 편지..."
                   className="w-full bg-transparent text-[15px] italic text-[#7d92b2] outline-none placeholder:text-[#aebcd2]"
                 />
-                <span className="shrink-0 text-[13px] font-medium text-[#bcc8da]">{currentDateText}</span>
+                <span className="shrink-0 text-[13px] font-medium text-[#bcc8da]">
+                  {currentDateText}
+                </span>
               </div>
 
               <label htmlFor="letter-content" className="sr-only">
@@ -162,7 +185,9 @@ export default function WriteLetterPage() {
                   <RefreshCcw size={15} />
                   다시 쓰기
                 </button>
-                <div className="text-sm font-medium text-[#b2bfd2]">{letterLength}자</div>
+                <div className="text-sm font-medium text-[#b2bfd2]">
+                  {letterLength}자
+                </div>
               </div>
             </div>
           </div>

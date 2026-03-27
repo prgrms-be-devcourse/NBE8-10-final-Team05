@@ -19,8 +19,10 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     Page<Letter> findBySenderId(@Param("memberId") Long memberId, Pageable pageable);
 
     @Query(value = "SELECT * FROM members " +
-            "WHERE id != :myId AND status = 'ACTIVE' " +
-            "ORDER BY RANDOM() LIMIT 1",
+            "WHERE id != :myId " +
+            "AND status = 'ACTIVE' " +
+            "AND random_receive_allowed = true " +
+            "ORDER BY RANDOM() LIMIT 1", // RAND()를 RANDOM()으로 변경
             nativeQuery = true)
     Optional<Member> findRandomMemberExceptMe(@Param("myId") long myId);
 

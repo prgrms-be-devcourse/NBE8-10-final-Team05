@@ -9,6 +9,7 @@ import {
   Mail,
   Send,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
@@ -23,13 +24,17 @@ interface LetterSummary {
   replied: boolean;
 }
 
-// 백엔드 LettersStatsRes.java 구조와 동일하게 필드명 수정
 interface MailboxStats {
-  receivedCount: number; // totalReceivedCount -> receivedCount
+  receivedCount: number;
   latestReceivedLetter?: LetterSummary;
   latestSentLetter?: LetterSummary;
-  // 만약 보낸 편지 개수가 필요하다면 백엔드 DTO에도 추가되어야 합니다.
-  // 현재 백엔드 DTO에는 receivedCount만 있으므로 일단 이를 활용합니다.
+}
+
+interface MemberResponse {
+  id: number;
+  email: string;
+  nickname: string;
+  randomReceiveAllowed: boolean;
 }
 
 export default function MailboxPage() {
@@ -37,23 +42,64 @@ export default function MailboxPage() {
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
+  const [isRandomAllowed, setIsRandomAllowed] = useState<boolean>(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   useEffect(() => {
-    const fetchStats = async () => {
+    const initData = async () => {
+      // 1. 인증되지 않은 경우 상태 초기화 후 중단
       if (!isAuthenticated) {
         setStats(null);
         return;
       }
 
-      setStats(null);
       try {
-        const res = await requestData<MailboxStats>("/api/v1/letters/stats");
-        setStats(res);
+        // 2. 통계와 유저 설정 정보를 병렬로 호출
+        const [statsRes, memberRes] = await Promise.all([
+          requestData<MailboxStats>("/api/v1/letters/stats"),
+          requestData<MemberResponse>("/api/v1/members/me"),
+        ]);
+
+        // 3. 상태 업데이트
+        setStats(statsRes);
+        setIsRandomAllowed(memberRes.randomReceiveAllowed);
       } catch (error) {
-        console.error("통계 데이터 로드 실패:", error);
+        console.error("데이터 로드 실패:", error);
       }
     };
-    void fetchStats();
+
+    void initData();
+    // 인증 상태나 세션이 변경될 때마다 다시 실행
   }, [isAuthenticated, sessionRevision]);
+
+  const handleToggleRandom = async () => {
+    if (isUpdating) return;
+
+    setIsUpdating(true);
+    try {
+      // [수정 포인트] requestData<any> 를 requestData<MemberResponse> 로 변경
+      const res = await requestData<MemberResponse>(
+        "/api/v1/members/me/random-setting",
+        {
+          method: "PATCH",
+        },
+      );
+
+      // 이제 res.randomReceiveAllowed가 MemberResponse 타입을 가지므로 안전하게 접근 가능합니다.
+      setIsRandomAllowed(res.randomReceiveAllowed);
+
+      alert(
+        res.randomReceiveAllowed
+          ? "이제 랜덤 편지를 받을 수 있습니다."
+          : "랜덤 편지 수신을 거부했습니다.",
+      );
+    } catch (error) {
+      console.error("설정 변경 실패:", error);
+      alert("설정 변경 중 오류가 발생했습니다.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const getRelativeTime = (dateString?: string) => {
     if (!dateString) return "기록이 없습니다";
@@ -95,6 +141,46 @@ export default function MailboxPage() {
       </div>
 
       <main className="mx-auto flex w-full max-w-5xl flex-col items-center px-6 py-12">
+        <section className="mb-8 w-full max-w-md">
+          <div className="flex items-center justify-between rounded-3xl border border-white/60 bg-white/40 p-5 shadow-sm backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isRandomAllowed ? "bg-sky-100 text-sky-500" : "bg-slate-200 text-slate-400"}`}
+              >
+                <Settings
+                  size={20}
+                  className={isUpdating ? "animate-spin" : ""}
+                />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-extrabold text-slate-700">
+                  랜덤 편지 수신
+                </p>
+                <p
+                  className={`text-xs font-medium ${isRandomAllowed ? "text-sky-500" : "text-slate-400"}`}
+                >
+                  {isRandomAllowed
+                    ? "새로운 인연을 기다리는 중"
+                    : "현재 수신을 거부함"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleToggleRandom}
+              disabled={isUpdating}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all ${
+                isRandomAllowed ? "bg-sky-400" : "bg-slate-300"
+              } ${isUpdating ? "opacity-50" : "hover:scale-105"}`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm ${
+                  isRandomAllowed ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+        </section>
         <div className="mb-10 flex items-center justify-center gap-10 border-b border-[#dbe7f7]">
           <button
             onClick={() => setActiveTab("received")}

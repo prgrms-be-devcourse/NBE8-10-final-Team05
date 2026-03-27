@@ -46,19 +46,25 @@ public class Member extends BaseEntity {
   @Column(nullable = false, length = 20)
   private MemberStatus status;
 
+  /** 랜덤 편지 발송 수락 / 거절 **/
+  @Column(nullable = false)
+  private boolean randomReceiveAllowed = true;
+
   private Member(
-      String email, String passwordHash, String nickname, MemberRole role, MemberStatus status) {
+      String email, String passwordHash, String nickname, MemberRole role, MemberStatus status, boolean randomReceiveAllowed)
+  {
     this.email = email;
     this.passwordHash = passwordHash;
     this.nickname = nickname;
     this.role = role;
     this.status = status;
+    this.randomReceiveAllowed = randomReceiveAllowed;
   }
 
   /** 일반 회원 생성 팩토리. 기본 role/status는 USER/ACTIVE를 사용한다. */
   public static Member create(String email, String passwordHash, String nickname) {
     return new Member(
-        email, passwordHash, sanitizeNickname(nickname), MemberRole.USER, MemberStatus.ACTIVE);
+            email, passwordHash, sanitizeNickname(nickname), MemberRole.USER, MemberStatus.ACTIVE, true);
   }
 
   /** 프로필 닉네임을 갱신한다(빈 값은 기본 닉네임으로 보정). */
@@ -102,5 +108,10 @@ public class Member extends BaseEntity {
       return DEFAULT_NICKNAME;
     }
     return nickname.trim();
+  }
+
+
+  public void updateRandomReceiveAllowed(boolean allowed) {
+    this.randomReceiveAllowed = allowed;
   }
 }
