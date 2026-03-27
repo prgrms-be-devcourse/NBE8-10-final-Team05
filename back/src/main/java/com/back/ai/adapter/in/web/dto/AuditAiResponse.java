@@ -1,4 +1,4 @@
-package com.back.ai.dto;
+package com.back.ai.adapter.in.web.dto;
 
 public record AuditAiResponse(
         boolean isPassed,
