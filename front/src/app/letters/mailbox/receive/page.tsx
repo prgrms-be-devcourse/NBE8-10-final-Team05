@@ -51,18 +51,16 @@ export default function ReceivedLettersPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // 날짜 안전 파싱 함수
-  const formatDate = (dateInput: any) => {
+  const formatDate = (dateInput: string | number[] | null | undefined) => {
     if (!dateInput) return "날짜 없음";
+
     if (Array.isArray(dateInput)) {
-      const d = new Date(
-        dateInput[0],
-        dateInput[1] - 1,
-        dateInput[2],
-        dateInput[3] || 0,
-        dateInput[4] || 0,
-      );
+      // [year, month, day, hour, minute] 형태 대응
+      const [year, month, day, hour = 0, minute = 0] = dateInput;
+      const d = new Date(year, month - 1, day, hour, minute);
       return d.toLocaleDateString();
     }
+
     const date = new Date(dateInput);
     return isNaN(date.getTime()) ? "날짜 형식 오류" : date.toLocaleDateString();
   };
