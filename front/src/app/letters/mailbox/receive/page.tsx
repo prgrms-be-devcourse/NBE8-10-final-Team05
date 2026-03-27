@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 // --- 인터페이스 정의 ---
 interface LetterSummary {
@@ -44,6 +45,7 @@ type ReceivedLettersResponse = ReceivedLetter[] | { letters: ReceivedLetter[] };
 
 export default function ReceivedLettersPage() {
   const router = useRouter();
+  const { isAuthenticated, sessionRevision } = useAuthStore();
 
   // 상태 관리
   const [letters, setLetters] = useState<ReceivedLetter[]>([]);
@@ -61,6 +63,15 @@ export default function ReceivedLettersPage() {
 
   useEffect(() => {
     const initData = async () => {
+      if (!isAuthenticated) {
+        setLetters([]);
+        setStats(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setLetters([]);
+      setStats(null);
       setIsLoading(true);
       try {
         // [Refactor + Develop 통합] 다양한 응답 형태 대응
@@ -83,8 +94,8 @@ export default function ReceivedLettersPage() {
       }
     };
 
-    initData();
-  }, []);
+    void initData();
+  }, [isAuthenticated, sessionRevision]);
 
   // 2. 시간 계산 헬퍼 함수
   const getRelativeTime = (dateString?: string) => {

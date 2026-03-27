@@ -69,6 +69,7 @@ function LoginPageContent() {
     try {
       await login({ email: normalizedEmail, password });
       router.replace(nextPath);
+      router.refresh();
     } catch (error) {
       setSubmitError(toErrorMessage(error));
     }

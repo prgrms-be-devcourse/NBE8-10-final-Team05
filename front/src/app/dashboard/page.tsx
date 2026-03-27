@@ -26,6 +26,7 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
 import { ApiError, toErrorMessage } from "@/lib/api/rs-data";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 // --- 상수 및 설정 ---
 const API_BASE_URL =
@@ -163,6 +164,7 @@ function isDiaryCategory(categoryName: string): categoryName is DiaryCategory {
 }
 
 export default function DashboardPage() {
+  const { isAuthenticated, sessionRevision } = useAuthStore();
   // 상태 관리
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -292,9 +294,6 @@ export default function DashboardPage() {
       setUploadedImageUrl(null);
     }
   }, [uploadedImageUrl, requestVoid]);
-  useEffect(() => {
-    loadMonthDiaries(calendarMonth);
-  }, [calendarMonth, loadMonthDiaries]);
 
   const resetForm = useCallback(() => {
     setEditingDiaryId(null);
@@ -307,6 +306,31 @@ export default function DashboardPage() {
     setErrorMessage(null);
     setNoticeMessage(null);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      monthDiaryCacheRef.current.clear();
+      setMonthDiaries([]);
+      setTotalElements(0);
+      setIsDiaryDetailOpen(false);
+      resetForm();
+      setIsLoading(false);
+      return;
+    }
+
+    monthDiaryCacheRef.current.clear();
+    setMonthDiaries([]);
+    setTotalElements(0);
+    setIsDiaryDetailOpen(false);
+    resetForm();
+    void loadMonthDiaries(calendarMonth, { force: true });
+  }, [
+    calendarMonth,
+    isAuthenticated,
+    loadMonthDiaries,
+    resetForm,
+    sessionRevision,
+  ]);
 
   const applyDiaryToForm = useCallback((diary: DiaryItem) => {
     setEditingDiaryId(diary.id);

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 type MailboxTab = "received" | "sent";
 
@@ -30,12 +31,19 @@ interface MailboxStats {
 }
 
 export default function MailboxPage() {
+  const { isAuthenticated, sessionRevision } = useAuthStore();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
 
   // 1. 통계 데이터 로드
   useEffect(() => {
     const fetchStats = async () => {
+      if (!isAuthenticated) {
+        setStats(null);
+        return;
+      }
+
+      setStats(null);
       try {
         const res = await requestData<MailboxStats>("/api/v1/letters/stats");
         setStats(res);
@@ -43,8 +51,8 @@ export default function MailboxPage() {
         console.error("통계 데이터 로드 실패:", error);
       }
     };
-    fetchStats();
-  }, []);
+    void fetchStats();
+  }, [isAuthenticated, sessionRevision]);
 
   // 2. 시간 계산 함수
   const getRelativeTime = (dateString?: string) => {

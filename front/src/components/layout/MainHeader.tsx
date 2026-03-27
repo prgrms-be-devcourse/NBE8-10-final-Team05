@@ -52,6 +52,7 @@ export default function MainHeader() {
     await logout();
     setMobileMenuOpen(false);
     router.replace("/login");
+    router.refresh();
   }
 
   return (
