@@ -1,4 +1,4 @@
-package com.back.notification.entity;
+package com.back.notification.domain;
 
 import com.back.global.jpa.entity.BaseEntity;
 import com.back.member.domain.Member;
