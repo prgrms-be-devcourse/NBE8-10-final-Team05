@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useAuthHint } from "@/components/auth/AuthHintProvider";
 import BrandWordmark from "@/components/branding/BrandWordmark";
 import { logout } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -36,10 +37,14 @@ export default function MainHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAuthenticated, isRestoring, hasRestored, member } = useAuthStore();
-  const diaryHref = isAuthenticated ? "/dashboard" : "/login";
-  const isAdmin = member?.role === "ADMIN";
-  const isAuthPending = isRestoring || !hasRestored;
+  const { isAuthenticated, hasRestored, member } = useAuthStore();
+  const authHint = useAuthHint();
+  const isHintedAuthenticated =
+    authHint.isAuthenticated && !isAuthenticated && !hasRestored;
+  const resolvedIsAuthenticated = isAuthenticated || isHintedAuthenticated;
+  const isAdmin =
+    member?.role === "ADMIN" || (isHintedAuthenticated && authHint.isAdmin);
+  const diaryHref = resolvedIsAuthenticated ? "/dashboard" : "/login";
 
   const navigationItems: MainNavItem[] = [
     { key: "home", label: "홈", href: "/" },
@@ -90,9 +95,7 @@ export default function MainHeader() {
         </nav>
 
         <div className="hidden shrink-0 items-center gap-3 lg:flex">
-          {isAuthPending ? (
-            <div className="h-5 w-[108px]" aria-hidden="true" />
-          ) : isAuthenticated ? (
+          {resolvedIsAuthenticated ? (
             <div className="flex items-center gap-2 text-sm font-medium text-[#506582]">
               {isAdmin ? (
                 <>
@@ -157,9 +160,7 @@ export default function MainHeader() {
                 </Link>
               );
             })}
-            {isAuthPending ? (
-              <div className="px-3 py-2" aria-hidden="true" />
-            ) : isAuthenticated ? (
+            {resolvedIsAuthenticated ? (
               <div className="flex flex-col gap-2 px-3 py-2 text-sm font-medium text-[#506582]">
                 {isAdmin ? (
                   <Link

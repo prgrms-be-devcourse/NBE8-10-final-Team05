@@ -25,7 +25,9 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -115,6 +117,33 @@ class JwtAuthenticationFilterTest {
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     then(memberRepository).should(never()).findById(org.mockito.ArgumentMatchers.anyLong());
+  }
+
+  @Test
+  @DisplayName("이미 인증이 설정되어 있으면 기존 SecurityContext를 유지하고 토큰을 다시 읽지 않는다")
+  void existingAuthenticationIsPreserved() throws Exception {
+    Authentication existingAuthentication =
+        new UsernamePasswordAuthenticationToken(
+            new AuthenticatedMember(99L, "existing@test.com", List.of("ROLE_USER")),
+            "existing-token",
+            List.of(new SimpleGrantedAuthority("ROLE_USER")));
+    SecurityContextHolder.getContext().setAuthentication(existingAuthentication);
+
+    doFilter("Bearer ignored-token");
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(existingAuthentication);
+    then(jwtTokenService).should(never()).validate("ignored-token");
+    then(memberRepository).should(never()).findById(org.mockito.ArgumentMatchers.anyLong());
+  }
+
+  @Test
+  @DisplayName("Bearer 형식이 아닌 Authorization 헤더는 인증 시도를 하지 않는다")
+  void malformedAuthorizationHeaderDoesNotAuthenticate() throws Exception {
+    doFilter("Basic abcdefg");
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    then(jwtTokenService).shouldHaveNoInteractions();
+    then(memberRepository).shouldHaveNoInteractions();
   }
 
   private void doFilter(String authorizationHeader) throws Exception {

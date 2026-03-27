@@ -47,7 +47,6 @@ export default function AdminShell({ children }: AdminShellProps) {
             </Link>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-[#4f8cf0]">관리자 센터</p>
-              <p className="text-xs text-[#8aa0bf]">운영 화면</p>
             </div>
           </div>
 

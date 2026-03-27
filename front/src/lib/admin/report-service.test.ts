@@ -79,7 +79,7 @@ describe("report-service", () => {
     );
   });
 
-  it("403 오류는 관리자 권한 안내 문구로 변환된다", async () => {
+  it("403 오류는 권한 부족 안내 문구로 변환된다", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       createJsonResponse(
         {
@@ -96,7 +96,7 @@ describe("report-service", () => {
     const { toErrorMessage } = await import("@/lib/api/rs-data");
 
     await expect(getAdminReports()).rejects.toSatisfy((error: unknown) => {
-      return toErrorMessage(error) === "관리자 권한이 필요한 화면입니다.";
+      return toErrorMessage(error) === "이 요청을 수행할 권한이 없어요.";
     });
   });
 

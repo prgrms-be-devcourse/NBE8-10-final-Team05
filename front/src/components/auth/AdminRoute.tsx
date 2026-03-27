@@ -29,7 +29,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     }
 
     if (!isAdmin) {
-      router.replace("/");
+      router.replace("/forbidden");
     }
   }, [hasRestored, isAdmin, isAuthenticated, isRestoring, pathname, router]);
 
@@ -52,7 +52,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   if (!isAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        관리자 권한이 필요해 홈으로 이동합니다...
+        권한이 없어 접근할 수 없는 화면입니다...
       </div>
     );
   }

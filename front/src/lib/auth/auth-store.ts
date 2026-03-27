@@ -2,6 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 import { clearAccessToken, setAccessToken } from "@/lib/auth/token-store";
+import {
+  clearAuthHintCookie,
+  persistAuthHintCookie,
+} from "@/lib/auth/auth-hint-cookie";
 import type { AuthMember, AuthState, AuthTokenPayload } from "@/lib/auth/types";
 
 type AuthStoreListener = () => void;
@@ -60,6 +64,7 @@ export function applyAuthTokenPayload(payload: AuthTokenPayload): void {
     ? authState.sessionRevision + 1
     : authState.sessionRevision;
   setAccessToken(payload.accessToken);
+  persistAuthHintCookie(payload.member.role);
   setState({
     member: payload.member,
     isAuthenticated: true,
@@ -73,6 +78,7 @@ export function applyAuthenticatedMember(member: AuthMember): void {
   const nextRevision = shouldAdvanceRevisionForMember(member.id)
     ? authState.sessionRevision + 1
     : authState.sessionRevision;
+  persistAuthHintCookie(member.role);
   setState({
     member,
     isAuthenticated: true,
@@ -87,6 +93,7 @@ export function clearAuthSession(): void {
     ? authState.sessionRevision + 1
     : authState.sessionRevision;
   clearAccessToken();
+  clearAuthHintCookie();
   setState({
     member: null,
     isAuthenticated: false,

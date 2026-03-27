@@ -25,14 +25,13 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
-import { ApiError, toErrorMessage } from "@/lib/api/rs-data";
+import { toErrorMessage } from "@/lib/api/rs-data";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
 // --- 상수 및 설정 ---
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const CALENDAR_PAGE_SIZE = 30;
-const TODAY_LOOKUP_PAGE_SIZE = 10;
 const getFullImageUrl = (url: string | null) => {
   if (!url) return null;
   if (url.startsWith("http") || url.startsWith("blob:")) return url;
@@ -136,29 +135,6 @@ function buildCurrentMonthDays(month: Date) {
   });
 }
 
-function resolveImageSrc(imageUrl: string | null): string | null {
-  if (!imageUrl) return null;
-
-  if (imageUrl.startsWith("blob:") || imageUrl.startsWith("http")) {
-    return imageUrl;
-  }
-
-  const baseUrl = API_BASE_URL.endsWith("/")
-    ? API_BASE_URL.slice(0, -1)
-    : API_BASE_URL;
-
-  const hasGen = imageUrl.startsWith("/gen/") || imageUrl.startsWith("gen/");
-  const slash = imageUrl.startsWith("/") ? "" : "/";
-
-  const finalPath = hasGen
-    ? imageUrl.startsWith("/")
-      ? imageUrl
-      : `/${imageUrl}`
-    : `/gen${slash}${imageUrl}`;
-
-  return `${baseUrl}${finalPath}`;
-}
-
 function isDiaryCategory(categoryName: string): categoryName is DiaryCategory {
   return DIARY_CATEGORIES.includes(categoryName as DiaryCategory);
 }
@@ -166,7 +142,6 @@ function isDiaryCategory(categoryName: string): categoryName is DiaryCategory {
 export default function DashboardPage() {
   const { isAuthenticated, sessionRevision } = useAuthStore();
   // 상태 관리
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -226,22 +201,6 @@ export default function DashboardPage() {
     );
   }, [monthDiaries, selectedDateKey]);
 
-  // 로직 함수
-  const findTodayDiary = useCallback(async (): Promise<DiaryItem | null> => {
-    try {
-      const resp = await requestData<PageResponse<DiaryItem>>(
-        `/api/v1/diaries?page=0&size=${TODAY_LOOKUP_PAGE_SIZE}`,
-      );
-      const first = resp.content?.[0];
-      if (!first) return null;
-      return todayDateKey === toDateKeyFromDateTime(first.createDate)
-        ? first
-        : null;
-    } catch {
-      return null;
-    }
-  }, [todayDateKey]);
-
   const loadMonthDiaries = useCallback(
     async (targetMonth: Date, options: { force?: boolean } = {}) => {
       const monthKey = toMonthKey(targetMonth);
@@ -249,8 +208,6 @@ export default function DashboardPage() {
         setMonthDiaries(monthDiaryCacheRef.current.get(monthKey)!);
         return;
       }
-
-      setIsLoading(true);
       try {
         const resp = await requestData<PageResponse<DiaryItem>>(
           `/api/v1/diaries?page=0&size=${CALENDAR_PAGE_SIZE}`,
@@ -265,8 +222,6 @@ export default function DashboardPage() {
         monthDiaryCacheRef.current.set(monthKey, filtered);
       } catch (e) {
         setErrorMessage(toErrorMessage(e));
-      } finally {
-        setIsLoading(false);
       }
     },
     [],
@@ -293,7 +248,7 @@ export default function DashboardPage() {
       console.error("이미지 삭제 실패:", err);
       setUploadedImageUrl(null);
     }
-  }, [uploadedImageUrl, requestVoid]);
+  }, [uploadedImageUrl]);
 
   const resetForm = useCallback(() => {
     setEditingDiaryId(null);
@@ -314,7 +269,6 @@ export default function DashboardPage() {
       setTotalElements(0);
       setIsDiaryDetailOpen(false);
       resetForm();
-      setIsLoading(false);
       return;
     }
 
@@ -374,11 +328,6 @@ export default function DashboardPage() {
     } finally {
       setIsImageUploading(false);
     }
-  };
-
-  const removeUploadedImage = () => {
-    setUploadedImageUrl(null);
-    setFileInputKey((prev) => prev + 1);
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -576,15 +525,17 @@ export default function DashboardPage() {
 
                   {selectedDiary.imageUrl && (
                     <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-[20px] bg-gray-50 shadow-sm">
-                      <img
+                      <Image
                         key={selectedDiary.modifyDate}
                         src={`${getFullImageUrl(selectedDiary.imageUrl)!}?t=${new Date(selectedDiary.modifyDate).getTime()}`}
                         alt="일기 이미지"
-                        className="h-full w-full object-cover"
+                        fill
+                        unoptimized
+                        className="object-cover"
                         onError={(e) => {
                           console.error(
                             "이미지 로드 실패:",
-                            e.currentTarget.src,
+                            e.currentTarget.currentSrc,
                           );
                         }}
                       />
@@ -755,10 +706,12 @@ export default function DashboardPage() {
                   <div className="group relative flex h-36 w-full flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-[#eef3fa] transition hover:border-[#3b82f6]/30 bg-[#f8fbff]">
                     {uploadedImageUrl ? (
                       <div className="group relative h-full w-full">
-                        <img
+                        <Image
                           src={getFullImageUrl(uploadedImageUrl)!}
                           alt="미리보기"
-                          className="h-full w-full object-cover"
+                          fill
+                          unoptimized
+                          className="object-cover"
                         />
                         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition group-hover:opacity-100 backdrop-blur-[2px]">
                           <button
@@ -779,6 +732,7 @@ export default function DashboardPage() {
                           사진 추가하기
                         </span>
                         <input
+                          ref={fileInputRef}
                           key={fileInputKey}
                           type="file"
                           accept="image/*"

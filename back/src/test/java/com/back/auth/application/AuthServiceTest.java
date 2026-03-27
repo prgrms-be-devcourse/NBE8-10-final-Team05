@@ -241,6 +241,110 @@ class AuthServiceTest {
   }
 
   @Test
+  @DisplayName("refresh subject의 memberId가 저장된 토큰 소유자와 다르면 401-4를 반환한다")
+  void refreshFailsWhenSubjectMemberIdDoesNotMatchStoredMember() {
+    Member member = memberWithId(9L, "member9@test.com", "member9");
+    RefreshToken current =
+        RefreshToken.issue(
+            member,
+            "jti-mismatch",
+            refreshTokenHash("raw-refresh-token"),
+            fixedNow().plusHours(1),
+            "family-mismatch");
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
+        .willReturn(new JwtRefreshSubject(999L, "jti-mismatch", "family-mismatch"));
+    given(refreshTokenDomainService.findByJtiForUpdate("jti-mismatch"))
+        .willReturn(Optional.of(current));
+
+    assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception -> {
+              ServiceException serviceException = (ServiceException) exception;
+              assertThat(serviceException.getRsData().resultCode()).isEqualTo("401-4");
+              assertThat(serviceException.getRsData().msg()).isEqualTo("Refresh token is invalid.");
+            });
+
+    then(refreshTokenDomainService)
+        .should(never())
+        .rotate(
+            any(RefreshToken.class),
+            anyString(),
+            anyString(),
+            any(LocalDateTime.class),
+            any(LocalDateTime.class));
+  }
+
+  @Test
+  @DisplayName("차단된 회원의 refresh 토큰은 403-2를 반환하고 회전하지 않는다")
+  void refreshFailsWhenMemberBlocked() {
+    Member member = memberWithId(10L, "blocked-refresh@test.com", "blocked-refresh");
+    ReflectionTestUtils.setField(member, "status", MemberStatus.BLOCKED);
+    RefreshToken current =
+        RefreshToken.issue(
+            member,
+            "jti-blocked",
+            refreshTokenHash("raw-refresh-token"),
+            fixedNow().plusHours(1),
+            "family-blocked");
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
+        .willReturn(new JwtRefreshSubject(member.getId(), "jti-blocked", "family-blocked"));
+    given(refreshTokenDomainService.findByJtiForUpdate("jti-blocked"))
+        .willReturn(Optional.of(current));
+
+    assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("403-2"));
+
+    then(refreshTokenDomainService)
+        .should(never())
+        .rotate(
+            any(RefreshToken.class),
+            anyString(),
+            anyString(),
+            any(LocalDateTime.class),
+            any(LocalDateTime.class));
+  }
+
+  @Test
+  @DisplayName("탈퇴한 회원의 refresh 토큰은 403-3을 반환하고 회전하지 않는다")
+  void refreshFailsWhenMemberWithdrawn() {
+    Member member = memberWithId(11L, "withdrawn-refresh@test.com", "withdrawn-refresh");
+    ReflectionTestUtils.setField(member, "status", MemberStatus.WITHDRAWN);
+    RefreshToken current =
+        RefreshToken.issue(
+            member,
+            "jti-withdrawn",
+            refreshTokenHash("raw-refresh-token"),
+            fixedNow().plusHours(1),
+            "family-withdrawn");
+    given(jwtTokenService.validate("raw-refresh-token")).willReturn(true);
+    given(jwtTokenService.parseRefreshToken("raw-refresh-token"))
+        .willReturn(new JwtRefreshSubject(member.getId(), "jti-withdrawn", "family-withdrawn"));
+    given(refreshTokenDomainService.findByJtiForUpdate("jti-withdrawn"))
+        .willReturn(Optional.of(current));
+
+    assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("403-3"));
+
+    then(refreshTokenDomainService)
+        .should(never())
+        .rotate(
+            any(RefreshToken.class),
+            anyString(),
+            anyString(),
+            any(LocalDateTime.class),
+            any(LocalDateTime.class));
+  }
+
+  @Test
   @DisplayName("me는 인증된 사용자 ID로 회원 정보를 조회한다")
   void meReturnsCurrentMemberInformation() {
     Member member = memberWithId(5L, "member5@test.com", "member5");

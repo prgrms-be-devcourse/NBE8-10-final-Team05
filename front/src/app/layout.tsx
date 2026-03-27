@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthBootstrap from "@/components/auth/AuthBootstrap";
+import AuthHintProvider from "@/components/auth/AuthHintProvider";
 import SiteFooter from "@/components/layout/SiteFooter";
+import {
+  AUTH_HINT_COOKIE_NAME,
+  parseAuthHintCookieValue,
+} from "@/lib/auth/auth-hint-cookie";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,21 +30,28 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const authHint = parseAuthHintCookieValue(
+    cookieStore.get(AUTH_HINT_COOKIE_NAME)?.value,
+  );
+
   return (
     <html lang="ko">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthBootstrap />
-        <div className="flex min-h-screen flex-col">
-          <div className="flex-1">{children}</div>
-          <SiteFooter />
-        </div>
+        <AuthHintProvider initialAuthHint={authHint}>
+          <AuthBootstrap />
+          <div className="flex min-h-screen flex-col">
+            <div className="flex-1">{children}</div>
+            <SiteFooter />
+          </div>
+        </AuthHintProvider>
       </body>
     </html>
   );

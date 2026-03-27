@@ -30,6 +30,7 @@ const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
 const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
+const FORBIDDEN_PAGE_PATH = "/forbidden";
 const OIDC_CALLBACK_PATH = "/login/callback";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -53,6 +54,9 @@ function bindHttpClientHandlers(): void {
     onAuthFailure: () => {
       clearAuthSession();
       redirectToLoginIfNeeded();
+    },
+    onAuthorizationFailure: () => {
+      redirectToForbiddenIfNeeded();
     },
   });
 }
@@ -202,6 +206,23 @@ function redirectToLoginIfNeeded(): void {
   const next = `${pathname}${search}`;
   window.location.replace(
     `${LOGIN_PAGE_PATH}?next=${encodeURIComponent(next)}`,
+  );
+}
+
+function redirectToForbiddenIfNeeded(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const pathname = window.location.pathname;
+  if (pathname === LOGIN_PAGE_PATH || pathname === FORBIDDEN_PAGE_PATH) {
+    return;
+  }
+
+  const search = window.location.search;
+  const from = `${pathname}${search}`;
+  window.location.replace(
+    `${FORBIDDEN_PAGE_PATH}?from=${encodeURIComponent(from)}`,
   );
 }
 

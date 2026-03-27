@@ -1,13 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import SessionRevisionBoundary from "@/components/auth/SessionRevisionBoundary";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 interface LettersLayoutProps {
   children: ReactNode;
 }
 
-/** letters subtree는 로그인 사용자 전환 시 local state를 모두 remount한다. */
+/** letters subtree 전체에 인증 가드를 적용한다. */
 export default function LettersLayout({ children }: LettersLayoutProps) {
-  return <SessionRevisionBoundary>{children}</SessionRevisionBoundary>;
+  return <ProtectedRoute>{children}</ProtectedRoute>;
 }

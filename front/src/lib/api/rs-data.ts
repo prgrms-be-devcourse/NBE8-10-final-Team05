@@ -49,7 +49,7 @@ function mapApiErrorMessage(error: ApiError): string {
   }
 
   if (error.resultCode === "403-1" || error.message === "You do not have permission.") {
-    return "관리자 권한이 필요한 화면입니다.";
+    return "이 요청을 수행할 권한이 없어요.";
   }
 
   if (error.resultCode === "404-1" && error.message === "존재하지 않는 신고입니다.") {
