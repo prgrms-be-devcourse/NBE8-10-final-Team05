@@ -6,6 +6,7 @@ import type { AuthHintState } from "@/lib/auth/auth-hint-cookie";
 const AuthHintContext = createContext<AuthHintState>({
   isAuthenticated: false,
   isAdmin: false,
+  isServerValidated: false,
 });
 
 export default function AuthHintProvider({

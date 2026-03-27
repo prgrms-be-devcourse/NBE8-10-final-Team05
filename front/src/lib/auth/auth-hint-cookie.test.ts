@@ -6,6 +6,7 @@ describe("auth-hint-cookie", () => {
     expect(parseAuthHintCookieValue("admin")).toEqual({
       isAuthenticated: true,
       isAdmin: true,
+      isServerValidated: false,
     });
   });
 
@@ -13,6 +14,7 @@ describe("auth-hint-cookie", () => {
     expect(parseAuthHintCookieValue("member")).toEqual({
       isAuthenticated: true,
       isAdmin: false,
+      isServerValidated: false,
     });
   });
 
@@ -20,10 +22,12 @@ describe("auth-hint-cookie", () => {
     expect(parseAuthHintCookieValue(undefined)).toEqual({
       isAuthenticated: false,
       isAdmin: false,
+      isServerValidated: false,
     });
     expect(parseAuthHintCookieValue("unknown")).toEqual({
       isAuthenticated: false,
       isAdmin: false,
+      isServerValidated: false,
     });
   });
 });

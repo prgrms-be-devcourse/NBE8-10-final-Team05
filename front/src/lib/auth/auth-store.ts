@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { clearAccessToken, setAccessToken } from "@/lib/auth/token-store";
 import {
+  type AuthHintState,
   clearAuthHintCookie,
   persistAuthHintCookie,
 } from "@/lib/auth/auth-hint-cookie";
@@ -84,6 +85,18 @@ export function applyAuthenticatedMember(member: AuthMember): void {
     isAuthenticated: true,
     errorMessage: null,
     sessionRevision: nextRevision,
+  });
+}
+
+/** 서버에서 인증 확인된 요청의 최소 상태를 클라이언트 스토어에 반영한다. */
+export function applyAuthenticatedHintState(hint: AuthHintState): void {
+  if (!hint.isAuthenticated) {
+    return;
+  }
+
+  setState({
+    isAuthenticated: true,
+    errorMessage: null,
   });
 }
 
