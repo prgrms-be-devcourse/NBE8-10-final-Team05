@@ -7,29 +7,34 @@ import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
 import { requestData } from "@/lib/api/http-client";
 
-function resolveErrorMessage(error: any): string {
-  // 1. 서버 응답 객체(RsData) 내의 구체적인 에러 코드/메시지 확인
-  const errorData = error.response?.data;
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      code?: string;
+      msg?: string;
+    };
+  };
+}
+
+function resolveErrorMessage(error: unknown): string {
+  const apiError = error as ApiErrorResponse;
+  const errorData = apiError.response?.data;
 
   if (errorData) {
-    // 수신 가능한 유저가 없는 경우 (404-2)
     if (errorData.code === "404-2") {
       return "지금은 모든 바닷길이 잠시 닫혀 있네요. (수신 가능한 유저가 없습니다) 잠시 후 다시 편지를 띄워보세요.";
     }
-    // AI 검수 통과 실패 등 기타 서버 정의 메시지
     if (errorData.msg) {
       return errorData.msg;
     }
   }
 
-  // 2. 일반적인 에러 메시지 처리
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
 
   return "편지를 바다로 보내지 못했습니다. 네트워크 연결을 확인해주세요.";
 }
-
 export default function WriteLetterPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");

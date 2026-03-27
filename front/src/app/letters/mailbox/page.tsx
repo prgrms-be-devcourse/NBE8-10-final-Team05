@@ -45,7 +45,7 @@ export default function MailboxPage() {
   const [isRandomAllowed, setIsRandomAllowed] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
- useEffect(() => {
+  useEffect(() => {
     const initData = async () => {
       // 1. 인증되지 않은 경우 상태 초기화 후 중단
       if (!isAuthenticated) {
@@ -77,12 +77,17 @@ export default function MailboxPage() {
 
     setIsUpdating(true);
     try {
-      // 아까 설계한 PATCH 엔드포인트 호출
-      const res = await requestData<any>("/api/v1/members/me/random-setting", {
-        method: "PATCH",
-      });
-      // 백엔드 응답값으로 상태 업데이트
+      // [수정 포인트] requestData<any> 를 requestData<MemberResponse> 로 변경
+      const res = await requestData<MemberResponse>(
+        "/api/v1/members/me/random-setting",
+        {
+          method: "PATCH",
+        },
+      );
+
+      // 이제 res.randomReceiveAllowed가 MemberResponse 타입을 가지므로 안전하게 접근 가능합니다.
       setIsRandomAllowed(res.randomReceiveAllowed);
+
       alert(
         res.randomReceiveAllowed
           ? "이제 랜덤 편지를 받을 수 있습니다."
