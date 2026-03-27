@@ -2,6 +2,7 @@ package com.back.post.dto;
 
 import com.back.post.entity.Post;
 import com.back.post.entity.PostCategory;
+import com.back.post.entity.PostResolutionStatus;
 
 import java.time.LocalDateTime;
 
@@ -13,7 +14,9 @@ public record PostListRes(
         LocalDateTime createDate,
         LocalDateTime modifyDate,
         String thumbnail,
+        String summary,
         PostCategory category,
+        PostResolutionStatus resolutionStatus,
         String nickname
 ) {
 
@@ -26,7 +29,9 @@ public record PostListRes(
                post.getCreateDate(),
                post.getModifyDate(),
                post.getThumbnail(),
+               post.getSummary(),
                post.getCategory(),
+               post.getResolutionStatus(),
                post.getMember().getNickname()
        );
 

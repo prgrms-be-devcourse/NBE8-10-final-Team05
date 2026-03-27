@@ -4,6 +4,7 @@ import com.back.diary.adapter.application.port.in.dto.DiaryCreateReq;
 import com.back.diary.adapter.application.port.out.DiaryPort;
 import com.back.diary.domain.Diary;
 import com.back.global.exception.ServiceException;
+import com.back.image.application.service.ImageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -41,7 +43,6 @@ class DiaryServiceTest {
         DiaryCreateReq req = new DiaryCreateReq("제목", "내용", "일상", true);
         given(diaryPort.existsByMemberIdAndCreateDateBetween(eq(1L), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .willReturn(false);
-        given(imageService.upload(null)).willReturn(null);
         given(diaryPort.save(any(Diary.class))).willAnswer(invocation -> {
             Diary diary = invocation.getArgument(0);
             setId(diary, 10L);
@@ -71,7 +72,7 @@ class DiaryServiceTest {
                     assertThat(serviceException.getRsData().resultCode()).isEqualTo("409-1");
                 });
 
-        then(imageService).should(never()).upload(any());
+        then(imageService).should(never()).upload(any(), anyString());
         then(diaryPort).should(never()).save(any(Diary.class));
     }
 
