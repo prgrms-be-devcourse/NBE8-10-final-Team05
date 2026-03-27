@@ -1,6 +1,5 @@
-package com.back.notification.repository;
+package com.back.notification.domain;
 
-import com.back.notification.entity.Notification;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
