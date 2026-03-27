@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -15,6 +16,8 @@ import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
+import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
+import com.back.member.adapter.in.web.dto.UpdateMemberPasswordRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
 import com.back.member.application.MemberService;
 import com.back.member.domain.MemberRepository;
@@ -133,6 +136,57 @@ class MemberControllerTest {
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.resultCode").value("401-1"))
         .andExpect(jsonPath("$.msg").value("Authentication is required."));
+  }
+
+  @Test
+  @DisplayName("본인 이메일 변경 API는 인증된 사용자 기준으로 이메일을 변경한다")
+  void updateMyEmail() throws Exception {
+    UpdateMemberEmailRequest request = new UpdateMemberEmailRequest("changed@test.com");
+    MemberResponse response = new MemberResponse(8L, "changed@test.com", "member8", true);
+    given(memberService.updateEmail(8L, request)).willReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me/email")
+                .with(authentication(authenticatedMember(8L, "member8@test.com")))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-4"))
+        .andExpect(jsonPath("$.msg").value("Member email updated."))
+        .andExpect(jsonPath("$.data.email").value("changed@test.com"));
+  }
+
+  @Test
+  @DisplayName("본인 비밀번호 변경 API는 인증된 사용자 기준으로 비밀번호를 변경한다")
+  void updateMyPassword() throws Exception {
+    UpdateMemberPasswordRequest request =
+        new UpdateMemberPasswordRequest("current-password", "next-password");
+    MemberResponse response = new MemberResponse(10L, "member10@test.com", "member10", true);
+    given(memberService.updatePassword(10L, request)).willReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me/password")
+                .with(authentication(authenticatedMember(10L, "member10@test.com")))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-5"))
+        .andExpect(jsonPath("$.msg").value("Member password updated."))
+        .andExpect(jsonPath("$.data.id").value(10));
+  }
+
+  @Test
+  @DisplayName("본인 회원 탈퇴 API는 인증된 사용자 기준으로 탈퇴 처리한다")
+  void withdrawMyMember() throws Exception {
+    mockMvc
+        .perform(
+            delete("/api/v1/members/me")
+                .with(authentication(authenticatedMember(11L, "member11@test.com"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-6"))
+        .andExpect(jsonPath("$.msg").value("Member account withdrawn."));
   }
 
   @Test

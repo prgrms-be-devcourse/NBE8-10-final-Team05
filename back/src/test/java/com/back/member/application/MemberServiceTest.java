@@ -3,16 +3,26 @@ package com.back.member.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 
+import com.back.auth.domain.RefreshTokenDomainService;
 import com.back.global.exception.ServiceException;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
+import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
+import com.back.member.adapter.in.web.dto.UpdateMemberPasswordRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import com.back.member.domain.MemberStatus;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,8 +39,16 @@ class MemberServiceTest {
 
   @Mock private MemberRepository memberRepository;
   @Mock private PasswordEncoder passwordEncoder;
+  @Mock private RefreshTokenDomainService refreshTokenDomainService;
+  @Mock private Clock clock;
 
   @InjectMocks private MemberService memberService;
+
+  @BeforeEach
+  void setUpClock() {
+    lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+    lenient().when(clock.instant()).thenReturn(Instant.parse("2026-03-27T00:00:00Z"));
+  }
 
   @Test
   @DisplayName("회원 생성 시 비밀번호 원문이 아닌 해시만 저장한다")
@@ -145,5 +163,54 @@ class MemberServiceTest {
     var response = memberService.updateProfile(3L, new UpdateMemberProfileRequest("   "));
 
     assertThat(response.nickname()).isEqualTo("anonymous");
+  }
+
+  @Test
+  @DisplayName("이메일 변경 시 정규화된 이메일이 저장된다")
+  void updateEmailNormalizesAndStoresEmail() {
+    Member member = Member.create("member4@test.com", "$2a$10$hashValue", "member4");
+    ReflectionTestUtils.setField(member, "id", 4L);
+    given(memberRepository.findById(4L)).willReturn(Optional.of(member));
+    given(memberRepository.findByEmail("changed@test.com")).willReturn(Optional.empty());
+
+    var response =
+        memberService.updateEmail(4L, new UpdateMemberEmailRequest(" Changed@Test.com "));
+
+    assertThat(response.email()).isEqualTo("changed@test.com");
+    assertThat(member.getEmail()).isEqualTo("changed@test.com");
+  }
+
+  @Test
+  @DisplayName("현재 비밀번호가 맞지 않으면 비밀번호 변경 시 401-2 예외를 반환한다")
+  void updatePasswordFailsWhenCurrentPasswordInvalid() {
+    Member member = Member.create("member5@test.com", "$2a$10$hashValue", "member5");
+    ReflectionTestUtils.setField(member, "id", 5L);
+    given(memberRepository.findById(5L)).willReturn(Optional.of(member));
+    given(passwordEncoder.matches("wrong-password", "$2a$10$hashValue")).willReturn(false);
+
+    assertThatThrownBy(
+            () ->
+                memberService.updatePassword(
+                    5L, new UpdateMemberPasswordRequest("wrong-password", "next-password")))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("401-2"));
+  }
+
+  @Test
+  @DisplayName("회원 탈퇴 시 상태를 WITHDRAWN으로 바꾸고 refresh 토큰을 모두 폐기한다")
+  void withdrawMemberMarksWithdrawnAndRevokesRefreshTokens() {
+    Member member = Member.create("member6@test.com", "$2a$10$hashValue", "member6");
+    ReflectionTestUtils.setField(member, "id", 6L);
+    given(memberRepository.findById(6L)).willReturn(Optional.of(member));
+
+    memberService.withdrawMember(6L);
+
+    assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
+    assertThat(member.isRandomReceiveAllowed()).isFalse();
+    then(refreshTokenDomainService)
+        .should()
+        .revokeAllByMemberId(eq(6L), any(java.time.LocalDateTime.class));
   }
 }

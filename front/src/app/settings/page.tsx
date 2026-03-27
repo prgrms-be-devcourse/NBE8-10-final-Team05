@@ -1,20 +1,34 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Mail, Save, Settings2, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  KeyRound,
+  Loader2,
+  Mail,
+  Save,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
-import { fetchMe } from "@/lib/auth/auth-service";
+import { fetchMe, logout } from "@/lib/auth/auth-service";
 import { patchAuthenticatedMember, useAuthStore } from "@/lib/auth/auth-store";
 import {
+  getEmailSavedNotice,
   getNicknameSavedNotice,
+  getPasswordSavedNotice,
   getRandomReceiveDescription,
   getRandomReceiveToggleNotice,
+  getWithdrawNotice,
   toMemberSettingsErrorMessage,
 } from "@/lib/member/settings-presenter";
 import {
   getMemberSettings,
   toggleRandomReceiveAllowed,
+  updateEmail,
   updateNickname,
+  updatePassword,
+  withdrawMember,
 } from "@/lib/member/settings-service";
 import type { MemberSettings } from "@/lib/member/settings-types";
 
@@ -31,14 +45,30 @@ function LoadingCard() {
 export default function SettingsPage() {
   const { sessionRevision } = useAuthStore();
   const [settings, setSettings] = useState<MemberSettings | null>(null);
+  const [email, setEmail] = useState("");
   const [nickname, setNickname] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSavingNickname, setIsSavingNickname] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isTogglingRandom, setIsTogglingRandom] = useState(false);
+  const [isConfirmingWithdraw, setIsConfirmingWithdraw] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
+  const trimmedEmail = email.trim();
   const trimmedNickname = nickname.trim();
+  const isEmailChanged = useMemo(() => {
+    if (!settings) {
+      return false;
+    }
+
+    return trimmedEmail !== settings.email;
+  }, [settings, trimmedEmail]);
   const isNicknameChanged = useMemo(() => {
     if (!settings) {
       return false;
@@ -54,6 +84,7 @@ export default function SettingsPage() {
     try {
       const response = await getMemberSettings();
       setSettings(response);
+      setEmail(response.email);
       setNickname(response.nickname);
     } catch (error: unknown) {
       setErrorMessage(toMemberSettingsErrorMessage(error));
@@ -66,6 +97,41 @@ export default function SettingsPage() {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings, sessionRevision]);
+
+  async function handleEmailSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (trimmedEmail.length === 0) {
+      setErrorMessage("이메일을 입력해 주세요.");
+      return;
+    }
+
+    if (!isEmailChanged) {
+      setNoticeMessage("변경된 이메일이 없어요.");
+      setErrorMessage(null);
+      return;
+    }
+
+    setIsSavingEmail(true);
+    setErrorMessage(null);
+    setNoticeMessage(null);
+
+    try {
+      const response = await updateEmail(trimmedEmail);
+      setSettings(response);
+      setEmail(response.email);
+      patchAuthenticatedMember({
+        email: response.email,
+        nickname: response.nickname,
+      });
+      void fetchMe({ authFailureRedirect: false }).catch(() => undefined);
+      setNoticeMessage(getEmailSavedNotice());
+    } catch (error: unknown) {
+      setErrorMessage(toMemberSettingsErrorMessage(error));
+    } finally {
+      setIsSavingEmail(false);
+    }
+  }
 
   async function handleNicknameSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,6 +173,41 @@ export default function SettingsPage() {
     }
   }
 
+  async function handlePasswordSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (currentPassword.trim().length === 0) {
+      setErrorMessage("현재 비밀번호를 입력해 주세요.");
+      return;
+    }
+
+    if (newPassword.trim().length === 0) {
+      setErrorMessage("새 비밀번호를 입력해 주세요.");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      setErrorMessage("새 비밀번호 확인이 일치하지 않아요.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    setErrorMessage(null);
+    setNoticeMessage(null);
+
+    try {
+      await updatePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setNewPasswordConfirm("");
+      setNoticeMessage(getPasswordSavedNotice());
+    } catch (error: unknown) {
+      setErrorMessage(toMemberSettingsErrorMessage(error));
+    } finally {
+      setIsSavingPassword(false);
+    }
+  }
+
   async function handleToggleRandomReceive() {
     if (!settings || isTogglingRandom) {
       return;
@@ -126,6 +227,28 @@ export default function SettingsPage() {
       setErrorMessage(toMemberSettingsErrorMessage(error));
     } finally {
       setIsTogglingRandom(false);
+    }
+  }
+
+  async function handleWithdraw() {
+    if (isWithdrawing) {
+      return;
+    }
+
+    setIsWithdrawing(true);
+    setErrorMessage(null);
+    setNoticeMessage(null);
+
+    try {
+      await withdrawMember();
+      setNoticeMessage(getWithdrawNotice());
+      await logout();
+      window.location.replace("/");
+    } catch (error: unknown) {
+      setErrorMessage(toMemberSettingsErrorMessage(error));
+    } finally {
+      setIsWithdrawing(false);
+      setIsConfirmingWithdraw(false);
     }
   }
 
@@ -188,10 +311,38 @@ export default function SettingsPage() {
                   <p className="mt-2 text-lg font-semibold text-[#2f4b73]">
                     {settings.email}
                   </p>
-                  <p className="mt-3 text-sm leading-relaxed text-[#7f93b0]">
-                    현재 MVP에서는 이메일 변경을 지원하지 않습니다.
-                  </p>
                 </div>
+
+                <form className="mt-6" onSubmit={handleEmailSave}>
+                  <label
+                    htmlFor="settings-email"
+                    className="text-sm font-semibold text-[#7f93b0]"
+                  >
+                    새 이메일
+                  </label>
+                  <input
+                    id="settings-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-lg font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                    placeholder="새 이메일을 입력해 주세요"
+                    autoComplete="email"
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={isSavingEmail || !isEmailChanged}
+                    className="mt-6 inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#5f95f2] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#4f86e7] disabled:cursor-not-allowed disabled:bg-[#b9d0f4]"
+                  >
+                    {isSavingEmail ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <Save size={18} />
+                    )}
+                    이메일 저장
+                  </button>
+                </form>
               </article>
 
               <article className="home-panel rounded-[32px] px-8 py-8">
@@ -280,6 +431,149 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </div>
+              </article>
+
+              <article className="home-panel rounded-[32px] px-8 py-8 lg:col-span-2">
+                <div className="flex items-center gap-3 text-[#4d6a8f]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#edf4ff] text-[#7aa6e6]">
+                    <KeyRound size={22} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.2em] text-[#8ea8c8]">
+                      SECURITY
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold text-[#25324a]">
+                      비밀번호 변경
+                    </h2>
+                  </div>
+                </div>
+
+                <form className="mt-8 grid gap-5 lg:grid-cols-2" onSubmit={handlePasswordSave}>
+                  <div>
+                    <label
+                      htmlFor="settings-current-password"
+                      className="text-sm font-semibold text-[#7f93b0]"
+                    >
+                      현재 비밀번호
+                    </label>
+                    <input
+                      id="settings-current-password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                      autoComplete="current-password"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="settings-new-password"
+                      className="text-sm font-semibold text-[#7f93b0]"
+                    >
+                      새 비밀번호
+                    </label>
+                    <input
+                      id="settings-new-password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    <label
+                      htmlFor="settings-new-password-confirm"
+                      className="text-sm font-semibold text-[#7f93b0]"
+                    >
+                      새 비밀번호 확인
+                    </label>
+                    <input
+                      id="settings-new-password-confirm"
+                      type="password"
+                      value={newPasswordConfirm}
+                      onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                      className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    <button
+                      type="submit"
+                      disabled={isSavingPassword}
+                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#5f95f2] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#4f86e7] disabled:cursor-not-allowed disabled:bg-[#b9d0f4]"
+                    >
+                      {isSavingPassword ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <Save size={18} />
+                      )}
+                      비밀번호 변경
+                    </button>
+                  </div>
+                </form>
+              </article>
+
+              <article className="home-panel rounded-[32px] border border-[#ffd9d9] px-8 py-8 lg:col-span-2">
+                <div className="flex items-center gap-3 text-[#c56e6e]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff1f1] text-[#d87d7d]">
+                    <AlertTriangle size={22} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.2em] text-[#d59898]">
+                      ACCOUNT CLEANUP
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold text-[#7f4a4a]">
+                      회원 탈퇴
+                    </h2>
+                  </div>
+                </div>
+
+                <p className="mt-6 text-sm leading-relaxed text-[#9a7070]">
+                  탈퇴하면 계정 상태가 즉시 정리되고, 이후에는 같은 세션으로 다시 접근할 수 없어요.
+                </p>
+
+                {isConfirmingWithdraw ? (
+                  <div className="mt-6 rounded-[28px] border border-[#ffd8d8] bg-[#fff7f7] px-5 py-5">
+                    <p className="text-base font-semibold text-[#8f5252]">
+                      정말 탈퇴하시겠어요?
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-[#a26d6d]">
+                      탈퇴 후에는 현재 세션이 종료되고, 다시 이용하려면 새로 가입해야 합니다.
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsConfirmingWithdraw(false)}
+                        className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#ead2d2] bg-white px-5 py-3 text-sm font-semibold text-[#8f6464] transition hover:border-[#ddbaba]"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleWithdraw()}
+                        disabled={isWithdrawing}
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#ea8d8d] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#df7d7d] disabled:cursor-not-allowed disabled:bg-[#f0b4b4]"
+                      >
+                        {isWithdrawing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : null}
+                        탈퇴 진행
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmingWithdraw(true)}
+                    className="mt-6 inline-flex min-h-[52px] items-center justify-center rounded-full border border-[#f4b7b7] bg-white px-6 py-3 text-base font-semibold text-[#c46666] transition hover:border-[#eba2a2] hover:bg-[#fff8f8]"
+                  >
+                    회원 탈퇴
+                  </button>
+                )}
               </article>
             </>
           ) : (

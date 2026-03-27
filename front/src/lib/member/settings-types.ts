@@ -8,3 +8,12 @@ export interface MemberSettings {
 export interface UpdateNicknameRequest {
   nickname: string;
 }
+
+export interface UpdateEmailRequest {
+  email: string;
+}
+
+export interface UpdatePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
