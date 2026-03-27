@@ -13,8 +13,14 @@ interface AuthFailureContext {
   resultCode?: string;
 }
 
+interface AuthorizationFailureContext {
+  status: number;
+  resultCode?: string;
+}
+
 interface HttpClientEventHandlers {
   onAuthFailure?: (context: AuthFailureContext) => void;
+  onAuthorizationFailure?: (context: AuthorizationFailureContext) => void;
   onRefreshSuccess?: (payload: AuthTokenPayload) => void;
 }
 
@@ -23,12 +29,14 @@ interface RequestOptions extends Omit<RequestInit, "headers"> {
   skipAuth?: boolean;
   retryOnAuthFailure?: boolean;
   authFailureRedirect?: boolean;
+  authorizationFailureRedirect?: boolean;
 }
 
 let refreshPromise: Promise<boolean> | null = null;
 let pendingRefreshShouldNotify = false;
 let eventHandlers: HttpClientEventHandlers = {};
 let lastAuthFailureNotifiedAt = 0;
+let lastAuthorizationFailureNotifiedAt = 0;
 
 /** 인증 실패 이벤트 핸들러를 등록한다. */
 export function configureHttpClient(nextHandlers: HttpClientEventHandlers): void {
@@ -47,6 +55,13 @@ export async function requestData<T>(path: string, options: RequestOptions = {})
     if (response.status === 401 && options.authFailureRedirect !== false) {
       notifyAuthFailure({
         reason: "unauthorized",
+        status: response.status,
+        resultCode,
+      });
+    }
+
+    if (response.status === 403 && options.authorizationFailureRedirect !== false) {
+      notifyAuthorizationFailure({
         status: response.status,
         resultCode,
       });
@@ -74,6 +89,13 @@ export async function requestVoid(path: string, options: RequestOptions = {}): P
     if (response.status === 401 && options.authFailureRedirect !== false) {
       notifyAuthFailure({
         reason: "unauthorized",
+        status: response.status,
+        resultCode,
+      });
+    }
+
+    if (response.status === 403 && options.authorizationFailureRedirect !== false) {
+      notifyAuthorizationFailure({
         status: response.status,
         resultCode,
       });
@@ -200,6 +222,17 @@ function notifyAuthFailure(context: AuthFailureContext): void {
 
   lastAuthFailureNotifiedAt = now;
   eventHandlers.onAuthFailure?.(context);
+}
+
+/** 권한 부족 이벤트를 과도하게 중복 발행하지 않도록 제한한다. */
+function notifyAuthorizationFailure(context: AuthorizationFailureContext): void {
+  const now = Date.now();
+  if (now - lastAuthorizationFailureNotifiedAt < 700) {
+    return;
+  }
+
+  lastAuthorizationFailureNotifiedAt = now;
+  eventHandlers.onAuthorizationFailure?.(context);
 }
 
 /** 응답 본문을 RsData 형식으로 파싱한다. */

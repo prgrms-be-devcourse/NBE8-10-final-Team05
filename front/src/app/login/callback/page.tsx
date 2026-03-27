@@ -40,6 +40,7 @@ export default function LoginCallbackPage() {
 
       if (getAuthState().isAuthenticated) {
         router.replace(nextPath);
+        router.refresh();
         return;
       }
 

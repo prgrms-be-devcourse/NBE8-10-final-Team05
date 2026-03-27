@@ -91,4 +91,33 @@ describe("http-client", () => {
     expect(firstHeaders.get("Authorization")).toBe("Bearer expired-access-token");
     expect(retriedHeaders.get("Authorization")).toBe("Bearer refreshed-access-token");
   });
+
+  it("403 응답이면 권한 부족 이벤트를 한 번 발행한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      createJsonResponse(
+        {
+          resultCode: "403-1",
+          msg: "You do not have permission.",
+          data: null,
+        },
+        403,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onAuthorizationFailure = vi.fn();
+    const { configureHttpClient, requestData } = await import("./http-client");
+
+    configureHttpClient({ onAuthorizationFailure });
+
+    await expect(requestData("/api/v1/protected")).rejects.toThrow(
+      "You do not have permission.",
+    );
+
+    expect(onAuthorizationFailure).toHaveBeenCalledTimes(1);
+    expect(onAuthorizationFailure).toHaveBeenCalledWith({
+      status: 403,
+      resultCode: "403-1",
+    });
+  });
 });

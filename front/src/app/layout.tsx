@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthBootstrap from "@/components/auth/AuthBootstrap";
+import AuthHintProvider from "@/components/auth/AuthHintProvider";
 import SiteFooter from "@/components/layout/SiteFooter";
+import {
+  AUTH_HINT_COOKIE_NAME,
+  type AuthHintState,
+  parseAuthHintCookieValue,
+} from "@/lib/auth/auth-hint-cookie";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,21 +31,44 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const requestHeaders = await headers();
+  const serverValidatedHint = requestHeaders.get("x-maum-on-server-auth");
+  const cookieAuthHint = parseAuthHintCookieValue(
+    cookieStore.get(AUTH_HINT_COOKIE_NAME)?.value,
+  );
+  const authHint: AuthHintState =
+    serverValidatedHint === "admin"
+      ? {
+          isAuthenticated: true,
+          isAdmin: true,
+          isServerValidated: true,
+        }
+      : serverValidatedHint === "member"
+        ? {
+            isAuthenticated: true,
+            isAdmin: false,
+            isServerValidated: true,
+          }
+        : cookieAuthHint;
+
   return (
     <html lang="ko">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthBootstrap />
-        <div className="flex min-h-screen flex-col">
-          <div className="flex-1">{children}</div>
-          <SiteFooter />
-        </div>
+        <AuthHintProvider initialAuthHint={authHint}>
+          <AuthBootstrap />
+          <div className="flex min-h-screen flex-col">
+            <div className="flex-1">{children}</div>
+            <SiteFooter />
+          </div>
+        </AuthHintProvider>
       </body>
     </html>
   );
