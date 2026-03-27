@@ -55,7 +55,7 @@ class MemberControllerTest {
   void createMember() throws Exception {
     CreateMemberRequest request =
         new CreateMemberRequest("member1@test.com", "pass1234", "member1");
-    MemberResponse response = new MemberResponse(1L, "member1@test.com", "member1");
+    MemberResponse response = new MemberResponse(1L, "member1@test.com", "member1",true);
 
     given(memberService.createMember(any(CreateMemberRequest.class))).willReturn(response);
 
@@ -75,7 +75,7 @@ class MemberControllerTest {
   @Test
   @DisplayName("관리자는 memberId 기반 회원 조회 API를 사용할 수 있다")
   void getMember() throws Exception {
-    MemberResponse response = new MemberResponse(2L, "member2@test.com", "member2");
+    MemberResponse response = new MemberResponse(2L, "member2@test.com", "member2", true);
     given(memberService.getMember(2L)).willReturn(response);
 
     mockMvc
@@ -92,7 +92,7 @@ class MemberControllerTest {
   @DisplayName("본인 프로필 수정 API는 인증된 사용자 기준으로 닉네임을 변경한다")
   void updateProfile() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
-    MemberResponse response = new MemberResponse(3L, "member3@test.com", "updatedMember");
+    MemberResponse response = new MemberResponse(3L, "member3@test.com", "updatedMember", true);
     given(memberService.updateProfile(3L, request)).willReturn(response);
 
     mockMvc
@@ -112,7 +112,7 @@ class MemberControllerTest {
   @Test
   @DisplayName("본인 회원 조회 API는 인증된 사용자 기준으로 정보를 반환한다")
   void getMyMember() throws Exception {
-    MemberResponse response = new MemberResponse(7L, "member7@test.com", "member7");
+    MemberResponse response = new MemberResponse(7L, "member7@test.com", "member7", true);
     given(memberService.getMember(7L)).willReturn(response);
 
     mockMvc
@@ -155,7 +155,7 @@ class MemberControllerTest {
   @DisplayName("관리자는 memberId 기반 타인 프로필 수정 API를 사용할 수 있다")
   void adminCanUpdateOtherProfile() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedByAdmin");
-    MemberResponse response = new MemberResponse(9L, "member9@test.com", "updatedByAdmin");
+    MemberResponse response = new MemberResponse(9L, "member9@test.com", "updatedByAdmin", true);
     given(memberService.updateProfile(9L, request)).willReturn(response);
 
     mockMvc
