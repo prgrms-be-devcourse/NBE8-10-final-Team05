@@ -1,10 +1,10 @@
-package com.back.notification.controller;
+package com.back.notification.adapter.in.web;
 
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
-import com.back.notification.entity.Notification;
-import com.back.notification.repository.NotificationRepository;
-import com.back.notification.service.NotificationService;
+import com.back.notification.domain.Notification;
+import com.back.notification.domain.NotificationRepository;
+import com.back.notification.application.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +26,7 @@ public class NotificationController {
 
     @GetMapping
     public RsData<List<Notification>> getNotifications(@AuthenticationPrincipal AuthenticatedMember authMember) {
-        // Repository에서 현재 로그인한 유저의 알림을 최신순으로 가져옵니다.
+        // Repository에서 현재 로그인한 유저의 알림을 최신순으로 가져옴
         List<Notification> notifications = notificationRepository
                 .findByReceiverIdOrderByCreateDateDesc(authMember.memberId());
 
