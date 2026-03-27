@@ -1,7 +1,7 @@
 package com.back.report.service;
 
 import com.back.global.exception.ServiceException;
-import com.back.notification.service.NotificationService;
+import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;

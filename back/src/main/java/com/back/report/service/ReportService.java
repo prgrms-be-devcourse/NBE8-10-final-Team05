@@ -3,7 +3,7 @@ package com.back.report.service;
 import com.back.comment.entity.Comment;
 import com.back.comment.repository.CommentRepository;
 import com.back.global.exception.ServiceException;
-import com.back.notification.service.NotificationService;
+import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.domain.Letter;
 import com.back.member.domain.Member;
