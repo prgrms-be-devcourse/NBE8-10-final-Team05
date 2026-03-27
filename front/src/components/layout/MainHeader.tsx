@@ -36,9 +36,10 @@ export default function MainHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAuthenticated, isRestoring, member } = useAuthStore();
+  const { isAuthenticated, isRestoring, hasRestored, member } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
   const isAdmin = member?.role === "ADMIN";
+  const isAuthPending = isRestoring || !hasRestored;
 
   const navigationItems: MainNavItem[] = [
     { key: "home", label: "홈", href: "/" },
@@ -89,10 +90,8 @@ export default function MainHeader() {
         </nav>
 
         <div className="hidden shrink-0 items-center gap-3 lg:flex">
-          {isRestoring ? (
-            <span className="text-sm text-[#8396b6] opacity-0 [animation:restore-notice_0s_linear_350ms_forwards]">
-              세션 확인 중...
-            </span>
+          {isAuthPending ? (
+            <div className="h-5 w-[108px]" aria-hidden="true" />
           ) : isAuthenticated ? (
             <div className="flex items-center gap-2 text-sm font-medium text-[#506582]">
               {isAdmin ? (
@@ -158,10 +157,8 @@ export default function MainHeader() {
                 </Link>
               );
             })}
-            {isRestoring ? (
-              <span className="px-3 py-2 text-sm text-[#8396b6] opacity-0 [animation:restore-notice_0s_linear_350ms_forwards]">
-                세션 확인 중...
-              </span>
+            {isAuthPending ? (
+              <div className="px-3 py-2" aria-hidden="true" />
             ) : isAuthenticated ? (
               <div className="flex flex-col gap-2 px-3 py-2 text-sm font-medium text-[#506582]">
                 {isAdmin ? (

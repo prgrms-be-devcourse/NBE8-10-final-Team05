@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ShieldAlert } from "lucide-react";
-import MainHeader from "@/components/layout/MainHeader";
+import { ChevronLeft, FileWarning, ShieldAlert, Siren, UserRoundX } from "lucide-react";
 import {
   formatAdminReportActionLabel,
   formatAdminReportDateTime,
@@ -122,196 +121,228 @@ export default function AdminReportDetailPage() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="rounded-[28px] bg-white px-6 py-14 text-center text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+        신고 상세를 불러오는 중입니다.
+      </div>
+    );
+  }
+
+  if (loadErrorMessage || !report) {
+    return (
+      <div className="rounded-[28px] border border-[#f3d0d0] bg-white px-6 py-12 text-center shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff0f0] text-[#c46464]">
+          <ShieldAlert size={22} />
+        </div>
+        <p className="mt-4 text-[18px] font-semibold text-[#7a3d3d]">
+          신고 상세를 확인할 수 없습니다.
+        </p>
+        <p className="mt-2 text-sm text-[#9a4b4b]">{loadErrorMessage ?? "신고 정보를 찾을 수 없습니다."}</p>
+        <Link
+          href="/admin/reports"
+          className="mt-5 inline-flex text-sm font-semibold text-[#7a3d3d] underline decoration-[#e4a6a6] underline-offset-4"
+        >
+          목록으로 돌아가기
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="home-atmosphere min-h-screen">
-      <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
-        <MainHeader />
+    <div className="space-y-6">
+      <section className="rounded-[30px] bg-[#f7fbff] px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+        <Link
+          href="/admin/reports"
+          className="inline-flex items-center gap-1 text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
+        >
+          <ChevronLeft size={16} />
+          신고 목록
+        </Link>
 
-        <section className="mx-auto mt-8 w-full max-w-5xl">
-          <Link
-            href="/admin/reports"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
-          >
-            <ChevronLeft size={16} />
-            신고 목록
-          </Link>
+        <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
+              Report Detail
+            </p>
+            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
+              신고 #{report.reportId}
+            </h1>
+            <p className="mt-2 text-[15px] leading-7 text-[#6e83a5]">
+              신고자, 대상 정보, 처리 액션을 한 번에 확인합니다.
+            </p>
+          </div>
 
-          {isLoading ? (
-            <div className="home-panel mt-4 rounded-[28px] px-6 py-14 text-center text-[#5f7598]">
-              신고 상세를 불러오는 중입니다.
-            </div>
-          ) : null}
+          <div className="flex items-center gap-3">
+            <span
+              className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold ${getStatusTone(report.status)}`}
+            >
+              {formatAdminReportStatusLabel(report.status)}
+            </span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#6680a5] ring-1 ring-[#dce7f8]">
+              {formatAdminReportActionLabel(report.processingAction)}
+            </span>
+          </div>
+        </div>
 
-          {!isLoading && loadErrorMessage ? (
-            <div className="home-panel mt-4 rounded-[28px] border border-[#f3d0d0] bg-[#fff8f8] px-6 py-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff0f0] text-[#c46464]">
-                <ShieldAlert size={22} />
+        <div className="mt-6 grid gap-4 lg:grid-cols-4">
+          <InfoStat label="신고자" value={report.reporterNickname} />
+          <InfoStat label="대상 타입" value={formatAdminReportTargetTypeLabel(report.targetInfo.targetType)} />
+          <InfoStat label="대상 ID" value={report.targetInfo.targetId} />
+          <InfoStat label="접수 시각" value={formatAdminReportDateTime(report.createdAt)} />
+        </div>
+      </section>
+
+      {noticeMessage ? (
+        <div className="rounded-[24px] border border-[#d5ead8] bg-[#f1fbf2] px-5 py-4 text-sm text-[#3e6f49]">
+          {noticeMessage}
+        </div>
+      ) : null}
+
+      {actionErrorMessage ? (
+        <div className="rounded-[24px] border border-[#f3d0d0] bg-[#fff8f8] px-5 py-4 text-sm text-[#9a4b4b]">
+          {actionErrorMessage}
+        </div>
+      ) : null}
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_360px]">
+        <div className="space-y-6">
+          <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#edf5ff] text-[#4f8cf0]">
+                <Siren size={20} />
               </div>
-              <p className="mt-4 text-[18px] font-semibold text-[#7a3d3d]">
-                신고 상세를 확인할 수 없습니다.
-              </p>
-              <p className="mt-2 text-sm text-[#9a4b4b]">{loadErrorMessage}</p>
-              <Link
-                href="/admin/reports"
-                className="mt-5 inline-flex text-sm font-semibold text-[#7a3d3d] underline decoration-[#e4a6a6] underline-offset-4"
-              >
-                목록으로 돌아가기
-              </Link>
-            </div>
-          ) : null}
-
-          {!isLoading && !loadErrorMessage && report ? (
-            <div className="space-y-6">
-              <section className="home-panel mt-4 rounded-[30px] px-6 py-7 sm:px-8">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold tracking-[0.18em] text-[#83a1c8] uppercase">
-                      Report Detail
-                    </p>
-                    <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.03em] text-[#223552]">
-                      신고 #{report.reportId}
-                    </h1>
-                  </div>
-                  <span
-                    className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-semibold ${getStatusTone(report.status)}`}
-                  >
-                    {formatAdminReportStatusLabel(report.status)}
-                  </span>
-                </div>
-
-                {noticeMessage ? (
-                  <div className="mt-5 rounded-[18px] border border-[#d5ead8] bg-[#f1fbf2] px-4 py-3 text-sm text-[#3e6f49]">
-                    {noticeMessage}
-                  </div>
-                ) : null}
-
-                {actionErrorMessage ? (
-                  <div className="mt-5 rounded-[18px] border border-[#f3d0d0] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4b4b]">
-                    {actionErrorMessage}
-                  </div>
-                ) : null}
-
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <InfoCard
-                    label="신고자"
-                    value={report.reporterNickname}
-                  />
-                  <InfoCard
-                    label="사유"
-                    value={report.reason}
-                  />
-                  <InfoCard
-                    label="대상 타입"
-                    value={formatAdminReportTargetTypeLabel(report.targetInfo.targetType)}
-                  />
-                  <InfoCard
-                    label="생성일"
-                    value={formatAdminReportDateTime(report.createdAt)}
-                  />
-                </div>
-              </section>
-
-              <section className="home-panel rounded-[30px] px-6 py-7 sm:px-8">
-                <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#223552]">
+              <div>
+                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
                   신고 설명
                 </h2>
-                <div className="mt-4 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 text-[#405a7f]">
-                  {report.description?.trim().length
-                    ? report.description
-                    : "신고 설명이 비어 있습니다."}
-                </div>
-              </section>
-
-              <section className="home-panel rounded-[30px] px-6 py-7 sm:px-8">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#223552]">
-                      대상 정보
-                    </h2>
-                    <p className="text-sm text-[#6c82a5]">
-                      작성자 {report.targetInfo.authorNickname || "알 수 없음"} · 대상 ID{" "}
-                      {report.targetInfo.targetId}
-                    </p>
-                  </div>
-
-                  <div className="rounded-full bg-[#f4f8ff] px-4 py-2 text-sm font-semibold text-[#5c7599]">
-                    최근 처리 결과 {formatAdminReportActionLabel(report.processingAction)}
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 whitespace-pre-wrap text-[#405a7f]">
-                  {report.targetInfo.originalContent?.trim().length
-                    ? report.targetInfo.originalContent
-                    : "원문 내용을 확인할 수 없습니다."}
-                </div>
-              </section>
-
-              <section className="home-panel rounded-[30px] px-6 py-7 sm:px-8">
-                <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#223552]">
-                  처리 액션
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
-                  현재 백엔드에서는 신고 반려, 게시글 숨김, 작성자 차단 세 가지 액션만 지원합니다.
+                <p className="mt-1 text-sm text-[#8ba0bf]">
+                  운영자가 우선 확인해야 할 사유입니다.
                 </p>
-
-                <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                  {REPORT_ACTIONS.map((action) => {
-                    const actionUnavailable =
-                      action === "DELETE" && report.targetInfo.targetType !== "POST";
-                    const disabled =
-                      report.status === "PROCESSED" || isHandling || actionUnavailable;
-
-                    return (
-                      <button
-                        key={action}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => void onHandle(action)}
-                        className={`rounded-[24px] border px-5 py-5 text-left transition ${
-                          disabled
-                            ? "cursor-not-allowed border-[#e3ebf8] bg-[#f8fbff] text-[#9aaecc]"
-                            : "border-[#dce7f8] bg-white text-[#314969] hover:border-[#86afe8] hover:bg-[#f9fbff]"
-                        }`}
-                      >
-                        <p className="text-[17px] font-semibold tracking-[-0.02em]">
-                          {formatAdminReportActionLabel(action)}
-                        </p>
-                        <p className="mt-2 text-sm leading-6">
-                          {actionUnavailable
-                            ? "게시글 신고에서만 사용할 수 있는 액션입니다."
-                            : getAdminReportActionDescription(action)}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {report.status === "PROCESSED" ? (
-                  <p className="mt-4 text-sm text-[#6c82a5]">
-                    이 신고는 이미 처리되었습니다.
-                  </p>
-                ) : null}
-              </section>
+              </div>
             </div>
-          ) : null}
-        </section>
-      </div>
+
+            <div className="mt-5 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 text-[#405a7f]">
+              <div className="mb-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#7e95b5] ring-1 ring-[#e3ebf7]">
+                사유 {report.reason}
+              </div>
+              <p>
+                {report.description?.trim().length
+                  ? report.description
+                  : "신고 설명이 비어 있습니다."}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff6eb] text-[#f2a34b]">
+                <FileWarning size={20} />
+              </div>
+              <div>
+                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
+                  신고 대상 원문
+                </h2>
+                <p className="mt-1 text-sm text-[#8ba0bf]">
+                  작성자 {report.targetInfo.authorNickname || "알 수 없음"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 whitespace-pre-wrap text-[#405a7f]">
+              {report.targetInfo.originalContent?.trim().length
+                ? report.targetInfo.originalContent
+                : "원문 내용을 확인할 수 없습니다."}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+            <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
+              처리 액션
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
+              현재 백엔드가 지원하는 세 가지 처리만 노출합니다.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              {REPORT_ACTIONS.map((action) => {
+                const actionUnavailable =
+                  action === "DELETE" && report.targetInfo.targetType !== "POST";
+                const disabled = report.status === "PROCESSED" || isHandling || actionUnavailable;
+
+                return (
+                  <button
+                    key={action}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => void onHandle(action)}
+                    className={`rounded-[24px] border px-5 py-5 text-left transition ${
+                      disabled
+                        ? "cursor-not-allowed border-[#e3ebf8] bg-[#f8fbff] text-[#9aaecc]"
+                        : "border-[#dce7f8] bg-white text-[#314969] hover:border-[#86afe8] hover:bg-[#f9fbff]"
+                    }`}
+                  >
+                    <p className="text-[17px] font-semibold tracking-[-0.02em]">
+                      {formatAdminReportActionLabel(action)}
+                    </p>
+                    <p className="mt-2 text-sm leading-6">
+                      {actionUnavailable
+                        ? "게시글 신고에서만 사용할 수 있는 액션입니다."
+                        : getAdminReportActionDescription(action)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {report.status === "PROCESSED" ? (
+              <p className="mt-4 text-sm text-[#6c82a5]">이 신고는 이미 처리되었습니다.</p>
+            ) : null}
+          </div>
+
+          <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff1f1] text-[#e17272]">
+                <UserRoundX size={20} />
+              </div>
+              <div>
+                <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
+                  대상 정보
+                </h2>
+                <p className="mt-1 text-sm text-[#8ba0bf]">처리 전 마지막 확인용 카드입니다.</p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-sm text-[#526987]">
+              <InfoRow label="신고 상태" value={formatAdminReportStatusLabel(report.status)} />
+              <InfoRow label="최근 처리" value={formatAdminReportActionLabel(report.processingAction)} />
+              <InfoRow label="대상 유형" value={formatAdminReportTargetTypeLabel(report.targetInfo.targetType)} />
+              <InfoRow label="대상 식별값" value={report.targetInfo.targetId} />
+              <InfoRow label="작성자" value={report.targetInfo.authorNickname || "알 수 없음"} />
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-interface InfoCardProps {
-  label: string;
-  value: string | number;
+function InfoStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-[26px] bg-white px-5 py-5 shadow-[0_26px_52px_-44px_rgba(77,119,176,0.42)]">
+      <p className="text-sm font-semibold text-[#7d92b3]">{label}</p>
+      <p className="mt-3 text-[20px] font-semibold tracking-[-0.03em] text-[#2c4363]">{value}</p>
+    </div>
+  );
 }
 
-function InfoCard({ label, value }: InfoCardProps) {
+function InfoRow({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-[24px] bg-[#f8fbff] px-5 py-5">
-      <p className="text-sm font-semibold text-[#7d92b3]">{label}</p>
-      <p className="mt-3 text-[18px] font-semibold tracking-[-0.02em] text-[#2c4363]">
-        {value}
-      </p>
+    <div className="flex items-start justify-between gap-4 border-b border-[#e5edf8] pb-3 last:border-b-0 last:pb-0">
+      <span className="font-semibold text-[#7d92b3]">{label}</span>
+      <span className="text-right font-semibold text-[#2c4363]">{value}</span>
     </div>
   );
 }
