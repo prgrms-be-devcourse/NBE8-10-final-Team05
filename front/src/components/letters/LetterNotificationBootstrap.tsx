@@ -23,13 +23,14 @@ export default function LetterNotificationBootstrap() {
       withCredentials: true,
     });
 
-    // 연결 확인용 (서버에서 'connect' 이벤트를 보낼 경우)
-    eventSource.addEventListener("connect", (e: any) => {
+    // ✅ [수정] any 제거: MessageEvent 타입 지정
+    eventSource.addEventListener("connect", (e: MessageEvent) => {
       console.log("🚀 SSE Connected:", e.data);
     });
 
+    // ✅ [수정] 암시적 any 제거: MessageEvent 타입 지정
     // 1. 새로운 편지 도착 알림
-    eventSource.addEventListener("new_letter", (event) => {
+    eventSource.addEventListener("new_letter", (event: MessageEvent) => {
       if (event.data !== "connected") {
         toast.success(event.data, {
           duration: 5000,
@@ -37,22 +38,21 @@ export default function LetterNotificationBootstrap() {
       }
     });
 
+    // ✅ [수정] 암시적 any 제거: MessageEvent 타입 지정
     // 2. 답장 도착 알림
-    eventSource.addEventListener("reply_arrival", (event) => {
+    eventSource.addEventListener("reply_arrival", (event: MessageEvent) => {
       toast.success(event.data, {
         duration: 6000,
       });
     });
 
-    // 에러 핸들링 및 자동 닫기
-    eventSource.onerror = (error) => {
-      console.error("❌ SSE 연결 에러:", error);
-      // 에러 발생 시 연결을 닫아 리소스 낭비를 방지하거나,
-      // 필요 시 setTimeout을 이용해 재연결 로직을 짤 수 있습니다.
+    // ✅ [수정] 에러 핸들링 시 미사용 변수 처리 (필요 없으면 생략 가능)
+    eventSource.onerror = () => {
+      console.error("❌ SSE 연결 에러 발생");
       eventSource.close();
     };
 
-    // 컴포넌트 언마운트 시 연결 해제 (중요!)
+    // 컴포넌트 언마운트 시 연결 해제
     return () => {
       console.log("🔌 SSE 구독 해제");
       eventSource.close();

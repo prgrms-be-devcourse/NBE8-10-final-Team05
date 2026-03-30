@@ -27,7 +27,10 @@ interface SentLetter {
   createdDate: string;
 }
 
-type SentLettersResponse = SentLetter[] | { letters?: SentLetter[] };
+// 응답 객체 구조를 명확히 정의하여 any 제거
+interface SentLettersResponse {
+  letters?: SentLetter[];
+}
 
 export default function SentLettersPage() {
   const router = useRouter();
@@ -35,10 +38,9 @@ export default function SentLettersPage() {
   const [letters, setLetters] = useState<SentLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // SSE 객체 중복 생성을 막기 위한 Ref
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // 2. 데이터 가져오는 로직 (useCallback으로 메모이제이션)
+  // 2. 데이터 가져오는 로직
   const fetchSentLetters = useCallback(
     async (showLoadingSpinner = false) => {
       if (!isAuthenticated) {
@@ -50,8 +52,8 @@ export default function SentLettersPage() {
       if (showLoadingSpinner) setIsLoading(true);
 
       try {
-        // requestData 내부에서 이미 baseURL을 처리하므로 상대 경로만 사용
-        const response = await requestData<SentLettersResponse>(
+        // 응답 타입을 유니온으로 처리하여 안전하게 접근
+        const response = await requestData<SentLetter[] | SentLettersResponse>(
           "/api/v1/letters/sent",
         );
 
@@ -59,10 +61,11 @@ export default function SentLettersPage() {
           setLetters(response);
         } else if (
           response &&
-          typeof response === "object" &&
-          Array.isArray((response as any).letters)
+          response.letters &&
+          Array.isArray(response.letters)
         ) {
-          setLetters((response as any).letters);
+          // ✅ (response as any) 제거: 인터페이스를 통해 안전하게 접근
+          setLetters(response.letters);
         } else {
           setLetters([]);
         }
@@ -84,7 +87,7 @@ export default function SentLettersPage() {
   // 4. SSE 실시간 상태 갱신 설정
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (eventSourceRef.current) return; // 이미 연결되어 있다면 중복 실행 방지
+    if (eventSourceRef.current) return;
 
     const rawBaseUrl =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
@@ -92,24 +95,23 @@ export default function SentLettersPage() {
       ? rawBaseUrl.slice(0, -1)
       : rawBaseUrl;
 
-    // 백엔드 주소로 직접 연결 (withCredentials 포함)
     const es = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
       withCredentials: true,
     });
     eventSourceRef.current = es;
 
     const handleUpdate = (event: MessageEvent) => {
-      // 'connected' 메시지나 하트비트가 아닌 실제 이벤트 데이터일 때만 갱신
       if (event.data !== "connected") {
         toast.success("편지 상태가 업데이트되었습니다");
-        fetchSentLetters(false); // 로딩바 없이 목록만 최신화
+        fetchSentLetters(false);
       }
     };
 
-    // 서버의 LetterNotificationAdapter에서 정의한 이벤트 리스너 등록
     es.addEventListener("new_letter", handleUpdate);
     es.addEventListener("reply_arrival", handleUpdate);
-    es.addEventListener("connect", (e: any) =>
+
+    // ✅ (e: any) 제거: MessageEvent 타입 지정
+    es.addEventListener("connect", (e: MessageEvent) =>
       console.log("🚀 SSE Connected:", e.data),
     );
 
@@ -119,7 +121,6 @@ export default function SentLettersPage() {
       eventSourceRef.current = null;
     };
 
-    // 컴포넌트 언마운트 시 연결 종료 (중요!)
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();

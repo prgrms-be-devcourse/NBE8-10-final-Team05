@@ -17,7 +17,6 @@ import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
 import { useLetterNotification } from "@/lib/hook/useLetterNotification"; // 커스텀 훅 임포트
-import { toast } from "react-hot-toast";
 
 interface LetterSummary {
   id: number;
