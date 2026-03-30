@@ -53,7 +53,8 @@ class SecurityConfigTest {
   void publicApiWorksWithoutToken() throws Exception {
     CreateMemberRequest request =
         new CreateMemberRequest("member1@test.com", "pass1234", "member1");
-    MemberResponse response = new MemberResponse(1L, "member1@test.com", "member1",true);
+    MemberResponse response =
+        new MemberResponse(1L, "member1@test.com", "member1", true, false);
     given(memberService.createMember(any(CreateMemberRequest.class))).willReturn(response);
 
     mockMvc

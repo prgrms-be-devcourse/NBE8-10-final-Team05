@@ -25,6 +25,7 @@ describe("settings-service", () => {
           email: "hello@hello.com",
           nickname: "마음이",
           randomReceiveAllowed: true,
+          socialAccount: false,
         },
       }),
     );
@@ -37,6 +38,7 @@ describe("settings-service", () => {
       email: "hello@hello.com",
       nickname: "마음이",
       randomReceiveAllowed: true,
+      socialAccount: false,
     });
   });
 
@@ -50,6 +52,7 @@ describe("settings-service", () => {
           email: "hello@hello.com",
           nickname: "새 닉네임",
           randomReceiveAllowed: true,
+          socialAccount: false,
         },
       }),
     );
@@ -83,6 +86,7 @@ describe("settings-service", () => {
           email: "hello@hello.com",
           nickname: "마음이",
           randomReceiveAllowed: false,
+          socialAccount: false,
         },
       }),
     );
@@ -105,6 +109,7 @@ describe("settings-service", () => {
           email: "changed@hello.com",
           nickname: "마음이",
           randomReceiveAllowed: true,
+          socialAccount: false,
         },
       }),
     );
@@ -138,6 +143,7 @@ describe("settings-service", () => {
           email: "hello@hello.com",
           nickname: "마음이",
           randomReceiveAllowed: true,
+          socialAccount: false,
         },
       }),
     );
@@ -174,13 +180,16 @@ describe("settings-service", () => {
 
     const { withdrawMember } = await import("./settings-service");
 
-    await expect(withdrawMember()).resolves.toBeUndefined();
+    await expect(withdrawMember("current-password")).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8080/api/v1/members/me",
       expect.objectContaining({
         method: "DELETE",
         credentials: "include",
+        body: JSON.stringify({
+          currentPassword: "current-password",
+        }),
       }),
     );
   });

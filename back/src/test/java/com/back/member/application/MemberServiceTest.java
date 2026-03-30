@@ -10,11 +10,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 
 import com.back.auth.domain.RefreshTokenDomainService;
+import com.back.auth.domain.OAuthAccountRepository;
 import com.back.global.exception.ServiceException;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberPasswordRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
+import com.back.member.adapter.in.web.dto.WithdrawMemberRequest;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
@@ -40,6 +42,7 @@ class MemberServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private RefreshTokenDomainService refreshTokenDomainService;
+  @Mock private OAuthAccountRepository oAuthAccountRepository;
   @Mock private Clock clock;
 
   @InjectMocks private MemberService memberService;
@@ -172,12 +175,14 @@ class MemberServiceTest {
     ReflectionTestUtils.setField(member, "id", 4L);
     given(memberRepository.findById(4L)).willReturn(Optional.of(member));
     given(memberRepository.findByEmail("changed@test.com")).willReturn(Optional.empty());
+    given(oAuthAccountRepository.existsByMemberId(4L)).willReturn(false);
 
     var response =
         memberService.updateEmail(4L, new UpdateMemberEmailRequest(" Changed@Test.com "));
 
     assertThat(response.email()).isEqualTo("changed@test.com");
     assertThat(member.getEmail()).isEqualTo("changed@test.com");
+    assertThat(response.socialAccount()).isFalse();
   }
 
   @Test
@@ -204,13 +209,44 @@ class MemberServiceTest {
     Member member = Member.create("member6@test.com", "$2a$10$hashValue", "member6");
     ReflectionTestUtils.setField(member, "id", 6L);
     given(memberRepository.findById(6L)).willReturn(Optional.of(member));
+    given(oAuthAccountRepository.existsByMemberId(6L)).willReturn(false);
+    given(passwordEncoder.matches("current-password", "$2a$10$hashValue")).willReturn(true);
 
-    memberService.withdrawMember(6L);
+    memberService.withdrawMember(6L, new WithdrawMemberRequest("current-password"));
 
     assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
     assertThat(member.isRandomReceiveAllowed()).isFalse();
     then(refreshTokenDomainService)
         .should()
         .revokeAllByMemberId(eq(6L), any(java.time.LocalDateTime.class));
+  }
+
+  @Test
+  @DisplayName("일반 계정 탈퇴 시 현재 비밀번호가 없으면 400-1 예외를 반환한다")
+  void withdrawMemberFailsWhenCurrentPasswordMissingForLocalAccount() {
+    Member member = Member.create("member7@test.com", "$2a$10$hashValue", "member7");
+    ReflectionTestUtils.setField(member, "id", 7L);
+    given(memberRepository.findById(7L)).willReturn(Optional.of(member));
+    given(oAuthAccountRepository.existsByMemberId(7L)).willReturn(false);
+
+    assertThatThrownBy(() -> memberService.withdrawMember(7L, new WithdrawMemberRequest("   ")))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("400-1"));
+  }
+
+  @Test
+  @DisplayName("소셜 계정 탈퇴는 현재 비밀번호 없이도 진행된다")
+  void withdrawMemberAllowsSocialAccountWithoutCurrentPassword() {
+    Member member = Member.create("member8@test.com", "$2a$10$hashValue", "member8");
+    ReflectionTestUtils.setField(member, "id", 8L);
+    given(memberRepository.findById(8L)).willReturn(Optional.of(member));
+    given(oAuthAccountRepository.existsByMemberId(8L)).willReturn(true);
+
+    memberService.withdrawMember(8L, new WithdrawMemberRequest(null));
+
+    assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
+    then(passwordEncoder).should(never()).matches(any(), any());
   }
 }

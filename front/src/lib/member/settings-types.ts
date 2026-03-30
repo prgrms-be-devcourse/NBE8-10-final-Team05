@@ -3,6 +3,7 @@ export interface MemberSettings {
   email: string;
   nickname: string;
   randomReceiveAllowed: boolean;
+  socialAccount: boolean;
 }
 
 export interface UpdateNicknameRequest {
@@ -16,4 +17,8 @@ export interface UpdateEmailRequest {
 export interface UpdatePasswordRequest {
   currentPassword: string;
   newPassword: string;
+}
+
+export interface WithdrawMemberRequest {
+  currentPassword?: string;
 }

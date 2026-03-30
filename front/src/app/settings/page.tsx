@@ -50,6 +50,7 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [withdrawPassword, setWithdrawPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +87,7 @@ export default function SettingsPage() {
       setSettings(response);
       setEmail(response.email);
       setNickname(response.nickname);
+      setWithdrawPassword("");
     } catch (error: unknown) {
       setErrorMessage(toMemberSettingsErrorMessage(error));
       setSettings(null);
@@ -231,7 +233,12 @@ export default function SettingsPage() {
   }
 
   async function handleWithdraw() {
-    if (isWithdrawing) {
+    if (!settings || isWithdrawing) {
+      return;
+    }
+
+    if (!settings.socialAccount && withdrawPassword.trim().length === 0) {
+      setErrorMessage("회원 탈퇴 전에 현재 비밀번호를 다시 입력해 주세요.");
       return;
     }
 
@@ -240,7 +247,7 @@ export default function SettingsPage() {
     setNoticeMessage(null);
 
     try {
-      await withdrawMember();
+      await withdrawMember(settings.socialAccount ? undefined : withdrawPassword);
       setNoticeMessage(getWithdrawNotice());
       await logout();
       window.location.replace("/");
@@ -448,73 +455,84 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <form className="mt-8 grid gap-5 lg:grid-cols-2" onSubmit={handlePasswordSave}>
-                  <div>
-                    <label
-                      htmlFor="settings-current-password"
-                      className="text-sm font-semibold text-[#7f93b0]"
-                    >
-                      현재 비밀번호
-                    </label>
-                    <input
-                      id="settings-current-password"
-                      type="password"
-                      value={currentPassword}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
-                      className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
-                      autoComplete="current-password"
-                    />
+                {settings.socialAccount ? (
+                  <div className="mt-8 rounded-[28px] border border-[#e1ecfb] bg-[#fbfdff] px-5 py-5">
+                    <p className="text-base font-semibold text-[#2f4b73]">
+                      현재 계정은 소셜 로그인으로 연결되어 있어요.
+                    </p>
+                    <p className="mt-3 text-sm leading-relaxed text-[#7f93b0]">
+                      설정 화면에서는 비밀번호를 직접 변경하지 않습니다. 비밀번호가 필요한 경우에는 연결된 소셜 계정 쪽 정책을 따라야 합니다.
+                    </p>
                   </div>
+                ) : (
+                  <form className="mt-8 grid gap-5 lg:grid-cols-2" onSubmit={handlePasswordSave}>
+                    <div>
+                      <label
+                        htmlFor="settings-current-password"
+                        className="text-sm font-semibold text-[#7f93b0]"
+                      >
+                        현재 비밀번호
+                      </label>
+                      <input
+                        id="settings-current-password"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                        className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                        autoComplete="current-password"
+                      />
+                    </div>
 
-                  <div>
-                    <label
-                      htmlFor="settings-new-password"
-                      className="text-sm font-semibold text-[#7f93b0]"
-                    >
-                      새 비밀번호
-                    </label>
-                    <input
-                      id="settings-new-password"
-                      type="password"
-                      value={newPassword}
-                      onChange={(event) => setNewPassword(event.target.value)}
-                      className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
-                      autoComplete="new-password"
-                    />
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="settings-new-password"
+                        className="text-sm font-semibold text-[#7f93b0]"
+                      >
+                        새 비밀번호
+                      </label>
+                      <input
+                        id="settings-new-password"
+                        type="password"
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                        autoComplete="new-password"
+                      />
+                    </div>
 
-                  <div className="lg:col-span-2">
-                    <label
-                      htmlFor="settings-new-password-confirm"
-                      className="text-sm font-semibold text-[#7f93b0]"
-                    >
-                      새 비밀번호 확인
-                    </label>
-                    <input
-                      id="settings-new-password-confirm"
-                      type="password"
-                      value={newPasswordConfirm}
-                      onChange={(event) => setNewPasswordConfirm(event.target.value)}
-                      className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
-                      autoComplete="new-password"
-                    />
-                  </div>
+                    <div className="lg:col-span-2">
+                      <label
+                        htmlFor="settings-new-password-confirm"
+                        className="text-sm font-semibold text-[#7f93b0]"
+                      >
+                        새 비밀번호 확인
+                      </label>
+                      <input
+                        id="settings-new-password-confirm"
+                        type="password"
+                        value={newPasswordConfirm}
+                        onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                        className="mt-3 w-full rounded-[24px] border border-[#dbe7fb] bg-white px-5 py-4 text-base font-semibold text-[#2f4b73] outline-none transition focus:border-[#8eb8f2] focus:ring-4 focus:ring-[#dfeeff]"
+                        autoComplete="new-password"
+                      />
+                    </div>
 
-                  <div className="lg:col-span-2">
-                    <button
-                      type="submit"
-                      disabled={isSavingPassword}
-                      className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#5f95f2] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#4f86e7] disabled:cursor-not-allowed disabled:bg-[#b9d0f4]"
-                    >
-                      {isSavingPassword ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <Save size={18} />
-                      )}
-                      비밀번호 변경
-                    </button>
-                  </div>
-                </form>
+                    <div className="lg:col-span-2">
+                      <button
+                        type="submit"
+                        disabled={isSavingPassword}
+                        className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#5f95f2] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#4f86e7] disabled:cursor-not-allowed disabled:bg-[#b9d0f4]"
+                      >
+                        {isSavingPassword ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <Save size={18} />
+                        )}
+                        비밀번호 변경
+                      </button>
+                    </div>
+                  </form>
+                )}
               </article>
 
               <article className="home-panel rounded-[32px] border border-[#ffd9d9] px-8 py-8 lg:col-span-2">
@@ -535,6 +553,32 @@ export default function SettingsPage() {
                 <p className="mt-6 text-sm leading-relaxed text-[#9a7070]">
                   탈퇴하면 계정 상태가 즉시 정리되고, 이후에는 같은 세션으로 다시 접근할 수 없어요.
                 </p>
+
+                {settings.socialAccount ? (
+                  <p className="mt-4 text-sm leading-relaxed text-[#a26d6d]">
+                    소셜 로그인 계정은 현재 로그인 세션을 기준으로 탈퇴를 확인합니다.
+                  </p>
+                ) : (
+                  <div className="mt-5">
+                    <label
+                      htmlFor="settings-withdraw-password"
+                      className="text-sm font-semibold text-[#b47474]"
+                    >
+                      탈퇴 확인용 현재 비밀번호
+                    </label>
+                    <input
+                      id="settings-withdraw-password"
+                      type="password"
+                      value={withdrawPassword}
+                      onChange={(event) => setWithdrawPassword(event.target.value)}
+                      className="mt-3 w-full rounded-[24px] border border-[#f0c9c9] bg-white px-5 py-4 text-base font-semibold text-[#7f4a4a] outline-none transition focus:border-[#e39a9a] focus:ring-4 focus:ring-[#ffe3e3]"
+                      autoComplete="current-password"
+                    />
+                    <p className="mt-3 text-sm leading-relaxed text-[#a26d6d]">
+                      민감한 작업이라 현재 비밀번호를 한 번 더 확인합니다.
+                    </p>
+                  </div>
+                )}
 
                 {isConfirmingWithdraw ? (
                   <div className="mt-6 rounded-[28px] border border-[#ffd8d8] bg-[#fff7f7] px-5 py-5">

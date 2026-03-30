@@ -4,6 +4,7 @@ import type {
   UpdateEmailRequest,
   UpdateNicknameRequest,
   UpdatePasswordRequest,
+  WithdrawMemberRequest,
 } from "@/lib/member/settings-types";
 
 const MEMBER_SETTINGS_PATH = "/api/v1/members/me";
@@ -66,8 +67,16 @@ export async function updatePassword(
   });
 }
 
-export async function withdrawMember(): Promise<void> {
+export async function withdrawMember(currentPassword?: string): Promise<void> {
+  const payload: WithdrawMemberRequest = {
+    currentPassword,
+  };
+
   await requestVoid(MEMBER_SETTINGS_PATH, {
     method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
 }

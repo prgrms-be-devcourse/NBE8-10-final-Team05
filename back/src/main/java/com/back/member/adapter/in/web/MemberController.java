@@ -8,6 +8,7 @@ import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberPasswordRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
+import com.back.member.adapter.in.web.dto.WithdrawMemberRequest;
 import com.back.member.application.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -93,9 +94,10 @@ public class MemberController {
 
   /** 본인 회원 탈퇴 엔드포인트. */
   @DeleteMapping("/me")
-  public RsData<Void> withdrawMyMember(Authentication authentication) {
+  public RsData<Void> withdrawMyMember(
+      Authentication authentication, @RequestBody(required = false) WithdrawMemberRequest request) {
     Long memberId = resolveAuthenticatedMemberId(authentication);
-    memberService.withdrawMember(memberId);
+    memberService.withdrawMember(memberId, request);
     return new RsData<>(CODE_MEMBER_WITHDRAWN, MSG_MEMBER_WITHDRAWN, null);
   }
 
