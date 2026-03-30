@@ -1,8 +1,9 @@
 package com.back.report.repository;
 
-import com.back.report.entity.Report;
-import com.back.report.entity.ReportReason;
-import com.back.report.entity.TargetType;
+import com.back.report.domain.Report;
+import com.back.report.domain.ReportReason;
+import com.back.report.domain.TargetType;
+import com.back.report.adapter.out.persistence.ReportRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -72,6 +72,11 @@ public class Member extends BaseEntity {
     this.nickname = sanitizeNickname(nickname);
   }
 
+  /** 로그인 이메일을 변경한다. */
+  public void updateEmail(String email) {
+    this.email = email;
+  }
+
   /** 회원의 상태(ACTIVE, BLOCKED, WITHDRAWN)를 변경합니다. */
   public void updateStatus(MemberStatus status) {
     this.status = status;

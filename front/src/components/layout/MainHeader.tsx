@@ -107,7 +107,17 @@ export default function MainHeader() {
                   </Link>
                   <span className="text-[#c6ccd4]">|</span>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <Link
+                    href="/settings"
+                    className="transition hover:text-[#2f4b73]"
+                  >
+                    내 설정
+                  </Link>
+                  <span className="text-[#c6ccd4]">|</span>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => void handleLogout()}
@@ -170,7 +180,15 @@ export default function MainHeader() {
                   >
                     관리자
                   </Link>
-                ) : null}
+                ) : (
+                  <Link
+                    href="/settings"
+                    className="transition hover:text-[#2f4b73]"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    내 설정
+                  </Link>
+                )}
                 <button
                   type="button"
                   className="text-left underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
