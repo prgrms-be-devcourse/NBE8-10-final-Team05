@@ -48,5 +48,10 @@ public class Letter extends BaseEntity {
         this.status = status;
     }
 
+    public void reassignReceiver(Member newReceiver) {
+        this.receiver = newReceiver;
+        this.setCreateDate(LocalDateTime.now()); // 생성일 갱신 옵션
+        this.status = LetterStatus.SENT;
+    }
 
 }

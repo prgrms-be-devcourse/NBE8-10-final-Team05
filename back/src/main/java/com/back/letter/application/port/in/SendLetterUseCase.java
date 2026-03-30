@@ -8,4 +8,5 @@ public interface SendLetterUseCase {
     void replyLetter(long id, ReplyLetterReq req, long accessorId);
     void acceptLetter(long id, long accessorId);
     void updateWritingStatus(long id);
+    void reassignUnreadLetters();
 }

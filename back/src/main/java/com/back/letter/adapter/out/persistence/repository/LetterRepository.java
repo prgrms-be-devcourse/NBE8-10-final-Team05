@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface LetterRepository extends JpaRepository<Letter, Long> {
@@ -30,4 +32,6 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
     long countByReceiverId(Long receiverId);
     boolean existsByTitle(String title);
+    @Query("SELECT l FROM Letter l WHERE l.status = 'SENT' AND l.createDate <= :expirationTime")
+    List<Letter> findUnreadLettersExceeding(@Param("expirationTime") LocalDateTime expirationTime);
 }
