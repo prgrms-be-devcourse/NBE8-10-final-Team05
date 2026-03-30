@@ -13,6 +13,8 @@ public record JwtProperties(
     boolean refreshTokenCookieSecure,
     String refreshTokenCookieSameSite) {
 
+  private static final long DEFAULT_REFRESH_TOKEN_EXPIRE_SECONDS = 604_800L; // 7 days
+
   /** 설정값 기본치 보정과 유효성 검증을 수행한다. */
   public JwtProperties {
     if (issuer == null || issuer.isBlank()) {
@@ -32,7 +34,7 @@ public record JwtProperties(
     }
 
     if (refreshTokenExpireSeconds <= 0) {
-      refreshTokenExpireSeconds = 1_209_600L;
+      refreshTokenExpireSeconds = DEFAULT_REFRESH_TOKEN_EXPIRE_SECONDS;
     }
 
     if (refreshTokenCookieName == null || refreshTokenCookieName.isBlank()) {

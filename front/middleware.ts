@@ -8,6 +8,8 @@ const BACKEND_BASE_URL =
   "http://localhost:8080";
 const REFRESH_PATH = "/api/v1/auth/refresh";
 const REFRESH_COOKIE_NAME = "refreshToken";
+const AUTH_HINT_MEMBER = "member";
+const AUTH_HINT_ADMIN = "admin";
 
 interface AuthMember {
   role: string;
@@ -32,7 +34,14 @@ function isObservabilityPath(pathname: string): boolean {
   return pathname.startsWith("/grafana") || pathname.startsWith("/prometheus");
 }
 
-function buildLoginRedirect(request: NextRequest): NextResponse {
+function isValidAuthHint(value: string | undefined): value is "member" | "admin" {
+  return value === AUTH_HINT_MEMBER || value === AUTH_HINT_ADMIN;
+}
+
+function buildLoginRedirect(
+  request: NextRequest,
+  options: { clearRefreshCookie?: boolean } = {},
+): NextResponse {
   const nextUrl = request.nextUrl.clone();
   const target = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   nextUrl.pathname = "/login";
@@ -44,6 +53,16 @@ function buildLoginRedirect(request: NextRequest): NextResponse {
     path: "/",
     sameSite: "lax",
   });
+
+  if (options.clearRefreshCookie) {
+    response.cookies.set(REFRESH_COOKIE_NAME, "", {
+      maxAge: 0,
+      path: "/",
+      sameSite: "lax",
+      httpOnly: true,
+    });
+  }
+
   return response;
 }
 
@@ -95,6 +114,11 @@ async function fetchRefreshedSession(
 }
 
 export async function middleware(request: NextRequest) {
+  const authHint = request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value;
+  if (!isValidAuthHint(authHint)) {
+    return buildLoginRedirect(request, { clearRefreshCookie: true });
+  }
+
   const refreshCookie = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
   if (!refreshCookie) {
     return buildLoginRedirect(request);
@@ -102,7 +126,7 @@ export async function middleware(request: NextRequest) {
 
   const session = await fetchRefreshedSession(request);
   if (!session) {
-    return buildLoginRedirect(request);
+    return buildLoginRedirect(request, { clearRefreshCookie: true });
   }
 
   if (
