@@ -1,14 +1,11 @@
-package com.back.report.controller;
+package com.back.report.adapter.in.web;
 
 import com.back.global.rsData.RsData;
-import com.back.report.dto.ReportDetailResponse;
-import com.back.report.dto.ReportHandleRequest;
-import com.back.report.dto.ReportListResponse;
-import com.back.report.entity.ReportStatus;
-import com.back.report.service.ReportService;
-import jakarta.validation.Valid;
+import com.back.report.adapter.in.web.dto.ReportDetailResponse;
+import com.back.report.adapter.in.web.dto.ReportHandleRequest;
+import com.back.report.adapter.in.web.dto.ReportListResponse;
+import com.back.report.application.service.ReportService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
