@@ -19,4 +19,9 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             LocalDateTime endExclusive
     );
 
+    long countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive
+    );
+
 }

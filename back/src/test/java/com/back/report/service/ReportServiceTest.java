@@ -1,14 +1,17 @@
 package com.back.report.service;
 
 import com.back.global.exception.ServiceException;
+import com.back.diary.adapter.out.persistence.repository.DiaryRepository;
 import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.member.domain.Member;
+import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
+import com.back.report.dto.AdminDashboardStatsResponse;
 import com.back.report.dto.ReportCreateRequest;
 import com.back.report.dto.ReportDetailResponse;
 import com.back.report.dto.ReportHandleRequest;
@@ -26,6 +29,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,7 +53,11 @@ class ReportServiceTest {
     @Mock
     private LetterRepository letterRepository;
     @Mock
+    private DiaryRepository diaryRepository;
+    @Mock
     private NotificationService notificationService;
+    @Mock
+    private Clock clock;
     @InjectMocks
     private ReportService reportService;
 
@@ -104,6 +114,33 @@ class ReportServiceTest {
         // then
         assertThat(result).hasSize(1);
         assertThat(result.get(0).targetId()).isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("관리자 대시보드 통계는 신고, 편지, 일기, 수신 허용 회원 수를 함께 반환한다.")
+    void getDashboardStats_success() {
+        given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
+        given(clock.instant()).willReturn(Instant.parse("2026-03-30T01:00:00Z"));
+        given(reportRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(any(), any()))
+                .willReturn(4L);
+        given(reportRepository.countByStatus(ReportStatus.RECEIVED)).willReturn(7L);
+        given(reportRepository.countByStatus(ReportStatus.PROCESSED)).willReturn(13L);
+        given(letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(any(), any()))
+                .willReturn(5L);
+        given(diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(any(), any()))
+                .willReturn(3L);
+        given(memberRepository.countByStatusAndRoleAndRandomReceiveAllowed(
+                MemberStatus.ACTIVE, MemberRole.USER, true))
+                .willReturn(11L);
+
+        AdminDashboardStatsResponse result = reportService.getDashboardStats();
+
+        assertThat(result.todayReportsCount()).isEqualTo(4L);
+        assertThat(result.pendingReportsCount()).isEqualTo(7L);
+        assertThat(result.processedReportsCount()).isEqualTo(13L);
+        assertThat(result.todayLettersCount()).isEqualTo(5L);
+        assertThat(result.todayDiariesCount()).isEqualTo(3L);
+        assertThat(result.availableReceiversCount()).isEqualTo(11L);
     }
 
     @Test

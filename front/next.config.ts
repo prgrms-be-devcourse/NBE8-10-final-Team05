@@ -25,7 +25,6 @@ function remotePatternFromApiBaseUrl(baseUrl: string | undefined) {
 const apiBasePattern = remotePatternFromApiBaseUrl(
   process.env.NEXT_PUBLIC_API_BASE_URL,
 );
-
 const nextConfig: NextConfig = {
   async headers() {
     return [

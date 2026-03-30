@@ -28,6 +28,10 @@ function isAdminPath(pathname: string): boolean {
   return pathname.startsWith("/admin");
 }
 
+function isObservabilityPath(pathname: string): boolean {
+  return pathname.startsWith("/grafana") || pathname.startsWith("/prometheus");
+}
+
 function buildLoginRedirect(request: NextRequest): NextResponse {
   const nextUrl = request.nextUrl.clone();
   const target = `${request.nextUrl.pathname}${request.nextUrl.search}`;
@@ -101,7 +105,11 @@ export async function middleware(request: NextRequest) {
     return buildLoginRedirect(request);
   }
 
-  if (isAdminPath(request.nextUrl.pathname) && session.memberRole !== "ADMIN") {
+  if (
+    (isAdminPath(request.nextUrl.pathname) ||
+      isObservabilityPath(request.nextUrl.pathname)) &&
+    session.memberRole !== "ADMIN"
+  ) {
     return buildForbiddenRedirect(request);
   }
 
@@ -132,5 +140,7 @@ export const config = {
     "/stories/write/:path*",
     "/settings/:path*",
     "/admin/:path*",
+    "/grafana/:path*",
+    "/prometheus/:path*",
   ],
 };

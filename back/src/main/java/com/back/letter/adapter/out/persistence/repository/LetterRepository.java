@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface LetterRepository extends JpaRepository<Letter, Long> {
@@ -29,5 +30,7 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     Optional<Letter> findFirstByReceiverIdOrderByCreateDateDesc(Long receiverId);
     Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
     long countByReceiverId(Long receiverId);
+    long countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            LocalDateTime startInclusive, LocalDateTime endExclusive);
     boolean existsByTitle(String title);
 }

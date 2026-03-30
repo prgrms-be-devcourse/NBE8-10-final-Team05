@@ -1,49 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity,
+  BookHeart,
   ChevronRight,
   ExternalLink,
   Flag,
   Inbox,
+  Loader2,
+  Mail,
   ShieldCheck,
+  UserRoundCheck,
 } from "lucide-react";
+import {
+  getAdminDashboardStats,
+  getGrafanaSessionState,
+} from "@/lib/admin/admin-dashboard-service";
+import type {
+  AdminDashboardStats,
+  GrafanaSessionState,
+} from "@/lib/admin/admin-dashboard-types";
 import {
   buildGrafanaPanelUrl,
   GRAFANA_PANEL_DEFINITIONS,
   getGrafanaHomeUrl,
+  getK6GrafanaDashboardUrl,
   getPrometheusHomeUrl,
 } from "@/lib/admin/grafana-dashboard";
-import { getAdminReports } from "@/lib/admin/report-service";
-import type { AdminReportListItem } from "@/lib/admin/report-types";
 import { toErrorMessage } from "@/lib/api/rs-data";
-
-function getTodayCount(reports: AdminReportListItem[]): number {
-  const today = new Date();
-
-  return reports.filter((report) => {
-    const createdAt = new Date(report.createdAt);
-    return (
-      createdAt.getFullYear() === today.getFullYear() &&
-      createdAt.getMonth() === today.getMonth() &&
-      createdAt.getDate() === today.getDate()
-    );
-  }).length;
-}
-
-function getPendingCount(reports: AdminReportListItem[]): number {
-  return reports.filter((report) => report.status === "RECEIVED").length;
-}
-
-function getProcessedCount(reports: AdminReportListItem[]): number {
-  return reports.filter((report) => report.status === "PROCESSED").length;
-}
-
-function getLetterCount(reports: AdminReportListItem[]): number {
-  return reports.filter((report) => report.targetType === "LETTER").length;
-}
 
 function SummaryCard({
   label,
@@ -55,16 +40,20 @@ function SummaryCard({
   label: string;
   value: number;
   helper: string;
-  icon: typeof Activity;
+  icon: typeof Flag;
   tone: string;
 }) {
   return (
     <div className="rounded-[28px] bg-white px-5 py-5 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
-      <div className={`flex h-12 w-12 items-center justify-center rounded-full ${tone}`}>
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-full ${tone}`}
+      >
         <Icon size={20} />
       </div>
       <p className="mt-5 text-sm font-semibold text-[#7f95b5]">{label}</p>
-      <p className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-[#223552]">{value}</p>
+      <p className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-[#223552]">
+        {value}
+      </p>
       <p className="mt-2 text-sm text-[#93a6c1]">{helper}</p>
     </div>
   );
@@ -87,7 +76,9 @@ function GrafanaPanelCard({
     <section className="overflow-hidden rounded-[30px] bg-white shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
       <div className="flex items-start justify-between gap-4 border-b border-[#e8eef7] px-6 py-5">
         <div>
-          <h2 className="text-[22px] font-semibold tracking-[-0.04em] text-[#223552]">{title}</h2>
+          <h2 className="text-[22px] font-semibold tracking-[-0.04em] text-[#223552]">
+            {title}
+          </h2>
           <p className="mt-2 text-sm text-[#8fa4c0]">{description}</p>
         </div>
         <a
@@ -117,74 +108,155 @@ function GrafanaPanelCard({
   );
 }
 
+function GrafanaFallbackCard({
+  state,
+  onRetry,
+}: {
+  state: Exclude<GrafanaSessionState, "ready">;
+  onRetry: () => void;
+}) {
+  if (state === "checking") {
+    return (
+      <section className="rounded-[30px] bg-white px-6 py-8 text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+        <div className="flex items-center gap-3">
+          <Loader2 className="animate-spin text-[#4f8cf0]" size={18} />
+          <p className="text-sm font-semibold">Grafana 세션을 확인하는 중입니다.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const isLoginRequired = state === "login-required";
+
+  return (
+    <section className="rounded-[30px] bg-white px-6 py-7 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
+            Observability
+          </p>
+          <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-[#223552]">
+            {isLoginRequired ? "Grafana 로그인 필요" : "Grafana 연결 확인 필요"}
+          </h2>
+          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#6e83a5]">
+            {isLoginRequired
+              ? "패널은 Grafana 세션이 있어야 보입니다. 새 창에서 먼저 로그인한 뒤 이 화면으로 돌아오면 iframe 패널을 바로 확인할 수 있습니다."
+              : "로컬 모니터링 스택이 응답하지 않습니다. docker compose로 Grafana, Prometheus, Nginx가 정상 기동했는지 먼저 확인해야 합니다."}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={getGrafanaHomeUrl()}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3e7fe7]"
+          >
+            {isLoginRequired ? "Grafana 로그인 열기" : "Grafana 열기"}
+            <ExternalLink size={14} />
+          </a>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
+          >
+            다시 확인
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function AdminDashboardPage() {
-  const [reports, setReports] = useState<AdminReportListItem[]>([]);
+  const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [grafanaState, setGrafanaState] =
+    useState<GrafanaSessionState>("checking");
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadDashboard = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    setGrafanaState("checking");
 
-    async function fetchReports(): Promise<void> {
-      setIsLoading(true);
-      setErrorMessage(null);
+    const [statsResult, grafanaResult] = await Promise.allSettled([
+      getAdminDashboardStats(),
+      getGrafanaSessionState(),
+    ]);
 
-      try {
-        const data = await getAdminReports();
-        if (!cancelled) {
-          setReports(data);
-        }
-      } catch (error: unknown) {
-        if (!cancelled) {
-          setReports([]);
-          setErrorMessage(toErrorMessage(error));
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+    if (statsResult.status === "fulfilled") {
+      setStats(statsResult.value);
+    } else {
+      setStats(null);
+      setErrorMessage(toErrorMessage(statsResult.reason));
     }
 
-    void fetchReports();
+    if (grafanaResult.status === "fulfilled") {
+      setGrafanaState(grafanaResult.value);
+    } else {
+      setGrafanaState("unavailable");
+    }
+
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadDashboard();
+    }, 0);
 
     return () => {
-      cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [loadDashboard]);
 
   const summaryCards = useMemo(
     () => [
       {
         label: "오늘 접수 신고",
-        value: getTodayCount(reports),
+        value: stats?.todayReportsCount ?? 0,
         helper: "오늘 기준 새로 들어온 신고",
         icon: Flag,
         tone: "bg-[#edf5ff] text-[#4f8cf0]",
       },
       {
         label: "처리 대기",
-        value: getPendingCount(reports),
+        value: stats?.pendingReportsCount ?? 0,
         helper: "먼저 확인이 필요한 항목",
         icon: Inbox,
         tone: "bg-[#eefbf4] text-[#37b36a]",
       },
       {
         label: "처리 완료",
-        value: getProcessedCount(reports),
+        value: stats?.processedReportsCount ?? 0,
         helper: "운영 판단이 끝난 신고",
         icon: ShieldCheck,
         tone: "bg-[#fff6eb] text-[#f2a34b]",
       },
       {
-        label: "비밀편지 신고",
-        value: getLetterCount(reports),
-        helper: "편지 도메인 대상 신고",
-        icon: Activity,
+        label: "오늘 생성 편지",
+        value: stats?.todayLettersCount ?? 0,
+        helper: "오늘 생성된 비밀편지",
+        icon: Mail,
         tone: "bg-[#fff1f1] text-[#e17272]",
       },
+      {
+        label: "오늘 작성 일기",
+        value: stats?.todayDiariesCount ?? 0,
+        helper: "오늘 기록된 개인 일기",
+        icon: BookHeart,
+        tone: "bg-[#f4f0ff] text-[#8b64dc]",
+      },
+      {
+        label: "수신 허용 회원",
+        value: stats?.availableReceiversCount ?? 0,
+        helper: "현재 랜덤 편지를 받을 수 있는 회원",
+        icon: UserRoundCheck,
+        tone: "bg-[#eef8ff] text-[#4d87c4]",
+      },
     ],
-    [reports],
+    [stats],
   );
 
   return (
@@ -222,6 +294,15 @@ export default function AdminDashboardPage() {
               Prometheus 열기
               <ExternalLink size={14} />
             </a>
+            <a
+              href={getK6GrafanaDashboardUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
+            >
+              k6 대시보드
+              <ExternalLink size={14} />
+            </a>
             <Link
               href="/admin/reports"
               className="inline-flex items-center gap-1 rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3e7fe7]"
@@ -232,11 +313,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-[22px] bg-white/72 px-4 py-4 text-sm leading-6 text-[#6680a5] ring-1 ring-[#e4edf9]">
-          Grafana 세션이 없으면 새 창에서 먼저 로그인한 뒤 돌아오면 iframe 패널이 그대로 보입니다.
-        </div>
-
-        <div className="mt-6 grid gap-4 xl:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {summaryCards.map((card) => (
             <SummaryCard
               key={card.label}
@@ -258,21 +335,27 @@ export default function AdminDashboardPage() {
 
       {!isLoading && errorMessage ? (
         <div className="rounded-[28px] border border-[#f3d0d0] bg-[#fff8f8] px-6 py-10 text-center text-[#9a4b4b] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
-          신고 요약 데이터를 불러오지 못했습니다. {errorMessage}
+          대시보드 집계 데이터를 불러오지 못했습니다. {errorMessage}
         </div>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        {GRAFANA_PANEL_DEFINITIONS.map((panel) => (
-          <GrafanaPanelCard
-            key={panel.panelId}
-            title={panel.title}
-            description={panel.description}
-            iframeSrc={buildGrafanaPanelUrl(panel.panelId)}
-            height={panel.height}
-          />
-        ))}
-      </section>
+      {!isLoading && grafanaState !== "ready" ? (
+        <GrafanaFallbackCard state={grafanaState} onRetry={() => void loadDashboard()} />
+      ) : null}
+
+      {!isLoading && grafanaState === "ready" ? (
+        <section className="grid gap-6 xl:grid-cols-2">
+          {GRAFANA_PANEL_DEFINITIONS.map((panel) => (
+            <GrafanaPanelCard
+              key={panel.panelId}
+              title={panel.title}
+              description={panel.description}
+              iframeSrc={buildGrafanaPanelUrl(panel.panelId)}
+              height={panel.height}
+            />
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

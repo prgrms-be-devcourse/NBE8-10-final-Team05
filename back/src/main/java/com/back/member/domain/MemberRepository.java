@@ -11,4 +11,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
   /** 이메일로 회원을 조회한다. */
   Optional<Member> findByEmail(String email);
+
+  long countByStatusAndRoleAndRandomReceiveAllowed(
+      MemberStatus status, MemberRole role, boolean randomReceiveAllowed);
 }

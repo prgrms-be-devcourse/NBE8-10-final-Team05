@@ -5,9 +5,17 @@ export interface GrafanaPanelDefinition {
   height: number;
 }
 
-const DEFAULT_MONITORING_PROXY_URL = "http://localhost:3400";
-const DASHBOARD_UID = "maum-on-local-observability";
-const DASHBOARD_SLUG = "maum-on-local-observability";
+const DEFAULT_MONITORING_PROXY_URL = "";
+const GRAFANA_BASE_PATH = "/grafana";
+const PROMETHEUS_BASE_PATH = "/prometheus";
+const LOCAL_OBSERVABILITY_DASHBOARD = {
+  uid: "maum-on-local-observability",
+  slug: "maum-on-local-observability",
+};
+const K6_LOAD_TEST_DASHBOARD = {
+  uid: "maum-on-k6-load-test",
+  slug: "maum-on-k6-load-test",
+};
 
 export const GRAFANA_PANEL_DEFINITIONS: GrafanaPanelDefinition[] = [
   {
@@ -44,7 +52,21 @@ export function getMonitoringProxyBaseUrl(): string {
   const rawBaseUrl =
     process.env.NEXT_PUBLIC_MONITORING_PROXY_URL ?? DEFAULT_MONITORING_PROXY_URL;
 
-  return trimTrailingSlash(rawBaseUrl);
+  const trimmed = trimTrailingSlash(rawBaseUrl);
+  return trimmed === "/" ? "" : trimmed;
+}
+
+function withBasePath(path: string): string {
+  return `${getMonitoringProxyBaseUrl()}${path}`;
+}
+
+function buildGrafanaDashboardUrl(
+  dashboard: { uid: string; slug: string },
+  view: "d" | "d-solo",
+): string {
+  return withBasePath(
+    `${GRAFANA_BASE_PATH}/${view}/${dashboard.uid}/${dashboard.slug}`,
+  );
 }
 
 export function buildGrafanaPanelUrl(panelId: number): string {
@@ -57,13 +79,24 @@ export function buildGrafanaPanelUrl(panelId: number): string {
     refresh: "30s",
   });
 
-  return `${getMonitoringProxyBaseUrl()}/grafana/d-solo/${DASHBOARD_UID}/${DASHBOARD_SLUG}?${params.toString()}`;
+  return `${buildGrafanaDashboardUrl(
+    LOCAL_OBSERVABILITY_DASHBOARD,
+    "d-solo",
+  )}?${params.toString()}`;
 }
 
 export function getGrafanaHomeUrl(): string {
-  return `${getMonitoringProxyBaseUrl()}/grafana/`;
+  return withBasePath(`${GRAFANA_BASE_PATH}/`);
+}
+
+export function getK6GrafanaDashboardUrl(): string {
+  return buildGrafanaDashboardUrl(K6_LOAD_TEST_DASHBOARD, "d");
 }
 
 export function getPrometheusHomeUrl(): string {
-  return `${getMonitoringProxyBaseUrl()}/prometheus/`;
+  return withBasePath(`${PROMETHEUS_BASE_PATH}/`);
+}
+
+export function getGrafanaSessionProbeUrl(): string {
+  return withBasePath(`${GRAFANA_BASE_PATH}/api/user`);
 }
