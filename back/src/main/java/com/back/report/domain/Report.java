@@ -1,4 +1,4 @@
-package com.back.report.entity;
+package com.back.report.domain;
 
 import com.back.global.jpa.entity.BaseEntity;
 import jakarta.persistence.*;
