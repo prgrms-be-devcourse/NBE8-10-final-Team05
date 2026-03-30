@@ -34,6 +34,10 @@ function isObservabilityPath(pathname: string): boolean {
   return pathname.startsWith("/grafana") || pathname.startsWith("/prometheus");
 }
 
+function isObservabilityApiPath(pathname: string): boolean {
+  return pathname.startsWith("/grafana/api/") || pathname.startsWith("/prometheus/api/");
+}
+
 function isValidAuthHint(value: string | undefined): value is "member" | "admin" {
   return value === AUTH_HINT_MEMBER || value === AUTH_HINT_ADMIN;
 }
@@ -72,6 +76,28 @@ function buildForbiddenRedirect(request: NextRequest): NextResponse {
   nextUrl.pathname = "/forbidden";
   nextUrl.search = `?from=${encodeURIComponent(from)}`;
   return NextResponse.redirect(nextUrl);
+}
+
+function buildUnauthorizedApiResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      resultCode: "401-2",
+      msg: "Authentication required.",
+      data: null,
+    },
+    { status: 401 },
+  );
+}
+
+function buildForbiddenApiResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      resultCode: "403-1",
+      msg: "Forbidden.",
+      data: null,
+    },
+    { status: 403 },
+  );
 }
 
 async function fetchRefreshedSession(
@@ -114,26 +140,39 @@ async function fetchRefreshedSession(
 }
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const observabilityApiPath = isObservabilityApiPath(pathname);
   const authHint = request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value;
   if (!isValidAuthHint(authHint)) {
+    if (observabilityApiPath) {
+      return buildUnauthorizedApiResponse();
+    }
     return buildLoginRedirect(request, { clearRefreshCookie: true });
   }
 
   const refreshCookie = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
   if (!refreshCookie) {
+    if (observabilityApiPath) {
+      return buildUnauthorizedApiResponse();
+    }
     return buildLoginRedirect(request);
   }
 
   const session = await fetchRefreshedSession(request);
   if (!session) {
+    if (observabilityApiPath) {
+      return buildUnauthorizedApiResponse();
+    }
     return buildLoginRedirect(request, { clearRefreshCookie: true });
   }
 
   if (
-    (isAdminPath(request.nextUrl.pathname) ||
-      isObservabilityPath(request.nextUrl.pathname)) &&
+    (isAdminPath(pathname) || isObservabilityPath(pathname)) &&
     session.memberRole !== "ADMIN"
   ) {
+    if (observabilityApiPath) {
+      return buildForbiddenApiResponse();
+    }
     return buildForbiddenRedirect(request);
   }
 

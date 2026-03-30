@@ -45,12 +45,15 @@ export default function MainHeader() {
   const isAdmin =
     member?.role === "ADMIN" || (isHintedAuthenticated && authHint.isAdmin);
   const diaryHref = resolvedIsAuthenticated ? "/dashboard" : "/login";
+  const lettersHref = resolvedIsAuthenticated
+    ? "/letters/mailbox"
+    : "/login?next=%2Fletters%2Fmailbox";
 
   const navigationItems: MainNavItem[] = [
     { key: "home", label: "홈", href: "/" },
     { key: "stories", label: "고민공유", href: "/stories" },
     { key: "diary", label: "나의 일기", href: diaryHref },
-    { key: "letters", label: "비밀편지", href: "/letters/mailbox" },
+    { key: "letters", label: "비밀편지", href: lettersHref },
   ];
 
   const activeNav = resolveActiveNav(pathname);
