@@ -130,6 +130,7 @@ export const config = {
     "/dashboard/:path*",
     "/letters/:path*",
     "/stories/write/:path*",
+    "/settings/:path*",
     "/admin/:path*",
   ],
 };

@@ -96,6 +96,14 @@ public class RefreshTokenDomainService {
         .forEach(token -> token.revoke(revokedAt, null));
   }
 
+  /** 특정 회원이 가진 활성 refresh 토큰들을 전부 폐기한다. */
+  @Transactional
+  public void revokeAllByMemberId(Long memberId, LocalDateTime revokedAt) {
+    refreshTokenRepository
+        .findAllByMember_IdAndRevokedAtIsNull(memberId)
+        .forEach(token -> token.revoke(revokedAt, null));
+  }
+
   private RefreshToken findByJtiOrThrow(String jti) {
     return refreshTokenRepository
         .findByJti(jti)

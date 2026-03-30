@@ -88,6 +88,22 @@ export function applyAuthenticatedMember(member: AuthMember): void {
   });
 }
 
+/** 이미 인증된 회원 정보 일부를 화면 반영용으로 갱신한다. */
+export function patchAuthenticatedMember(
+  partial: Partial<AuthMember>,
+): void {
+  if (!authState.member) {
+    return;
+  }
+
+  setState({
+    member: {
+      ...authState.member,
+      ...partial,
+    },
+  });
+}
+
 /** 서버에서 인증 확인된 요청의 최소 상태를 클라이언트 스토어에 반영한다. */
 export function applyAuthenticatedHintState(hint: AuthHintState): void {
   if (!hint.isAuthenticated) {

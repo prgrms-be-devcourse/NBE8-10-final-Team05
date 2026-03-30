@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -15,7 +16,10 @@ import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
+import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
+import com.back.member.adapter.in.web.dto.UpdateMemberPasswordRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
+import com.back.member.adapter.in.web.dto.WithdrawMemberRequest;
 import com.back.member.application.MemberService;
 import com.back.member.domain.MemberRepository;
 import java.util.List;
@@ -55,7 +59,8 @@ class MemberControllerTest {
   void createMember() throws Exception {
     CreateMemberRequest request =
         new CreateMemberRequest("member1@test.com", "pass1234", "member1");
-    MemberResponse response = new MemberResponse(1L, "member1@test.com", "member1",true);
+    MemberResponse response =
+        new MemberResponse(1L, "member1@test.com", "member1", true, false);
 
     given(memberService.createMember(any(CreateMemberRequest.class))).willReturn(response);
 
@@ -75,7 +80,8 @@ class MemberControllerTest {
   @Test
   @DisplayName("관리자는 memberId 기반 회원 조회 API를 사용할 수 있다")
   void getMember() throws Exception {
-    MemberResponse response = new MemberResponse(2L, "member2@test.com", "member2", true);
+    MemberResponse response =
+        new MemberResponse(2L, "member2@test.com", "member2", true, false);
     given(memberService.getMember(2L)).willReturn(response);
 
     mockMvc
@@ -92,7 +98,8 @@ class MemberControllerTest {
   @DisplayName("본인 프로필 수정 API는 인증된 사용자 기준으로 닉네임을 변경한다")
   void updateProfile() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
-    MemberResponse response = new MemberResponse(3L, "member3@test.com", "updatedMember", true);
+    MemberResponse response =
+        new MemberResponse(3L, "member3@test.com", "updatedMember", true, false);
     given(memberService.updateProfile(3L, request)).willReturn(response);
 
     mockMvc
@@ -112,7 +119,8 @@ class MemberControllerTest {
   @Test
   @DisplayName("본인 회원 조회 API는 인증된 사용자 기준으로 정보를 반환한다")
   void getMyMember() throws Exception {
-    MemberResponse response = new MemberResponse(7L, "member7@test.com", "member7", true);
+    MemberResponse response =
+        new MemberResponse(7L, "member7@test.com", "member7", true, false);
     given(memberService.getMember(7L)).willReturn(response);
 
     mockMvc
@@ -136,6 +144,63 @@ class MemberControllerTest {
   }
 
   @Test
+  @DisplayName("본인 이메일 변경 API는 인증된 사용자 기준으로 이메일을 변경한다")
+  void updateMyEmail() throws Exception {
+    UpdateMemberEmailRequest request = new UpdateMemberEmailRequest("changed@test.com");
+    MemberResponse response =
+        new MemberResponse(8L, "changed@test.com", "member8", true, false);
+    given(memberService.updateEmail(8L, request)).willReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me/email")
+                .with(authentication(authenticatedMember(8L, "member8@test.com")))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-4"))
+        .andExpect(jsonPath("$.msg").value("Member email updated."))
+        .andExpect(jsonPath("$.data.email").value("changed@test.com"));
+  }
+
+  @Test
+  @DisplayName("본인 비밀번호 변경 API는 인증된 사용자 기준으로 비밀번호를 변경한다")
+  void updateMyPassword() throws Exception {
+    UpdateMemberPasswordRequest request =
+        new UpdateMemberPasswordRequest("current-password", "next-password");
+    MemberResponse response =
+        new MemberResponse(10L, "member10@test.com", "member10", true, false);
+    given(memberService.updatePassword(10L, request)).willReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me/password")
+                .with(authentication(authenticatedMember(10L, "member10@test.com")))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-5"))
+        .andExpect(jsonPath("$.msg").value("Member password updated."))
+        .andExpect(jsonPath("$.data.id").value(10));
+  }
+
+  @Test
+  @DisplayName("본인 회원 탈퇴 API는 인증된 사용자 기준으로 탈퇴 처리한다")
+  void withdrawMyMember() throws Exception {
+    WithdrawMemberRequest request = new WithdrawMemberRequest("current-password");
+
+    mockMvc
+        .perform(
+            delete("/api/v1/members/me")
+                .with(authentication(authenticatedMember(11L, "member11@test.com")))
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-6"))
+        .andExpect(jsonPath("$.msg").value("Member account withdrawn."));
+  }
+
+  @Test
   @DisplayName("일반 사용자는 memberId 기반 타인 프로필 수정 API에 접근하면 403을 받는다")
   void updateOtherProfileWithUserRoleReturns403() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedMember");
@@ -155,7 +220,8 @@ class MemberControllerTest {
   @DisplayName("관리자는 memberId 기반 타인 프로필 수정 API를 사용할 수 있다")
   void adminCanUpdateOtherProfile() throws Exception {
     UpdateMemberProfileRequest request = new UpdateMemberProfileRequest("updatedByAdmin");
-    MemberResponse response = new MemberResponse(9L, "member9@test.com", "updatedByAdmin", true);
+    MemberResponse response =
+        new MemberResponse(9L, "member9@test.com", "updatedByAdmin", true, false);
     given(memberService.updateProfile(9L, request)).willReturn(response);
 
     mockMvc

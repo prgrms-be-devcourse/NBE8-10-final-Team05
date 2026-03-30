@@ -26,4 +26,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
   /** 동일 familyId(회전 체인) 토큰 목록 조회. */
   List<RefreshToken> findAllByFamilyIdOrderByIdAsc(String familyId);
+
+  /** 회원 기준으로 아직 폐기되지 않은 refresh 토큰 목록 조회. */
+  List<RefreshToken> findAllByMember_IdAndRevokedAtIsNull(Long memberId);
 }
