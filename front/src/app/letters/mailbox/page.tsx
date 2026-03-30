@@ -51,8 +51,8 @@ export default function MailboxPage() {
     try {
       const statsRes = await requestData<MailboxStats>("/api/v1/letters/stats");
       setStats(statsRes);
-    } catch (_error) {
-      console.error("통계 업데이트 실패");
+    } catch {
+      console.error("데이터 로딩 실패");
     }
   }, [isAuthenticated]);
 
@@ -72,8 +72,8 @@ export default function MailboxPage() {
         ]);
         setStats(statsRes);
         setIsRandomAllowed(memberRes.randomReceiveAllowed);
-      } catch (_error) {
-        console.error("데이터 로드 실패");
+      } catch {
+        console.error("데이터 로딩 실패");
       }
     };
     void initData();
@@ -117,8 +117,8 @@ export default function MailboxPage() {
           ? "랜덤 편지 수신 시작!"
           : "수신을 거부했습니다.",
       );
-    } catch (error) {
-      toast.error("설정 변경에 실패했습니다.");
+    } catch {
+      console.error("설정 변경 실패");
     } finally {
       setIsUpdating(false);
     }

@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -8,12 +9,10 @@ export const useLetterNotification = () => {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    // 로그인이 안 되어 있거나 이미 연결된 소켓이 있다면 중단
     if (!isAuthenticated || eventSourceRef.current) return;
 
     const baseUrl =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    // URL 생성 시 슬래시 중복 방지
     const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 
     console.log("📡 SSE 연결 시도 중...");
@@ -24,13 +23,13 @@ export const useLetterNotification = () => {
 
     eventSourceRef.current = es;
 
-    // 연결 성공 (서버에서 'connect' 이벤트를 보낼 때)
-    es.addEventListener("connect", (e: any) => {
+    // ✅ [수정] any 제거: MessageEvent 타입 지정
+    es.addEventListener("connect", (e: MessageEvent) => {
       console.log("🚀 SSE 연결 성공:", e.data);
     });
 
-    // 새 편지 알림
-    es.addEventListener("new_letter", (e: any) => {
+    // ✅ [수정] any 제거: MessageEvent 타입 지정
+    es.addEventListener("new_letter", (e: MessageEvent) => {
       toast.success(e.data, {
         icon: "✉️",
         duration: 5000,
@@ -38,8 +37,8 @@ export const useLetterNotification = () => {
       });
     });
 
-    // 답장 도착 알림
-    es.addEventListener("reply_arrival", (e: any) => {
+    // ✅ [수정] any 제거: MessageEvent 타입 지정
+    es.addEventListener("reply_arrival", (e: MessageEvent) => {
       toast.success(e.data, {
         icon: "✍️",
         duration: 5000,
@@ -47,13 +46,13 @@ export const useLetterNotification = () => {
       });
     });
 
-    es.onerror = (error) => {
-      console.error("❌ SSE 연결 오류 발생:", error);
+    // ✅ [수정] 미사용 error 변수 제거 (ESLint 경고 방지)
+    es.onerror = () => {
+      console.error("❌ SSE 연결 오류 발생");
       es.close();
       eventSourceRef.current = null;
     };
 
-    // [중요] Cleanup 함수: 컴포넌트가 언마운트되거나 리프레시될 때 연결을 확실히 닫음
     return () => {
       if (eventSourceRef.current) {
         console.log("🔌 SSE 연결 해제");
@@ -61,5 +60,5 @@ export const useLetterNotification = () => {
         eventSourceRef.current = null;
       }
     };
-  }, [isAuthenticated]); // isAuthenticated가 바뀔 때만 재실행
+  }, [isAuthenticated]);
 };

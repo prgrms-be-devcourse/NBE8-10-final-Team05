@@ -97,12 +97,16 @@ export default function ReceivedLettersPage() {
 
     const baseUrl =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    const eventSource = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
-      withCredentials: true,
-    });
+    const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 
-    eventSource.addEventListener("new_letter", (event) => {
-      // 알림은 useLetterNotification 훅에서도 띄우므로 여기서는 데이터만 갱신
+    const eventSource = new EventSource(
+      `${cleanBaseUrl}/api/v1/letters/subscribe`,
+      {
+        withCredentials: true,
+      },
+    );
+
+    eventSource.addEventListener("new_letter", () => {
       void fetchMailboxData(false);
     });
 
@@ -110,11 +114,13 @@ export default function ReceivedLettersPage() {
       void fetchMailboxData(false);
     });
 
-    eventSource.onerror = (err) => {
-      console.error("SSE 연결 오류 (받은편지함):", err);
+    eventSource.addEventListener("connect", (e: MessageEvent) => {
+      console.log("🚀 SSE Connected (Received):", e.data);
+    });
+
+    eventSource.onerror = () => {
+      console.error("SSE 연결 오류 (받은편지함)");
       eventSource.close();
-      // 브라우저 기본 재연결 메커니즘을 방해하지 않으려면
-      // 일정 시간 후 다시 EventSource를 생성하는 로직을 고려할 수 있습니다.
     };
 
     return () => eventSource.close();
@@ -127,8 +133,6 @@ export default function ReceivedLettersPage() {
     }
     router.push("/letters/mailbox");
   }
-
-  // ... formatDate, getRelativeTime, getStatusDisplay 함수는 기존과 동일하게 유지
 
   function formatDate(dateInput?: string | null): string {
     if (!dateInput) return "날짜 없음";
