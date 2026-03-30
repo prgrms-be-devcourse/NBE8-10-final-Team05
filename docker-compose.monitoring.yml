@@ -7,6 +7,8 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+      - --web.external-url=http://localhost:3400/prometheus/
+      - --web.route-prefix=/
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -17,13 +19,12 @@ services:
     image: grafana/grafana:12.3.1
     container_name: maum-on-grafana
     restart: unless-stopped
+    env_file:
+      - .env.monitoring
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
-      GF_SERVER_ROOT_URL: http://localhost:3400/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
