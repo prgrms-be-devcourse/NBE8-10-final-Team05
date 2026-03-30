@@ -46,21 +46,16 @@ export default function MailboxPage() {
   const [isRandomAllowed, setIsRandomAllowed] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 1. 통계 데이터 패칭 함수 (useCallback으로 메모이제이션)
   const fetchStats = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       const statsRes = await requestData<MailboxStats>("/api/v1/letters/stats");
       setStats(statsRes);
-    } catch (error) {
-      console.error("통계 업데이트 실패:", error);
+    } catch (_error) {
+      console.error("통계 업데이트 실패");
     }
   }, [isAuthenticated]);
 
-  // 2. [수정] 통합된 SSE 알림 훅 사용
-  // 이 훅 내부에서 new_letter 이벤트를 처리하지만,
-  // 특정 페이지(여기)에서 추가 동작(fetchStats)이 필요하므로 훅을 확장하거나
-  // 아래처럼 이벤트 리스너만 별도로 관리하는 것이 깔끔합니다.
   useLetterNotification();
 
   // 3. 데이터 초기 로드
@@ -77,33 +72,35 @@ export default function MailboxPage() {
         ]);
         setStats(statsRes);
         setIsRandomAllowed(memberRes.randomReceiveAllowed);
-      } catch (error) {
-        console.error("데이터 로드 실패:", error);
+      } catch (_error) {
+        console.error("데이터 로드 실패");
       }
     };
     void initData();
   }, [isAuthenticated, sessionRevision]);
 
-  // 4. [추가] 실시간 통계 갱신 전용 리스너 (기존 훅과 별개로 이 페이지에서만 필요한 갱신 로직)
+  // 4. 실시간 통계 갱신 전용 리스너
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // 포트 8080 직접 연결로 버퍼링 방지
     const baseUrl =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
     const eventSource = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
       withCredentials: true,
     });
 
-    eventSource.addEventListener("new_letter", () => {
-      fetchStats(); // 알림이 오면 숫자 전광판 갱신
-    });
+    const handleUpdate = () => {
+      fetchStats(); // 알림 발생 시 통계(숫자) 업데이트
+    };
 
-    eventSource.addEventListener("reply_arrival", () => {
-      fetchStats();
-    });
+    eventSource.addEventListener("new_letter", handleUpdate);
+    eventSource.addEventListener("reply_arrival", handleUpdate);
 
-    return () => eventSource.close();
+    return () => {
+      eventSource.removeEventListener("new_letter", handleUpdate);
+      eventSource.removeEventListener("reply_arrival", handleUpdate);
+      eventSource.close();
+    };
   }, [isAuthenticated, fetchStats]);
 
   const handleToggleRandom = async () => {
