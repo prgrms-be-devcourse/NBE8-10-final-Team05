@@ -28,4 +28,9 @@ public abstract class BaseEntity {
   @CreatedDate private LocalDateTime createDate;
 
   @LastModifiedDate private LocalDateTime modifyDate;
+
+  public void setCreateDate(LocalDateTime createDate) {
+    this.createDate = createDate;
+  }
+
 }

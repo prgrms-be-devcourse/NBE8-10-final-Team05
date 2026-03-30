@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -53,5 +56,10 @@ public class LetterPersistenceAdapter implements LetterPort {
     @Override
     public long countByReceiverId(Long receiverId) {
         return letterRepository.countByReceiverId(receiverId);
+    }
+
+    @Override
+    public List<Letter> findUnreadLettersExceeding(LocalDateTime expirationTime) {
+        return letterRepository.findUnreadLettersExceeding(expirationTime);
     }
 }

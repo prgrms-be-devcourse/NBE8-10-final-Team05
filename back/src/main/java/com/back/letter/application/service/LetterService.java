@@ -3,6 +3,7 @@ package com.back.letter.application.service;
 import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
+import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.application.port.in.*;
 import com.back.letter.application.port.in.dto.*; // DTO 패키지 경로 주의
 import com.back.letter.application.port.out.LetterNotificationPort;
@@ -15,6 +16,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -218,5 +222,46 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
                 .orElse("NOT_FOUND");
     }
 
+    @Override
+    @Transactional
+    public void reassignUnreadLetters() {
+        //테스트 시 1분 사용
+//        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(1);
+        LocalDateTime expirationTime = LocalDateTime.now().minusHours(12);
+        List<Letter> expiredLetters = letterPort.findUnreadLettersExceeding(expirationTime);
 
+        if (expiredLetters.isEmpty()) {
+            System.out.println("===> [재매칭 스케줄러] 대상 편지가 없습니다.");
+            return;
+        }
+
+        System.out.println("===> [재매칭 스케줄러] 미수신 편지 발견: " + expiredLetters.size() + "건");
+
+        for (Letter letter : expiredLetters) {
+            String oldReceiverName = letter.getReceiver().getNickname(); // 기존 수신자
+            long letterId = letter.getId();
+
+            letterPort.findRandomMemberExceptMe(letter.getSender().getId())
+                    .ifPresentOrElse(newReceiver -> {
+                        letter.reassignReceiver(newReceiver);
+
+                        System.out.println(String.format(
+                                "    [SUCCESS] 편지 ID: %d | 발신자: %s | 기존 수신자: %s -> 새 수신자: %s",
+                                letterId,
+                                letter.getSender().getNickname(),
+                                oldReceiverName,
+                                newReceiver.getNickname()
+                        ));
+
+                        notificationPort.sendNotification(
+                                newReceiver.getId(),
+                                "new_letter",
+                                "새로운 랜덤 편지가 도착했습니다!"
+                        );
+                    }, () -> {
+                        System.out.println("    [FAIL] 편지 ID: " + letterId + " - 매칭 가능한 새로운 유저가 없습니다.");
+                    });
+        }
+        System.out.println("===> [재매칭 스케줄러] 모든 처리 완료");
+    }
 }
