@@ -28,6 +28,7 @@ interface ReceivedLetterDetail {
 export default function ReceivedLetterDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const isNotifiedRef = useRef(false);
   const [letter, setLetter] = useState<ReceivedLetterDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [replyContent, setReplyContent] = useState("");
@@ -46,6 +47,24 @@ export default function ReceivedLetterDetailPage() {
       return;
     }
 
+    const notifyWriting = useCallback((id: string) => {
+      if (isNotifiedRef.current) return; // 이미 보냈다면 무시
+
+      if (writingTimeoutRef.current !== null) {
+        window.clearTimeout(writingTimeoutRef.current);
+      }
+
+      writingTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          await requestVoid(`/api/v1/letters/${id}/writing`, {
+            method: "POST",
+          });
+          isNotifiedRef.current = true; // ✅ 성공적으로 보냈음을 기록
+        } catch (error) {
+          console.error("작성 중 신호 전송 실패:", error);
+        }
+      }, 1000);
+    }, []);
     router.push("/letters/mailbox/receive");
   }, [router]);
 
