@@ -4,6 +4,7 @@ import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.adapter.in.web.dto.AuditAiResponse;
 import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
+import com.back.letter.application.port.out.LetterNotificationPort;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;
 import com.back.letter.application.port.in.dto.CreateLetterReq;
@@ -45,6 +46,9 @@ class LetterServiceTest {
     private MemberRepository memberRepository;
     @Mock
     private AiService aiService;
+
+    @Mock
+    private LetterNotificationPort notificationPort;
 
     @Nested
     @DisplayName("편지 생성 및 발송 테스트")
