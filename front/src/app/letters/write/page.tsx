@@ -6,6 +6,8 @@ import { ChevronLeft, RefreshCcw, Waves } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
 import { requestData } from "@/lib/api/http-client";
+import { useLetterNotification } from "@/lib/hook/useLetterNotification";
+import { toast } from "react-hot-toast";
 
 interface ApiErrorResponse {
   response?: {
@@ -35,8 +37,13 @@ function resolveErrorMessage(error: unknown): string {
 
   return "편지를 바다로 보내지 못했습니다. 네트워크 연결을 확인해주세요.";
 }
+
 export default function WriteLetterPage() {
   const router = useRouter();
+
+  // [추가] SSE 알림 구독 시작: 이 페이지에 머무는 동안 서버와의 연결을 유지합니다.
+  useLetterNotification();
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -64,7 +71,6 @@ export default function WriteLetterPage() {
       router.back();
       return;
     }
-
     router.push("/letters/mailbox");
   }
 
@@ -78,7 +84,8 @@ export default function WriteLetterPage() {
     setIsSending(true);
 
     try {
-      // requestData 내부에서 에러 발생 시 throw 되도록 구현되어 있어야 합니다.
+      // [수정 포인트] 전체 URL을 직접 만들지 말고, 상대 경로만 전달합니다.
+      // http-client.ts 내부에서 자동으로 환경변수의 baseUrl과 합쳐줍니다.
       await requestData("/api/v1/letters", {
         method: "POST",
         headers: {
@@ -87,24 +94,19 @@ export default function WriteLetterPage() {
         body: JSON.stringify({ title, content }),
       });
 
-      // 성공 시 애니메이션을 보여주기 위해 약간의 지연 후 이동
       setTimeout(() => {
         router.push("/letters/mailbox");
       }, 3800);
     } catch (error: unknown) {
-      // 에러 발생 시 전송 중 상태를 해제하고 사용자에게 에러 노출
       setIsSending(false);
-      setSubmitError(resolveErrorMessage(error));
-
-      // 사용자 경험을 위해 에러 발생 시 화면 상단으로 스크롤 (선택 사항)
+      const errorMsg = resolveErrorMessage(error);
+      setSubmitError(errorMsg);
+      toast.error(errorMsg);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
-
   function handleReset() {
-    if (!hasDraft) {
-      return;
-    }
+    if (!hasDraft) return;
 
     if (window.confirm("작성 중인 내용을 모두 지울까요?")) {
       setTitle("");

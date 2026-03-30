@@ -5,6 +5,7 @@ import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
 import com.back.letter.application.port.in.*;
 import com.back.letter.application.port.in.dto.*; // DTO 패키지 경로 주의
+import com.back.letter.application.port.out.LetterNotificationPort;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.domain.Letter;
 import com.back.letter.domain.LetterStatus;
@@ -23,11 +24,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private final LetterPort letterPort;
     private final MemberRepository memberRepository;
     private final AiService aiService;
+    private final LetterNotificationPort notificationPort;
 
 
     /**
      * [AI 검수 로직]
-     * 기존의 프라이빗 메서드 구조를 유지하여 코드 가독성을 높였습니다.
      */
     private void auditContent(String content, String type) {
         var auditResponse = aiService.auditContent(new AuditAiRequest(content, type));
@@ -68,6 +69,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
 
         Letter saved = letterPort.save(letter);
+        notificationPort.sendNotification(
+                receiver.getId(), // 수신자 ID
+                "new_letter",
+                "새로운 랜덤 편지가 도착했습니다!"
+        );
 
         System.out.println("=== 편지 발송 ===");
         System.out.println("letterId: " + saved.getId());
@@ -111,6 +117,12 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
         auditContent(req.replyContent(), "Reply");
         letter.reply(req.replyContent());
+
+        notificationPort.sendNotification(
+                letter.getSender().getId(),
+                "reply_arrival",
+                "보낸 편지에 답장이 도착했습니다!"
+        );
     }
 
     /**
@@ -173,6 +185,12 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         if (letter.getStatus() == LetterStatus.SENT) {
             letter.setStatus(LetterStatus.ACCEPTED);
         }
+
+        notificationPort.sendNotification(
+                letter.getSender().getId(),
+                "new_letter",
+                "상대방이 당신의 편지를 읽었습니다."
+        );
     }
 
     @Override
@@ -184,6 +202,13 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         if (letter.getStatus() != LetterStatus.REPLIED) {
             letter.setStatus(LetterStatus.WRITING);
         }
+
+        // [추가] 발신자에게 답장 작성 중임을 실시간 알림
+        notificationPort.sendNotification(
+                letter.getSender().getId(),
+                "new_letter",
+                "상대방이 답장을 작성하고 있습니다."
+        );
     }
 
     @Override
@@ -192,8 +217,6 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
                 .map(letter -> letter.getStatus().name())
                 .orElse("NOT_FOUND");
     }
-
-
 
 
 }

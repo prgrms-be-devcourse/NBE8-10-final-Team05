@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox,
@@ -16,6 +16,7 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { useLetterNotification } from "@/lib/hook/useLetterNotification"; // 커스텀 훅 임포트
 
 interface LetterSummary {
   id: number;
@@ -46,7 +47,6 @@ interface LetterListRes {
   currentPage: number;
 }
 
-/** 받은 편지 보관함 페이지. */
 export default function ReceivedLettersPage() {
   const router = useRouter();
   const { isAuthenticated, sessionRevision } = useAuthStore();
@@ -54,8 +54,11 @@ export default function ReceivedLettersPage() {
   const [stats, setStats] = useState<MailboxStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchMailboxData = async () => {
+  // [수정] 통합 SSE 알림 훅 사용 (전역적 연결 유지)
+  useLetterNotification();
+
+  const fetchMailboxData = useCallback(
+    async (showLoadingSpinner = false) => {
       if (!isAuthenticated) {
         setLetters([]);
         setStats(null);
@@ -63,9 +66,7 @@ export default function ReceivedLettersPage() {
         return;
       }
 
-      setLetters([]);
-      setStats(null);
-      setIsLoading(true);
+      if (showLoadingSpinner) setIsLoading(true);
 
       try {
         const [lettersData, statsData] = await Promise.all([
@@ -73,67 +74,86 @@ export default function ReceivedLettersPage() {
           requestData<MailboxStats>("/api/v1/letters/stats"),
         ]);
 
-        setLetters(Array.isArray(lettersData.letters) ? lettersData.letters : []);
+        setLetters(
+          Array.isArray(lettersData.letters) ? lettersData.letters : [],
+        );
         setStats(statsData);
       } catch (error) {
         console.error("받은 편지함 데이터 로드 실패:", error);
-        setLetters([]);
-        setStats(null);
       } finally {
         setIsLoading(false);
       }
+    },
+    [isAuthenticated],
+  );
+
+  useEffect(() => {
+    void fetchMailboxData(true);
+  }, [fetchMailboxData, sessionRevision]);
+
+  // [수정] 실시간 업데이트를 위한 전용 리스너 (포트 8080 직접 연결)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+
+    const eventSource = new EventSource(
+      `${cleanBaseUrl}/api/v1/letters/subscribe`,
+      {
+        withCredentials: true,
+      },
+    );
+
+    eventSource.addEventListener("new_letter", () => {
+      void fetchMailboxData(false);
+    });
+
+    eventSource.addEventListener("reply_arrival", () => {
+      void fetchMailboxData(false);
+    });
+
+    eventSource.addEventListener("connect", (e: MessageEvent) => {
+      console.log("🚀 SSE Connected (Received):", e.data);
+    });
+
+    eventSource.onerror = () => {
+      console.error("SSE 연결 오류 (받은편지함)");
+      eventSource.close();
     };
 
-    void fetchMailboxData();
-  }, [isAuthenticated, sessionRevision]);
+    return () => eventSource.close();
+  }, [isAuthenticated, fetchMailboxData]);
 
   function handleGoBack() {
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
     }
-
     router.push("/letters/mailbox");
   }
 
   function formatDate(dateInput?: string | null): string {
-    if (!dateInput) {
-      return "날짜 없음";
-    }
-
+    if (!dateInput) return "날짜 없음";
     const date = new Date(dateInput);
-    if (Number.isNaN(date.getTime())) {
-      return "날짜 형식 오류";
-    }
-
+    if (Number.isNaN(date.getTime())) return "날짜 형식 오류";
     return date.toLocaleDateString();
   }
 
   function getRelativeTime(dateString?: string): string {
-    if (!dateString) {
-      return "";
-    }
-
+    if (!dateString) return "";
     const past = new Date(dateString);
-    if (Number.isNaN(past.getTime())) {
-      return "";
-    }
-
+    if (Number.isNaN(past.getTime())) return "";
     const now = new Date();
     const diffInMs = now.getTime() - past.getTime();
     const diffInMins = Math.floor(diffInMs / (1000 * 60));
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
     const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-    if (diffInMins < 1) {
-      return "방금 전";
-    }
-    if (diffInMins < 60) {
-      return `${diffInMins}분 전`;
-    }
-    if (diffInHours < 24) {
-      return `${diffInHours}시간 전`;
-    }
+    if (diffInMins < 1) return "방금 전";
+    if (diffInMins < 60) return `${diffInMins}분 전`;
+    if (diffInHours < 24) return `${diffInHours}시간 전`;
     return `${diffInDays}일 전`;
   }
 
@@ -150,7 +170,8 @@ export default function ReceivedLettersPage() {
         return {
           label: "답장 작성 중",
           icon: <PenTool size={12} />,
-          className: "text-amber-600 bg-amber-50 border-amber-100 animate-pulse",
+          className:
+            "text-amber-600 bg-amber-50 border-amber-100 animate-pulse",
           cardClass: "bg-white shadow-sm border-white",
         };
       case "ACCEPTED":
@@ -165,7 +186,8 @@ export default function ReceivedLettersPage() {
         return {
           label: "NEW",
           icon: <Sparkles size={12} />,
-          className: "text-white bg-rose-400 border-rose-300 animate-bounce shadow-sm",
+          className:
+            "text-white bg-rose-400 border-rose-300 animate-bounce shadow-sm",
           cardClass:
             "bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border-white ring-2 ring-sky-100",
         };
@@ -198,13 +220,17 @@ export default function ReceivedLettersPage() {
           </div>
         </div>
 
+        {/* 상단 요약 배너 */}
         <section className="mb-12 flex flex-col items-center justify-between rounded-[2.5rem] border border-white/50 bg-white/70 p-8 shadow-sm backdrop-blur-lg md:flex-row">
           <div className="text-center md:text-left">
             {isLetterAvailable ? (
               <>
                 <h2 className="mb-2 flex items-center justify-center gap-2 text-2xl font-bold text-slate-800 md:justify-start">
                   새로운 진심이 도착했어요
-                  <Sparkles size={24} className="animate-pulse text-amber-400" />
+                  <Sparkles
+                    size={24}
+                    className="animate-pulse text-amber-400"
+                  />
                 </h2>
                 <p className="text-slate-500">
                   <span className="font-semibold text-sky-600">
@@ -224,18 +250,14 @@ export default function ReceivedLettersPage() {
               </>
             )}
           </div>
-
           <div
-            className={`mt-6 rounded-[2rem] p-5 shadow-lg md:mt-0 ${
-              isLetterAvailable
-                ? "bg-gradient-to-br from-sky-400 to-blue-500 text-white"
-                : "bg-slate-200 text-slate-400"
-            }`}
+            className={`mt-6 rounded-[2rem] p-5 shadow-lg md:mt-0 ${isLetterAvailable ? "bg-gradient-to-br from-sky-400 to-blue-500 text-white" : "bg-slate-200 text-slate-400"}`}
           >
             <Inbox size={32} />
           </div>
         </section>
 
+        {/* 편지 목록 리스트 */}
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <Loader2 className="h-10 w-10 animate-spin text-sky-400" />
@@ -251,11 +273,12 @@ export default function ReceivedLettersPage() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
             {letters.map((letter) => {
               const statusInfo = getStatusDisplay(letter.status);
-
               return (
                 <div
                   key={letter.id}
-                  onClick={() => router.push(`/letters/mailbox/receive/${letter.id}`)}
+                  onClick={() =>
+                    router.push(`/letters/mailbox/receive/${letter.id}`)
+                  }
                   className={`group relative cursor-pointer rounded-[2.5rem] border p-8 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${statusInfo.cardClass}`}
                 >
                   <div className="mb-6 flex items-start justify-between gap-2">
@@ -263,7 +286,6 @@ export default function ReceivedLettersPage() {
                       <Clock size={14} />
                       {formatDate(letter.createdDate)}
                     </div>
-
                     <div
                       className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-[10px] font-black ${statusInfo.className}`}
                     >

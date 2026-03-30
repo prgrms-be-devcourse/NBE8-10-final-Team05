@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   ChevronRight,
   Droplets,
@@ -11,9 +11,11 @@ import {
   Sparkles,
   Settings,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { useLetterNotification } from "@/lib/hook/useLetterNotification";
 
 type MailboxTab = "received" | "sent";
 
@@ -41,61 +43,82 @@ export default function MailboxPage() {
   const { isAuthenticated, sessionRevision } = useAuthStore();
   const [activeTab, setActiveTab] = useState<MailboxTab>("received");
   const [stats, setStats] = useState<MailboxStats | null>(null);
-
   const [isRandomAllowed, setIsRandomAllowed] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const fetchStats = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const statsRes = await requestData<MailboxStats>("/api/v1/letters/stats");
+      setStats(statsRes);
+    } catch {
+      console.error("데이터 로딩 실패");
+    }
+  }, [isAuthenticated]);
+
+  useLetterNotification();
+
+  // 3. 데이터 초기 로드
   useEffect(() => {
     const initData = async () => {
-      // 1. 인증되지 않은 경우 상태 초기화 후 중단
       if (!isAuthenticated) {
         setStats(null);
         return;
       }
-
       try {
-        // 2. 통계와 유저 설정 정보를 병렬로 호출
         const [statsRes, memberRes] = await Promise.all([
           requestData<MailboxStats>("/api/v1/letters/stats"),
           requestData<MemberResponse>("/api/v1/members/me"),
         ]);
-
-        // 3. 상태 업데이트
         setStats(statsRes);
         setIsRandomAllowed(memberRes.randomReceiveAllowed);
-      } catch (error) {
-        console.error("데이터 로드 실패:", error);
+      } catch {
+        console.error("데이터 로딩 실패");
       }
     };
-
     void initData();
-    // 인증 상태나 세션이 변경될 때마다 다시 실행
   }, [isAuthenticated, sessionRevision]);
+
+  // 4. 실시간 통계 갱신 전용 리스너
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    const eventSource = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
+      withCredentials: true,
+    });
+
+    const handleUpdate = () => {
+      fetchStats(); // 알림 발생 시 통계(숫자) 업데이트
+    };
+
+    eventSource.addEventListener("new_letter", handleUpdate);
+    eventSource.addEventListener("reply_arrival", handleUpdate);
+
+    return () => {
+      eventSource.removeEventListener("new_letter", handleUpdate);
+      eventSource.removeEventListener("reply_arrival", handleUpdate);
+      eventSource.close();
+    };
+  }, [isAuthenticated, fetchStats]);
 
   const handleToggleRandom = async () => {
     if (isUpdating) return;
-
     setIsUpdating(true);
     try {
-      // [수정 포인트] requestData<any> 를 requestData<MemberResponse> 로 변경
       const res = await requestData<MemberResponse>(
         "/api/v1/members/me/random-setting",
-        {
-          method: "PATCH",
-        },
+        { method: "PATCH" },
       );
-
-      // 이제 res.randomReceiveAllowed가 MemberResponse 타입을 가지므로 안전하게 접근 가능합니다.
       setIsRandomAllowed(res.randomReceiveAllowed);
-
-      alert(
+      toast.success(
         res.randomReceiveAllowed
-          ? "이제 랜덤 편지를 받을 수 있습니다."
-          : "랜덤 편지 수신을 거부했습니다.",
+          ? "랜덤 편지 수신 시작!"
+          : "수신을 거부했습니다.",
       );
-    } catch (error) {
-      console.error("설정 변경 실패:", error);
-      alert("설정 변경 중 오류가 발생했습니다.");
+    } catch {
+      console.error("설정 변경 실패");
     } finally {
       setIsUpdating(false);
     }
@@ -119,19 +142,13 @@ export default function MailboxPage() {
   };
 
   const isReceived = activeTab === "received";
-
-  // 백엔드 필드명에 맞춰 수정
-  const currentCount = isReceived ? (stats?.receivedCount ?? 0) : 0; // 보낸 편지 개수는 현재 백엔드 DTO(LettersStatsRes)에 필드가 추가되어야 정확히 표시 가능합니다.
-
+  const currentCount = isReceived ? (stats?.receivedCount ?? 0) : 0;
   const currentLatest = isReceived
     ? stats?.latestReceivedLetter
     : stats?.latestSentLetter;
-
   const currentPath = isReceived
     ? "/letters/mailbox/receive"
     : "/letters/mailbox/sent";
-
-  // 데이터 존재 여부 판단 (개수 혹은 최신 편지 존재 여부)
   const hasLetters = isReceived ? currentCount > 0 : !!stats?.latestSentLetter;
 
   return (
@@ -141,6 +158,7 @@ export default function MailboxPage() {
       </div>
 
       <main className="mx-auto flex w-full max-w-5xl flex-col items-center px-6 py-12">
+        {/* 랜덤 설정 섹션 */}
         <section className="mb-8 w-full max-w-md">
           <div className="flex items-center justify-between rounded-3xl border border-white/60 bg-white/40 p-5 shadow-sm backdrop-blur-md">
             <div className="flex items-center gap-3">
@@ -165,45 +183,36 @@ export default function MailboxPage() {
                 </p>
               </div>
             </div>
-
             <button
               onClick={handleToggleRandom}
               disabled={isUpdating}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all ${
-                isRandomAllowed ? "bg-sky-400" : "bg-slate-300"
-              } ${isUpdating ? "opacity-50" : "hover:scale-105"}`}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all ${isRandomAllowed ? "bg-sky-400" : "bg-slate-300"}`}
             >
               <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm ${
-                  isRandomAllowed ? "translate-x-6" : "translate-x-1"
-                }`}
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm ${isRandomAllowed ? "translate-x-6" : "translate-x-1"}`}
               />
             </button>
           </div>
         </section>
+
+        {/* 탭 메뉴 */}
         <div className="mb-10 flex items-center justify-center gap-10 border-b border-[#dbe7f7]">
-          <button
-            onClick={() => setActiveTab("received")}
-            className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
-              activeTab === "received"
-                ? "border-[#78A7E6] text-[#233552]"
-                : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
-            }`}
-          >
-            받은 편지함
-          </button>
-          <button
-            onClick={() => setActiveTab("sent")}
-            className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
-              activeTab === "sent"
-                ? "border-[#78A7E6] text-[#233552]"
-                : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
-            }`}
-          >
-            보낸 편지함
-          </button>
+          {["received", "sent"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab as MailboxTab)}
+              className={`-mb-px border-b-2 px-1 pb-3 text-lg font-bold transition-colors ${
+                activeTab === tab
+                  ? "border-[#78A7E6] text-[#233552]"
+                  : "border-transparent text-[#6f84a5] hover:text-[#4f6f98]"
+              }`}
+            >
+              {tab === "received" ? "받은 편지함" : "보낸 편지함"}
+            </button>
+          ))}
         </div>
 
+        {/* 메인 카드 */}
         <section className="mb-16 w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="flex flex-col items-center rounded-[3rem] border border-white bg-white/80 p-10 text-center shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] backdrop-blur-xl">
             <span className="mb-6 rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-400">
@@ -234,9 +243,7 @@ export default function MailboxPage() {
 
             <Link
               href={currentPath}
-              className={`group relative mb-10 flex h-32 w-32 items-center justify-center rounded-full transition-all hover:scale-105 ${
-                hasLetters ? "bg-sky-50 shadow-inner" : "bg-slate-100"
-              }`}
+              className={`group relative mb-10 flex h-32 w-32 items-center justify-center rounded-full transition-all hover:scale-105 ${hasLetters ? "bg-sky-50 shadow-inner" : "bg-slate-100"}`}
             >
               {hasLetters && (
                 <div className="absolute inset-0 rounded-full bg-sky-400/10 opacity-20 animate-ping" />
@@ -264,64 +271,81 @@ export default function MailboxPage() {
           </div>
         </section>
 
+        {/* 하단 그리드 정보 */}
         <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-3">
-          <Link
+          <InfoCard
             href={currentPath}
-            className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-400 transition-colors group-hover:bg-sky-400 group-hover:text-white">
-              <Droplets size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400">
-                {isReceived ? "최근 받은 편지" : "최근 보낸 편지"}
-              </p>
-              <p className="font-bold text-slate-700">
-                {currentLatest
-                  ? getRelativeTime(currentLatest.createdDate)
-                  : "기록 없음"}
-              </p>
-            </div>
-          </Link>
-
-          <Link
+            icon={<Droplets size={24} />}
+            label={isReceived ? "최근 받은 편지" : "최근 보낸 편지"}
+            value={
+              currentLatest
+                ? getRelativeTime(currentLatest.createdDate)
+                : "기록 없음"
+            }
+            color="sky"
+          />
+          <InfoCard
             href={currentPath}
-            className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-400 transition-colors group-hover:bg-rose-400 group-hover:text-white">
-              <Heart size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400">
-                {isReceived ? "나의 보관함 (받음)" : "나의 보관함 (보냄)"}
-              </p>
-              <p className="font-bold text-slate-700">
-                {/* 보낸 편지는 개수 필드가 없으므로 '기록 있음' 정도로 표시하거나 DTO 수정을 권장합니다. */}
-                {isReceived
-                  ? hasLetters
-                    ? `총 ${currentCount}통의 진심`
-                    : "비어있음"
-                  : hasLetters
-                    ? "기록 있음"
-                    : "비어있음"}
-              </p>
-            </div>
-          </Link>
-
-          <Link
+            icon={<Heart size={24} />}
+            label={isReceived ? "나의 보관함 (받음)" : "나의 보관함 (보냄)"}
+            value={
+              isReceived
+                ? hasLetters
+                  ? `총 ${currentCount}통의 진심`
+                  : "비어있음"
+                : hasLetters
+                  ? "기록 있음"
+                  : "비어있음"
+            }
+            color="rose"
+          />
+          <InfoCard
             href="/letters/write"
-            className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-400 transition-colors group-hover:bg-emerald-400 group-hover:text-white">
-              <Sparkles size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400">새 편지 쓰기</p>
-              <p className="font-bold text-slate-700">마음을 전하세요</p>
-            </div>
-          </Link>
+            icon={<Sparkles size={24} />}
+            label="새 편지 쓰기"
+            value="마음을 전하세요"
+            color="emerald"
+          />
         </div>
       </main>
     </div>
+  );
+}
+
+// 하단 정보 카드를 위한 컴포넌트 추출 (가독성 향상)
+function InfoCard({
+  href,
+  icon,
+  label,
+  value,
+  color,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: "sky" | "rose" | "emerald";
+}) {
+  const colors = {
+    sky: "bg-sky-50 text-sky-400 group-hover:bg-sky-400",
+    rose: "bg-rose-50 text-rose-400 group-hover:bg-rose-400",
+    emerald: "bg-emerald-50 text-emerald-400 group-hover:bg-emerald-400",
+  };
+
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-4 rounded-[2rem] border border-white/40 bg-white/60 p-6 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+    >
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors group-hover:text-white ${colors[color]}`}
+      >
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs font-bold text-slate-400">{label}</p>
+        <p className="font-bold text-slate-700">{value}</p>
+      </div>
+    </Link>
   );
 }

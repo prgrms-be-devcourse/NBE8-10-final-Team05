@@ -21,71 +21,28 @@ interface ReceivedLetterDetail {
   content: string;
   createdDate: string;
   senderNickname: string;
-  replied: boolean; // 이 값이 백엔드 LetterStatus.REPLIED와 연동되어야 함
+  replied: boolean;
   replyContent?: string;
 }
 
 export default function ReceivedLetterDetailPage() {
   const router = useRouter();
   const params = useParams();
+
+  // 상태 및 Ref 관리
+  const isNotifiedRef = useRef(false);
+  const writingTimeoutRef = useRef<number | null>(null);
   const [letter, setLetter] = useState<ReceivedLetterDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [replyContent, setReplyContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const writingTimeoutRef = useRef<number | null>(null);
-  const letterId =
-    typeof params.id === "string"
-      ? params.id
-      : Array.isArray(params.id)
-        ? params.id[0]
-        : "";
 
-  const handleGoBack = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
+  const letterId = typeof params.id === "string" ? params.id : "";
 
-    router.push("/letters/mailbox/receive");
-  }, [router]);
-
-  useEffect(() => {
-    const initPage = async () => {
-      try {
-        const data = await requestData<ReceivedLetterDetail>(
-          `/api/v1/letters/${letterId}`,
-        );
-        setLetter(data);
-
-        // 답장 전이고 상태가 SENT라면 ACCEPTED(읽음)로 변경 알림
-        if (data && !data.replied) {
-          await requestVoid(`/api/v1/letters/${letterId}/accept`, {
-            method: "POST",
-          });
-        }
-      } catch (error) {
-        console.error("편지를 가져오는데 실패했습니다.", error);
-        alert("존재하지 않는 편지입니다.");
-        handleGoBack();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    if (letterId) {
-      void initPage();
-    }
-  }, [handleGoBack, letterId]);
-
-  useEffect(() => {
-    return () => {
-      if (writingTimeoutRef.current !== null) {
-        window.clearTimeout(writingTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // 2. 작성 중 신호 전송
+  // 1. [수정] 작성 중 신호 전송 함수 (최상단으로 이동 및 통합)
   const notifyWriting = useCallback((id: string) => {
+    if (isNotifiedRef.current) return; // 이미 보냈다면 무시
+
     if (writingTimeoutRef.current !== null) {
       window.clearTimeout(writingTimeoutRef.current);
     }
@@ -95,10 +52,56 @@ export default function ReceivedLetterDetailPage() {
         await requestVoid(`/api/v1/letters/${id}/writing`, {
           method: "POST",
         });
-      } catch (error) {
-        console.error("작성 중 신호 전송 실패:", error);
+        isNotifiedRef.current = true; // ✅ 성공적으로 보냈음을 기록
+      } catch {
+        console.error("작성 중 신호 전송 실패");
       }
     }, 1000);
+  }, []);
+
+  // 2. [수정] 돌아가기 함수 (내부의 잘못된 useCallback 제거)
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/letters/mailbox/receive");
+    }
+  }, [router]);
+
+  // 3. 데이터 로드 및 읽음 처리
+  useEffect(() => {
+    const initPage = async () => {
+      if (!letterId) return;
+      try {
+        const data = await requestData<ReceivedLetterDetail>(
+          `/api/v1/letters/${letterId}`,
+        );
+        setLetter(data);
+
+        // 읽음 처리 알림 (ACCEPTED)
+        if (data && !data.replied) {
+          await requestVoid(`/api/v1/letters/${letterId}/accept`, {
+            method: "POST",
+          });
+        }
+      } catch (error) {
+        console.error("편지 로드 실패", error);
+        alert("존재하지 않는 편지입니다.");
+        handleGoBack();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void initPage();
+  }, [letterId, handleGoBack]);
+
+  // 4. 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (writingTimeoutRef.current !== null) {
+        window.clearTimeout(writingTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -110,9 +113,8 @@ export default function ReceivedLetterDetailPage() {
     }
   };
 
-  // 3. 답장 제출 (수정된 핵심 로직)
   const handleReplySubmit = async () => {
-    if (!replyContent.trim()) return;
+    if (!replyContent.trim() || !letterId) return;
 
     setIsSubmitting(true);
     try {
@@ -122,14 +124,11 @@ export default function ReceivedLetterDetailPage() {
         body: JSON.stringify({ replyContent: replyContent }),
       });
 
-      // ✅ [중요] 성공 시 로컬 상태를 즉시 업데이트하여 '답장 완료' UI로 전환
       setLetter((prev) =>
         prev ? { ...prev, replied: true, replyContent: replyContent } : null,
       );
 
       alert("답장이 바다로 전송되었습니다.");
-
-      // ✅ 서버 캐시 갱신 및 목록 이동
       router.refresh();
       router.push("/letters/mailbox");
     } catch (error) {
@@ -141,13 +140,8 @@ export default function ReceivedLetterDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#EBF5FF] pb-20 font-sans text-slate-800">
-        <div className="mx-auto w-full max-w-6xl px-6 pt-7">
-          <MainHeader />
-        </div>
-        <div className="flex items-center justify-center py-24">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-400"></div>
-        </div>
+      <div className="min-h-screen bg-[#EBF5FF] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-400"></div>
       </div>
     );
   }
@@ -161,24 +155,24 @@ export default function ReceivedLetterDetailPage() {
       </div>
 
       <main className="mx-auto mt-10 max-w-4xl px-6">
+        {/* 상단 버튼 및 타이틀 */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={handleGoBack}
-            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-sm transition hover:bg-white"
           >
             <ChevronLeft size={16} />
             돌아가기
           </button>
-
-          <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900 shadow-sm sm:self-auto">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900">
             <MailOpen size={18} className="text-sky-400" />
             도착한 마음
           </div>
         </div>
 
-        {/* 원본 편지 카드 */}
-        <section className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 md:p-14 shadow-[0_30px_70px_-15px_rgba(186,215,233,0.6)] border border-white relative overflow-hidden">
+        {/* 편지 본문 카드 */}
+        <section className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 md:p-14 shadow-lg border border-white relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-sky-100 via-sky-300 to-sky-100" />
           <div className="flex justify-between items-center mb-12 border-b border-slate-100 pb-8 text-slate-400 text-sm italic font-serif">
             <span>From. {letter.senderNickname || "익명의 누군가"}</span>
@@ -200,9 +194,10 @@ export default function ReceivedLetterDetailPage() {
           </div>
         </section>
 
+        {/* 답장 섹션 */}
         <section className="mt-12">
           {letter.replied ? (
-            <div className="bg-emerald-50/60 backdrop-blur-md rounded-[2.5rem] p-10 border border-emerald-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-emerald-50/60 backdrop-blur-md rounded-[2.5rem] p-10 border border-emerald-100">
               <div className="flex items-center gap-3 mb-6 text-emerald-700 font-bold">
                 <Heart size={20} /> <span>내가 보낸 따뜻한 답장</span>
               </div>
@@ -228,7 +223,11 @@ export default function ReceivedLetterDetailPage() {
                 <button
                   onClick={handleReplySubmit}
                   disabled={isSubmitting || !replyContent.trim()}
-                  className={`flex items-center gap-2 px-8 py-4 rounded-full font-bold transition-all shadow-lg ${isSubmitting || !replyContent.trim() ? "bg-slate-200 text-slate-400" : "bg-sky-500 text-white hover:bg-sky-600 shadow-sky-200"}`}
+                  className={`flex items-center gap-2 px-8 py-4 rounded-full font-bold transition-all shadow-lg ${
+                    isSubmitting || !replyContent.trim()
+                      ? "bg-slate-200 text-slate-400"
+                      : "bg-sky-500 text-white hover:bg-sky-600 shadow-sky-200"
+                  }`}
                 >
                   {isSubmitting ? "전송 중..." : "답장 띄워보내기"}{" "}
                   <Send size={18} />

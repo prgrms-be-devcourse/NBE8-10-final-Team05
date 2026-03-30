@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Send,
@@ -16,8 +16,9 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { toast } from "react-hot-toast";
 
-// 1. 백엔드 LetterStatus와 일치하는 타입 정의
+// 1. 타입 정의
 interface SentLetter {
   id: number;
   title: string;
@@ -26,7 +27,10 @@ interface SentLetter {
   createdDate: string;
 }
 
-type SentLettersResponse = SentLetter[] | { letters?: SentLetter[] };
+// 응답 객체 구조를 명확히 정의하여 any 제거
+interface SentLettersResponse {
+  letters?: SentLetter[];
+}
 
 export default function SentLettersPage() {
   const router = useRouter();
@@ -34,32 +38,33 @@ export default function SentLettersPage() {
   const [letters, setLetters] = useState<SentLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  function handleGoBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-    router.push("/letters/mailbox");
-  }
-
-  useEffect(() => {
-    const fetchSentLetters = async () => {
+  // 2. 데이터 가져오는 로직
+  const fetchSentLetters = useCallback(
+    async (showLoadingSpinner = false) => {
       if (!isAuthenticated) {
         setLetters([]);
         setIsLoading(false);
         return;
       }
 
-      setLetters([]);
-      setIsLoading(true);
+      if (showLoadingSpinner) setIsLoading(true);
+
       try {
-        const response = await requestData<SentLettersResponse>(
+        // 응답 타입을 유니온으로 처리하여 안전하게 접근
+        const response = await requestData<SentLetter[] | SentLettersResponse>(
           "/api/v1/letters/sent",
         );
+
         if (Array.isArray(response)) {
           setLetters(response);
-        } else if (Array.isArray(response?.letters)) {
+        } else if (
+          response &&
+          response.letters &&
+          Array.isArray(response.letters)
+        ) {
+          // ✅ (response as any) 제거: 인터페이스를 통해 안전하게 접근
           setLetters(response.letters);
         } else {
           setLetters([]);
@@ -70,11 +75,68 @@ export default function SentLettersPage() {
       } finally {
         setIsLoading(false);
       }
-    };
-    void fetchSentLetters();
-  }, [isAuthenticated, sessionRevision]);
+    },
+    [isAuthenticated],
+  );
 
-  // 3. 상태에 따른 디자인 매핑 (상태값: SENT, ACCEPTED, WRITING, REPLIED)
+  // 3. 초기 데이터 로드
+  useEffect(() => {
+    fetchSentLetters(true);
+  }, [fetchSentLetters, sessionRevision]);
+
+  // 4. SSE 실시간 상태 갱신 설정
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (eventSourceRef.current) return;
+
+    const rawBaseUrl =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    const baseUrl = rawBaseUrl.endsWith("/")
+      ? rawBaseUrl.slice(0, -1)
+      : rawBaseUrl;
+
+    const es = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
+      withCredentials: true,
+    });
+    eventSourceRef.current = es;
+
+    const handleUpdate = (event: MessageEvent) => {
+      if (event.data !== "connected") {
+        toast.success("편지 상태가 업데이트되었습니다");
+        fetchSentLetters(false);
+      }
+    };
+
+    es.addEventListener("new_letter", handleUpdate);
+    es.addEventListener("reply_arrival", handleUpdate);
+
+    // ✅ (e: any) 제거: MessageEvent 타입 지정
+    es.addEventListener("connect", (e: MessageEvent) =>
+      console.log("🚀 SSE Connected:", e.data),
+    );
+
+    es.onerror = () => {
+      console.error("❌ SSE 연결 오류 - 재연결 시도");
+      es.close();
+      eventSourceRef.current = null;
+    };
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [isAuthenticated, fetchSentLetters]);
+
+  const handleGoBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/letters/mailbox");
+    }
+  };
+
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "REPLIED":
@@ -97,7 +159,6 @@ export default function SentLettersPage() {
           icon: <Eye size={12} />,
           className: "text-sky-600 bg-sky-50 border-sky-100",
         };
-      case "SENT":
       default:
         return {
           label: "발송 완료",
@@ -130,7 +191,6 @@ export default function SentLettersPage() {
           </div>
         </div>
 
-        {/* 요약 카드 */}
         <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/40 shadow-sm">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">
@@ -172,8 +232,6 @@ export default function SentLettersPage() {
                         ? new Date(letter.createdDate).toLocaleDateString()
                         : "-"}
                     </div>
-
-                    {/* 상태 표시 배지 */}
                     <div
                       className={`flex items-center gap-1 text-[10px] font-bold px-3 py-1 rounded-full border transition-all duration-300 ${statusInfo.className}`}
                     >

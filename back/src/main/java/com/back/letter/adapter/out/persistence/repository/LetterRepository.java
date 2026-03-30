@@ -1,6 +1,7 @@
 package com.back.letter.adapter.out.persistence.repository;
 
 import com.back.letter.domain.Letter;
+import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,7 +26,6 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
             "ORDER BY RANDOM() LIMIT 1", // RAND()를 RANDOM()으로 변경
             nativeQuery = true)
     Optional<Member> findRandomMemberExceptMe(@Param("myId") long myId);
-
     Optional<Letter> findFirstByReceiverIdOrderByCreateDateDesc(Long receiverId);
     Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
     long countByReceiverId(Long receiverId);

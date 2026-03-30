@@ -4,6 +4,7 @@ import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.adapter.in.web.dto.AuditAiResponse;
 import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
+import com.back.letter.application.port.out.LetterNotificationPort;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;
 import com.back.letter.application.port.in.dto.CreateLetterReq;
@@ -46,6 +47,9 @@ class LetterServiceTest {
     @Mock
     private AiService aiService;
 
+    @Mock
+    private LetterNotificationPort notificationPort;
+
     @Nested
     @DisplayName("편지 생성 및 발송 테스트")
     class CreateLetter {
@@ -80,6 +84,8 @@ class LetterServiceTest {
             // then
             assertThat(resultId).isEqualTo(100L);
             verify(letterPort, times(1)).save(any(Letter.class));
+
+            verify(notificationPort, times(1)).sendNotification(eq(receiverId), anyString(), any());
         }
 
         @Test
@@ -94,6 +100,7 @@ class LetterServiceTest {
             assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(req, 1L))
                     .isInstanceOf(ServiceException.class)
                     .hasMessageContaining("부적절한 내용");
+
         }
 
         @Test
@@ -134,14 +141,23 @@ class LetterServiceTest {
                 // given
                 long letterId = 10L;
                 long receiverId = 1L;
+                long senderId = 2L;
                 ReplyLetterReq req = new ReplyLetterReq("정성스러운 답장");
 
+
+                Member sender = mock(Member.class);
                 Member receiver = mock(Member.class);
+
+
+                given(sender.getId()).willReturn(senderId);
                 given(receiver.getId()).willReturn(receiverId);
+
                 given(aiService.auditContent(any(AuditAiRequest.class)))
                         .willReturn(new AuditAiResponse(true, "reply", "Pass"));
 
+
                 Letter letter = Letter.builder()
+                        .sender(sender)
                         .receiver(receiver)
                         .status(LetterStatus.SENT)
                         .build();
@@ -154,7 +170,10 @@ class LetterServiceTest {
                 // then
                 assertThat(letter.getStatus()).isEqualTo(LetterStatus.REPLIED);
                 assertThat(letter.getReplyContent()).isEqualTo("정성스러운 답장");
+
+                verify(notificationPort).sendNotification(eq(senderId), eq("reply_arrival"), any());
             }
+        }
 
             @Test
             @DisplayName("실패: 본인이 받은 편지가 아닌 경우 예외 발생")
@@ -200,6 +219,8 @@ class LetterServiceTest {
                 // then
                 assertThat(result.letters()).hasSize(1);
                 assertThat(result.letters().get(0).title()).isEqualTo("받은 제목");
+
+
             }
 
             @Test
@@ -233,4 +254,3 @@ class LetterServiceTest {
             }
         }
     }
-}

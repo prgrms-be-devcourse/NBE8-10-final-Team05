@@ -27,6 +27,16 @@ const apiBasePattern = remotePatternFromApiBaseUrl(
 );
 
 const nextConfig: NextConfig = {
+  // [추가] 프록시 설정: 브라우저의 /api/v1 요청을 백엔드(8080)로 전달합니다.
+  async rewrites() {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: "http://localhost:8080/api/v1/:path*",
+      },
+    ];
+  },
+
   async headers() {
     return [
       {
@@ -34,9 +44,13 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
+            // connect-src에 self와 localhost:8080을 추가하여 API 및 SSE 통신 허용
             value:
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' localhost:8080;",
-            // 주의: 배포 환경에서는 'unsafe-eval'을 제거하는 것이 보안상 좋습니다.
+              "default-src 'self'; " +
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' localhost:8080; " +
+              "connect-src 'self' http://localhost:8080 ws://localhost:3000; " +
+              "style-src 'self' 'unsafe-inline'; " +
+              "img-src 'self' blob: data: localhost:8080;",
           },
         ],
       },
@@ -45,9 +59,7 @@ const nextConfig: NextConfig = {
 
   reactCompiler: true,
   images: {
-    // 로컬 환경(localhost, 127.0.0.1)의 이미지를 허용하기 위한 핵심 옵션
     unoptimized: process.env.NODE_ENV === "development",
-
     remotePatterns: [
       {
         protocol: "http",
