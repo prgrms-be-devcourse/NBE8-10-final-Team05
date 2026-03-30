@@ -1,10 +1,10 @@
 package com.back.report.controller;
 
 import com.back.global.security.adapter.in.AuthenticatedMember;
-import com.back.report.dto.ReportCreateRequest;
-import com.back.report.entity.ReportReason;
-import com.back.report.entity.TargetType;
-import com.back.report.service.ReportService;
+import com.back.report.adapter.in.web.dto.ReportCreateRequest;
+import com.back.report.domain.ReportReason;
+import com.back.report.domain.TargetType;
+import com.back.report.application.service.ReportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

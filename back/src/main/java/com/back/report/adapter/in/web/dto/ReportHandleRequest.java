@@ -1,4 +1,4 @@
-package com.back.report.dto;
+package com.back.report.adapter.in.web.dto;
 
 public record ReportHandleRequest(
         String action,

@@ -1,9 +1,9 @@
-package com.back.report.dto;
+package com.back.report.adapter.in.web.dto;
 
-import com.back.report.entity.Report;
-import com.back.report.entity.ReportReason;
-import com.back.report.entity.ReportStatus;
-import com.back.report.entity.TargetType;
+import com.back.report.domain.Report;
+import com.back.report.domain.ReportReason;
+import com.back.report.domain.ReportStatus;
+import com.back.report.domain.TargetType;
 
 public record ReportResponse(
         Long id,
