@@ -350,7 +350,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "15s",
+  "refresh": "60s",
   "schemaVersion": 41,
   "tags": [
     "maum-on",

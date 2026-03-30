@@ -34,6 +34,6 @@ describe("grafana-dashboard", () => {
     expect(url).toContain("/grafana/d-solo/maum-on-local-observability/maum-on-local-observability");
     expect(url).toContain("panelId=3");
     expect(url).toContain("theme=light");
-    expect(url).toContain("refresh=30s");
+    expect(url).toContain("refresh=60s");
   });
 });

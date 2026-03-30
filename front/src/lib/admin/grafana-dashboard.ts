@@ -70,13 +70,15 @@ function buildGrafanaDashboardUrl(
 }
 
 export function buildGrafanaPanelUrl(panelId: number): string {
+  const DASHBOARD_REFRESH_INTERVAL = "60s";
+
   const params = new URLSearchParams({
     orgId: "1",
     panelId: String(panelId),
     from: "now-6h",
     to: "now",
     theme: "light",
-    refresh: "30s",
+    refresh: DASHBOARD_REFRESH_INTERVAL,
   });
 
   return `${buildGrafanaDashboardUrl(

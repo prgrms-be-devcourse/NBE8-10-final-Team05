@@ -7,6 +7,7 @@ import {
 const MONITORING_PROXY_INTERNAL_URL = (
   process.env.MONITORING_PROXY_INTERNAL_URL ?? "http://localhost:3400"
 ).replace(/\/+$/, "");
+const GRAFANA_AUTH_PROXY_USER = "maum-on-admin";
 
 export async function proxyMonitoringRequest(
   request: NextRequest,
@@ -40,6 +41,10 @@ export async function proxyMonitoringRequest(
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("connection");
+
+  if (prefix === "/grafana") {
+    headers.set("X-WEBAUTH-USER", GRAFANA_AUTH_PROXY_USER);
+  }
 
   try {
     const upstreamResponse = await fetch(targetUrl, {
