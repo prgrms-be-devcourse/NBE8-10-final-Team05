@@ -1,17 +1,21 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 60s
+  scrape_timeout: 10s
+  evaluation_interval: 60s
 
 scrape_configs:
   - job_name: prometheus
+    metrics_path: /metrics
+    honor_timestamps: true
     static_configs:
       - targets:
           - prometheus:9090
 
   - job_name: maum-on-back
     metrics_path: /actuator/prometheus
+    honor_timestamps: true
     static_configs:
       - targets:
-          - host.docker.internal:8080
+          - __BACKEND_SCRAPE_TARGET__
         labels:
           application: maum-on-back
