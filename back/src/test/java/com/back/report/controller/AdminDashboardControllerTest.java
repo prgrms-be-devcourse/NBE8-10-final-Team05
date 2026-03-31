@@ -1,6 +1,9 @@
 package com.back.report.controller;
 
 import com.back.auth.application.OidcAuthorizeProperties;
+import com.back.report.adapter.in.web.AdminDashboardController;
+import com.back.report.adapter.in.web.dto.AdminDashboardStatsResponse;
+import com.back.report.application.service.ReportService;
 import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.global.security.adapter.in.JwtAuthenticationFilter;
 import com.back.global.security.config.SecurityConfig;
@@ -9,8 +12,6 @@ import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtProperties;
 import com.back.global.security.jwt.JwtTokenService;
-import com.back.report.dto.AdminDashboardStatsResponse;
-import com.back.report.service.ReportService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

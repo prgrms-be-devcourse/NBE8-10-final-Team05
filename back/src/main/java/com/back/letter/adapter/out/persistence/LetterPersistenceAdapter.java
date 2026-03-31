@@ -3,11 +3,15 @@ package com.back.letter.adapter.out.persistence;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.domain.Letter;
+import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -40,7 +44,6 @@ public class LetterPersistenceAdapter implements LetterPort {
     public Optional<Member> findRandomMemberExceptMe(long myId) {
         return letterRepository.findRandomMemberExceptMe(myId);
     }
-
     @Override
     public Optional<Letter> findLatestReceived(Long receiverId) {
         return letterRepository.findFirstByReceiverIdOrderByCreateDateDesc(receiverId);
@@ -50,9 +53,13 @@ public class LetterPersistenceAdapter implements LetterPort {
     public Optional<Letter> findLatestSent(Long senderId) {
         return letterRepository.findFirstBySenderIdOrderByCreateDateDesc(senderId);
     }
-
     @Override
     public long countByReceiverId(Long receiverId) {
         return letterRepository.countByReceiverId(receiverId);
+    }
+
+    @Override
+    public List<Letter> findUnreadLettersExceeding(LocalDateTime expirationTime) {
+        return letterRepository.findUnreadLettersExceeding(expirationTime);
     }
 }

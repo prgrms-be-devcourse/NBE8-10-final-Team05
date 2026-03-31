@@ -41,7 +41,10 @@ const HERO_SIGNALS = [
   { label: "오늘의 기록", value: "19" },
 ];
 
-const API_CATEGORY_TO_STORY_CATEGORY: Record<BackendPostCategory, Exclude<HomeStoryCategory, "전체">> = {
+const API_CATEGORY_TO_STORY_CATEGORY: Record<
+  BackendPostCategory,
+  Exclude<HomeStoryCategory, "전체">
+> = {
   DAILY: "일상",
   WORRY: "고민",
   QUESTION: "질문",
@@ -93,17 +96,22 @@ export default function HomePage() {
       setStoriesError(null);
 
       try {
-        const slice = await requestData<PostSlice>("/api/v1/posts?page=0&size=8", {
-          skipAuth: true,
-          retryOnAuthFailure: false,
-          authFailureRedirect: false,
-        });
+        const slice = await requestData<PostSlice>(
+          "/api/v1/posts?page=0&size=8",
+          {
+            skipAuth: true,
+            retryOnAuthFailure: false,
+            authFailureRedirect: false,
+          },
+        );
 
         if (cancelled) {
           return;
         }
 
-        const nextStories = slice.content.map((post) => mapPostToStoryCard(post));
+        const nextStories = slice.content.map((post) =>
+          mapPostToStoryCard(post),
+        );
 
         setStories(nextStories);
       } catch (error: unknown) {
@@ -143,7 +151,9 @@ export default function HomePage() {
         <section className="home-hero mt-7 rounded-[36px] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-16 lg:py-14">
           <div className="flex flex-col items-center gap-6 text-center">
             <BrandWordmark size="hero" tone="inverse" />
-            <p className="text-base text-white/88 sm:text-lg">오늘 할 코딩을 내일로 미루지 말라 - 프로그래머스</p>
+            <p className="text-base text-white/88 sm:text-lg">
+              오늘 할 코딩을 내일로 미루지 말라 - 프로그래머스
+            </p>
             <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
               {HERO_SIGNALS.map((signal) => (
                 <div
@@ -153,7 +163,9 @@ export default function HomePage() {
                   <p className="text-xs font-medium tracking-[0.12em] text-white/72 uppercase">
                     {signal.label}
                   </p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{signal.value}</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {signal.value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -161,9 +173,14 @@ export default function HomePage() {
         </section>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div id="stories" className="home-panel rounded-[34px] px-6 py-6 sm:px-7">
+          <div
+            id="stories"
+            className="home-panel rounded-[34px] px-6 py-6 sm:px-7"
+          >
             <div className="flex flex-col gap-2">
-              <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#233552]">고민 공유</h2>
+              <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#233552]">
+                고민 공유
+              </h2>
               <p className="text-sm text-[#8090ad]">오늘의 마음 이야기</p>
             </div>
 
@@ -185,19 +202,19 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {isStoriesLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <div
-                    key={`story-skeleton-${index}`}
-                    className="home-card rounded-[28px] px-4 py-4 text-[#324763]"
-                  >
-                    <div className="h-6 w-16 animate-pulse rounded-full bg-[#eef5ff]" />
-                    <div className="mt-4 h-7 animate-pulse rounded-xl bg-[#f3f7ff]" />
-                    <div className="mt-3 h-16 animate-pulse rounded-2xl bg-[#f7faff]" />
-                    <div className="mt-4 h-5 animate-pulse rounded-xl bg-[#eef5ff]" />
-                  </div>
-                ))
-              ) : null}
+              {isStoriesLoading
+                ? Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={`story-skeleton-${index}`}
+                      className="home-card rounded-[28px] px-4 py-4 text-[#324763]"
+                    >
+                      <div className="h-6 w-16 animate-pulse rounded-full bg-[#eef5ff]" />
+                      <div className="mt-4 h-7 animate-pulse rounded-xl bg-[#f3f7ff]" />
+                      <div className="mt-3 h-16 animate-pulse rounded-2xl bg-[#f7faff]" />
+                      <div className="mt-4 h-5 animate-pulse rounded-xl bg-[#eef5ff]" />
+                    </div>
+                  ))
+                : null}
 
               {!isStoriesLoading && storiesError ? (
                 <div className="rounded-[24px] border border-[#f1d7d7] bg-[#fff8f8] px-4 py-5 text-sm text-[#8d5555] sm:col-span-2 xl:col-span-4">
@@ -205,21 +222,30 @@ export default function HomePage() {
                 </div>
               ) : null}
 
-              {!isStoriesLoading && !storiesError && visibleStories.length === 0 ? (
+              {!isStoriesLoading &&
+              !storiesError &&
+              visibleStories.length === 0 ? (
                 <div className="rounded-[24px] border border-[#dbe7fb] bg-[#f8fbff] px-4 py-5 text-sm text-[#6c82a7] sm:col-span-2 xl:col-span-4">
                   아직 보여드릴 고민이 없습니다.
                 </div>
               ) : null}
 
               {!isStoriesLoading && !storiesError
-                ? visibleStories.map((story) => <StoryCard key={story.id} story={story} />)
+                ? visibleStories.map((story) => (
+                    <StoryCard key={story.id} story={story} />
+                  ))
                 : null}
             </div>
           </div>
 
           <aside className="space-y-4">
-            <section id="letters" className="home-panel rounded-[22px] px-4 py-4">
-              <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">비밀 편지</h3>
+            <section
+              id="letters"
+              className="home-panel rounded-[22px] px-4 py-4"
+            >
+              <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">
+                비밀 편지
+              </h3>
               <div className="mt-4 flex items-center gap-3">
                 <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
                   <LetterBottleIcon size={42} />
@@ -244,7 +270,9 @@ export default function HomePage() {
             </section>
 
             <section id="diary" className="home-panel rounded-[22px] px-4 py-4">
-              <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">나의 일기</h3>
+              <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-[#233552]">
+                나의 일기
+              </h3>
               <div className="mt-4 flex items-center gap-3">
                 <div className="rounded-[18px] bg-[#eff6ff] p-2.5 text-[#5f95f3]">
                   <DiaryBookIcon size={42} />
@@ -254,14 +282,15 @@ export default function HomePage() {
                     href={diaryHref}
                     className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
                   >
-                    {isAuthenticated ? "비밀일기 보러가기" : "로그인하고 일기 시작하기"}
+                    {isAuthenticated
+                      ? "비밀일기 보러가기"
+                      : "로그인하고 일기 시작하기"}
                   </Link>
                 </div>
               </div>
             </section>
           </aside>
         </section>
-
       </div>
     </div>
   );
@@ -272,13 +301,22 @@ function StoryCard({ story }: { story: StoryCardItem }) {
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[12px] border border-[#dbe6f5] bg-white text-[#324763] shadow-[0_18px_34px_-24px_rgba(73,107,167,0.32)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_42px_-22px_rgba(73,107,167,0.42)]">
-      <Link href={`/stories/${story.id}`} className="group flex h-full flex-col">
-        <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
+      <Link
+        href={`/stories/${story.id}`}
+        className="group flex h-full flex-col"
+      >
+        <div
+          className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}
+        >
           <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
-            <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
+            <span
+              className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}
+            >
               {story.category}
             </span>
-            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">
+              {story.timeAgo}
+            </span>
           </div>
           <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
             <span className="block h-[4px] w-16 rounded-full bg-white/75" />
@@ -392,10 +430,7 @@ function LetterBottleIcon({ size = 56 }: { size?: number }) {
           fill="#fae093"
           d="M129.5 119L157 136.5L157 140.5L151.5 148L142.5 144Q140.3 144.8 141 148.5L143 152.5L140 150.5L124 124.5L129.5 119Z"
         />
-        <path
-          fill="#600448"
-          d={LETTER_BOTTLE_OUTLINE_PATH}
-        />
+        <path fill="#600448" d={LETTER_BOTTLE_OUTLINE_PATH} />
         <path
           fill="#600448"
           d="M107.5 86Q111.5 85.5 112 88.5L125.5 110L126 107.5Q123.3 105.8 125 99.5L128.5 95Q134.8 93.8 136 97.5L137 102.5L135 110.5L132 114.5L144.5 116L152 121.5Q152.8 123.8 150.5 123Q145.6 115 132 117Q130.9 119.7 133.5 119L159 135.5L159 141.5L152.5 151L143.5 147L144 148.5L146 156.5Q143.8 160.8 136.5 160L115.5 129L84 107.5Q83.4 101.4 86 98.5L95.5 87L100.5 91L107.5 86ZM107 88L103 91L95 100L98 103L102 101L108 101Q106 93 110 90L107 88ZM96 90L87 101L86 108L89 109Q94 110 96 106Q98 107 97 105L93 102Q93 95 99 93L96 90ZM110 92L109 95L110 101Q109 103 104 102L94 110Q91 109 92 112L117 128L128 118L113 94L110 92ZM131 96L127 99Q126 109 130 115L132 113L135 105L134 99L131 96ZM129 119L122 127L119 129L119 131L137 158Q142 159 144 156L141 145L145 145L152 149Q157 145 158 138L155 134L131 119L129 119Z"

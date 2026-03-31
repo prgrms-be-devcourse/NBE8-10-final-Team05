@@ -28,7 +28,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry){
         registry.addResourceHandler("/gen/**")
-                //임시 이미지 저장 경로(수정)
+                //임시 이미지 저장 경로(수정 가능)
                 .addResourceLocations("file:///C:/javadev/diary_image/");
     }
 }

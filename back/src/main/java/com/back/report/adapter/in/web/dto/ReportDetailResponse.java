@@ -1,6 +1,5 @@
-package com.back.report.dto;
+package com.back.report.adapter.in.web.dto;
 
-import com.back.report.entity.TargetType;
 import java.time.LocalDateTime;
 
 public record ReportDetailResponse(

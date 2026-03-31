@@ -1,4 +1,4 @@
-package com.back.report.entity;
+package com.back.report.domain;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

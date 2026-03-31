@@ -1,4 +1,4 @@
-package com.back.report.service;
+package com.back.report.application.service;
 
 import com.back.comment.entity.Comment;
 import com.back.comment.repository.CommentRepository;
@@ -14,11 +14,15 @@ import com.back.member.domain.MemberStatus;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
-import com.back.report.dto.*;
-import com.back.report.entity.Report;
-import com.back.report.entity.ReportStatus;
-import com.back.report.entity.TargetType;
-import com.back.report.repository.ReportRepository;
+import com.back.report.adapter.in.web.dto.AdminDashboardStatsResponse;
+import com.back.report.adapter.in.web.dto.ReportCreateRequest;
+import com.back.report.adapter.in.web.dto.ReportDetailResponse;
+import com.back.report.adapter.in.web.dto.ReportHandleRequest;
+import com.back.report.adapter.in.web.dto.ReportListResponse;
+import com.back.report.application.port.out.ReportPersistencePort;
+import com.back.report.domain.Report;
+import com.back.report.domain.ReportStatus;
+import com.back.report.domain.TargetType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +36,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReportService {
 
-    private final ReportRepository reportRepository;
+    private final ReportPersistencePort reportPersistencePort;
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final LetterRepository letterRepository;
@@ -44,7 +48,7 @@ public class ReportService {
     @Transactional
     public Long createReport(Long reporterId, ReportCreateRequest request) {
         // 중복 신고 방지
-        if (reportRepository.existsByReporterIdAndTargetIdAndTargetType(
+        if (reportPersistencePort.existsByReporterIdAndTargetIdAndTargetType(
                 reporterId, request.targetId(), request.targetType())) {
             throw new ServiceException("400-1", "이미 신고한 콘텐츠입니다.");
         }
@@ -57,12 +61,12 @@ public class ReportService {
                 request.content()
         );
 
-        return reportRepository.save(report).getId();
+        return reportPersistencePort.save(report).getId();
     }
 
     // 관리자용 신고 목록 조회
     public List<ReportListResponse> getReports() {
-        return reportRepository.findAll().stream()
+        return reportPersistencePort.findAll().stream()
                 .map(report -> {
                     Member reporter = memberRepository.findById(report.getReporterId()).orElse(null);
                     return new ReportListResponse(
@@ -83,9 +87,9 @@ public class ReportService {
         LocalDateTime endOfDay = startOfDay.plusDays(1);
 
         return new AdminDashboardStatsResponse(
-                reportRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
-                reportRepository.countByStatus(ReportStatus.RECEIVED),
-                reportRepository.countByStatus(ReportStatus.PROCESSED),
+                reportPersistencePort.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
+                reportPersistencePort.countByStatus(ReportStatus.RECEIVED),
+                reportPersistencePort.countByStatus(ReportStatus.PROCESSED),
                 letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
                 diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
                 memberRepository.countByStatusAndRoleAndRandomReceiveAllowed(
@@ -95,7 +99,7 @@ public class ReportService {
 
     // 관리자용 신고 상세 조회
     public ReportDetailResponse getReportDetail(Long id) {
-        Report report = reportRepository.findById(id)
+        Report report = reportPersistencePort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 신고입니다."));
 
         Member reporter = memberRepository.findById(report.getReporterId()).orElse(null);
@@ -144,7 +148,7 @@ public class ReportService {
     // 관리자용 신고 처리 로직
     @Transactional
     public void handleReport(Long id, ReportHandleRequest request) {
-        Report report = reportRepository.findById(id)
+        Report report = reportPersistencePort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 신고입니다."));
 
         Long reportedUserId = findAuthorIdByTarget(report.getTargetType(), report.getTargetId());
@@ -187,7 +191,7 @@ public class ReportService {
             notificationService.send(reportedUserId, "REPORT_RESULT", msg);
         }
 
-        reportRepository.findAllByTargetTypeAndTargetIdAndStatus(
+        reportPersistencePort.findAllByTargetTypeAndTargetIdAndStatus(
                 report.getTargetType(),
                 report.getTargetId(),
                 ReportStatus.RECEIVED

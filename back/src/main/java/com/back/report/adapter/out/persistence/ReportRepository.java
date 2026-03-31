@@ -1,11 +1,11 @@
-package com.back.report.repository;
+package com.back.report.adapter.out.persistence;
 
-import com.back.report.entity.Report;
-import com.back.report.entity.ReportStatus;
-import com.back.report.entity.TargetType;
-import java.time.LocalDateTime;
+import com.back.report.domain.Report;
+import com.back.report.domain.ReportStatus;
+import com.back.report.domain.TargetType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface LetterRepository extends JpaRepository<Letter, Long> {
@@ -26,11 +27,12 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
             "ORDER BY RANDOM() LIMIT 1", // RAND()를 RANDOM()으로 변경
             nativeQuery = true)
     Optional<Member> findRandomMemberExceptMe(@Param("myId") long myId);
-
     Optional<Letter> findFirstByReceiverIdOrderByCreateDateDesc(Long receiverId);
     Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
     long countByReceiverId(Long receiverId);
     long countByCreateDateGreaterThanEqualAndCreateDateLessThan(
             LocalDateTime startInclusive, LocalDateTime endExclusive);
     boolean existsByTitle(String title);
+    @Query("SELECT l FROM Letter l WHERE l.status = 'SENT' AND l.createDate <= :expirationTime")
+    List<Letter> findUnreadLettersExceeding(@Param("expirationTime") LocalDateTime expirationTime);
 }

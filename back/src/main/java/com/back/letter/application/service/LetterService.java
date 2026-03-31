@@ -2,6 +2,7 @@ package com.back.letter.application.service;
 
 import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.application.service.AiService;
+import com.back.global.event.LetterNotificationEvent;
 import com.back.global.exception.ServiceException;
 import com.back.letter.application.port.in.*;
 import com.back.letter.application.port.in.dto.*; // DTO 패키지 경로 주의
@@ -11,9 +12,13 @@ import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,11 +28,10 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private final LetterPort letterPort;
     private final MemberRepository memberRepository;
     private final AiService aiService;
-
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * [AI 검수 로직]
-     * 기존의 프라이빗 메서드 구조를 유지하여 코드 가독성을 높였습니다.
      */
     private void auditContent(String content, String type) {
         var auditResponse = aiService.auditContent(new AuditAiRequest(content, type));
@@ -68,6 +72,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
 
         Letter saved = letterPort.save(letter);
+        eventPublisher.publishEvent(new LetterNotificationEvent(
+                receiver.getId(),
+                "new_letter",
+                "새로운 랜덤 편지가 도착했습니다!"
+        ));
 
         System.out.println("=== 편지 발송 ===");
         System.out.println("letterId: " + saved.getId());
@@ -111,6 +120,12 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
         auditContent(req.replyContent(), "Reply");
         letter.reply(req.replyContent());
+
+        eventPublisher.publishEvent(new LetterNotificationEvent(
+                letter.getSender().getId(),
+                "reply_arrival",
+                "보낸 편지에 답장이 도착했습니다!"
+        ));
     }
 
     /**
@@ -170,9 +185,16 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
+        // 수신자가 처음 읽었을 때만 상태 변경
         if (letter.getStatus() == LetterStatus.SENT) {
             letter.setStatus(LetterStatus.ACCEPTED);
         }
+
+        eventPublisher.publishEvent(new LetterNotificationEvent(
+                letter.getSender().getId(),
+                "new_letter",
+                "상대방이 당신의 편지를 읽었습니다."
+        ));
     }
 
     @Override
@@ -184,6 +206,13 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         if (letter.getStatus() != LetterStatus.REPLIED) {
             letter.setStatus(LetterStatus.WRITING);
         }
+
+        // [추가] 발신자에게 답장 작성 중임을 실시간 알림
+        eventPublisher.publishEvent(new LetterNotificationEvent(
+                letter.getSender().getId(),
+                "reply_arrival",
+                "상대방이 답장을 작성하고 있습니다."
+        ));
     }
 
     @Override
@@ -193,7 +222,46 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
                 .orElse("NOT_FOUND");
     }
 
+    @Override
+    @Transactional
+    public void reassignUnreadLetters() {
+        //테스트 시 1분 사용
+//        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(1);
+        LocalDateTime expirationTime = LocalDateTime.now().minusHours(12);
+        List<Letter> expiredLetters = letterPort.findUnreadLettersExceeding(expirationTime);
 
+        if (expiredLetters.isEmpty()) {
+            System.out.println("===> [재매칭 스케줄러] 대상 편지가 없습니다.");
+            return;
+        }
 
+        System.out.println("===> [재매칭 스케줄러] 미수신 편지 발견: " + expiredLetters.size() + "건");
 
+        for (Letter letter : expiredLetters) {
+            String oldReceiverName = letter.getReceiver().getNickname(); // 기존 수신자
+            long letterId = letter.getId();
+
+            letterPort.findRandomMemberExceptMe(letter.getSender().getId())
+                    .ifPresentOrElse(newReceiver -> {
+                        letter.reassignReceiver(newReceiver);
+
+                        System.out.println(String.format(
+                                "    [SUCCESS] 편지 ID: %d | 발신자: %s | 기존 수신자: %s -> 새 수신자: %s",
+                                letterId,
+                                letter.getSender().getNickname(),
+                                oldReceiverName,
+                                newReceiver.getNickname()
+                        ));
+
+                        eventPublisher.publishEvent(new LetterNotificationEvent(
+                                newReceiver.getId(),
+                                "new_letter",
+                                "새로운 랜덤 편지가 도착했습니다!"
+                        ));
+                    }, () -> {
+                        System.out.println("    [FAIL] 편지 ID: " + letterId + " - 매칭 가능한 새로운 유저가 없습니다.");
+                    });
+        }
+        System.out.println("===> [재매칭 스케줄러] 모든 처리 완료");
+    }
 }

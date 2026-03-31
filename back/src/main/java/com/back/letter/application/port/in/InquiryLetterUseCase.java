@@ -8,7 +8,6 @@ public interface InquiryLetterUseCase {
     LetterInfoRes getLetter(long id, long accessorId);
     LetterListRes getMyInbox(long memberId, int page, int size);
     LetterListRes getMySentBox(long memberId, int page, int size);
-
     String getLiveStatus(long id);
     LettersStatsRes getMailboxStats(long memberId);
 }

@@ -1,8 +1,8 @@
-package com.back.report.controller;
+package com.back.report.adapter.in.web;
 
 import com.back.global.rsData.RsData;
-import com.back.report.dto.AdminDashboardStatsResponse;
-import com.back.report.service.ReportService;
+import com.back.report.adapter.in.web.dto.AdminDashboardStatsResponse;
+import com.back.report.application.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
