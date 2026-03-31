@@ -101,11 +101,11 @@ export default function SentLettersPage() {
     eventSourceRef.current = es;
 
     const handleUpdate = (event: MessageEvent) => {
-      if (event.data !== "connected") {
-        toast.success("편지 상태가 업데이트되었습니다");
-        fetchSentLetters(false);
-      }
+      console.log("📩 실시간 상태 변경 감지:", event.type);
+      fetchSentLetters(false);
     };
+
+    es.addEventListener("letter_read", handleUpdate);
 
     es.addEventListener("new_letter", handleUpdate);
     es.addEventListener("reply_arrival", handleUpdate);
@@ -114,6 +114,8 @@ export default function SentLettersPage() {
     es.addEventListener("connect", (e: MessageEvent) =>
       console.log("🚀 SSE Connected:", e.data),
     );
+
+    es.addEventListener("writing_status", handleUpdate);
 
     es.onerror = () => {
       console.error("❌ SSE 연결 오류 - 재연결 시도");
