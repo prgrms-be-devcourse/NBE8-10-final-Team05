@@ -8,9 +8,3 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-
-custom:
-  jwt:
-    secret-key: ${JWT_SECRET_KEY}
-    refresh-token-cookie-secure: ${JWT_REFRESH_TOKEN_COOKIE_SECURE:true}
-    refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:None}

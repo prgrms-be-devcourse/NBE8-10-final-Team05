@@ -1,59 +1,6 @@
 spring:
   application:
     name: back
-  datasource:
-    url: ${DEV_DB_URL:jdbc:postgresql://localhost:5432/maum_on_dev}
-    username: ${DEV_DB_USERNAME:maum_on}
-    password: ${DEV_DB_PASSWORD:maum_on}
   jpa:
     hibernate:
       ddl-auto: create-drop
-  security:
-    oauth2:
-      client:
-        provider:
-          maum-on-oidc:
-            issuer-uri: https://accounts.google.com
-            user-name-attribute: sub
-          kakao:
-            issuer-uri: https://kauth.kakao.com
-            user-name-attribute: sub
-        registration:
-          maum-on-oidc:
-            provider: maum-on-oidc
-            client-id: test-client-id
-            client-secret: test-client-secret
-            client-authentication-method: client_secret_basic
-            authorization-grant-type: authorization_code
-            redirect-uri: "{baseUrl}/api/v1/auth/oidc/callback/{registrationId}"
-            scope:
-              - openid
-              - profile
-              - email
-          kakao:
-            provider: kakao
-            client-id: test-kakao-client-id
-            client-secret: test-kakao-client-secret
-            client-authentication-method: client_secret_post
-            authorization-grant-type: authorization_code
-            redirect-uri: "{baseUrl}/api/v1/auth/oidc/callback/{registrationId}"
-            scope:
-              - openid
-              - profile_nickname
-gemini:
-  api:
-    key: ${GOOGLE_API_KEY:test_key_dummy}
-
-custom:
-  auth:
-    oidc:
-      authorize-enabled: true
-      authorize-ttl-seconds: 300
-      redirect-uri-allowlist:
-        - http://localhost:3000
-        - http://127.0.0.1:3000
-  jwt:
-    issuer: maum-on-test
-    secret-key: maum-on-test-secret-key-at-least-32-characters-long-123456
-    refresh-token-cookie-secure: false
-    refresh-token-cookie-same-site: Lax

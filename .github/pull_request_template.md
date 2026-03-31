@@ -18,7 +18,6 @@
 
 ## ✅ 체크리스트
 - [ ] Merge 대상 branch가 올바른가?
-- [ ] Base branch가 `develope` 인가?
 - [ ] 약속된 컨벤션 (on code, commit, issue...) 을 준수하는가?
 - [ ] PR과 관련없는 변경사항이 없는가?
-- [ ] 필수 체크(`backend`, `frontend`, `codeql-java`, `codeql-javascript-typescript`, `dependency-review`) 기준을 충족하는가?
+
