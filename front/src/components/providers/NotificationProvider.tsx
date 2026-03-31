@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
@@ -13,7 +13,6 @@ export const NotificationProvider = ({
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    // 1. 로그아웃 시 기존 연결 종료
     if (!isAuthenticated) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -22,7 +21,6 @@ export const NotificationProvider = ({
       return;
     }
 
-    // 2. 중복 연결 방지
     if (eventSourceRef.current) return;
 
     const baseUrl =
@@ -31,7 +29,7 @@ export const NotificationProvider = ({
 
     console.log("📡 통합 알림 시스템 SSE 연결 시작...");
 
-    // [중요] 백엔드 리팩토링된 공통 알림 경로 사용
+    //백엔드 리팩토링된 공통 알림 경로 사용
     const es = new EventSource(
       `${cleanBaseUrl}/api/v1/notifications/subscribe`,
       {
@@ -41,7 +39,7 @@ export const NotificationProvider = ({
 
     eventSourceRef.current = es;
 
-    es.addEventListener("connect", (e: any) => {
+    es.addEventListener("connect", (e: MessageEvent) => {
       console.log("🚀 SSE 연결 성공:", e.data);
     });
 

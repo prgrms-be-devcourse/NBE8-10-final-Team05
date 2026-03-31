@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, RefreshCcw, Waves } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
@@ -40,16 +40,10 @@ function resolveErrorMessage(error: unknown): string {
 
 export default function WriteLetterPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
-
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // [수정] 직접적인 useLetterNotification() 호출을 제거했습니다.
-  // 알림 연결은 이제 루트 Layout의 NotificationProvider(또는 Bootstrap 컴포넌트)에서 전역적으로 관리됩니다.
-
   const currentDateText = useMemo(
     () =>
       new Date()
