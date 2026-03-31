@@ -104,6 +104,9 @@ public class SecurityConfig {
                   .requestMatchers("/error")
                   .permitAll();
 
+              auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
+                  .permitAll();
+
               if (isDevProfile()) {
                 auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/prometheus")
                     .permitAll();
