@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Toaster } from "react-hot-toast";
-import LetterNotificationBootstrap from "@/components/letters/LetterNotificationBootstrap";
+import { NotificationProvider } from "@/components/providers/NotificationProvider";
 
 interface LettersLayoutProps {
   children: ReactNode;
@@ -10,13 +10,8 @@ interface LettersLayoutProps {
 export default function LettersLayout({ children }: LettersLayoutProps) {
   return (
     <>
-      {/* 1. 실시간 알림 수신기 (Client Component로 분리됨) */}
-      <LetterNotificationBootstrap />
+      <NotificationProvider>{children}</NotificationProvider>
 
-      {/* 2. 페이지 내용 */}
-      {children}
-
-      {/* 3. 토스트 팝업 (알림창 시각화) */}
       <Toaster position="top-right" />
     </>
   );

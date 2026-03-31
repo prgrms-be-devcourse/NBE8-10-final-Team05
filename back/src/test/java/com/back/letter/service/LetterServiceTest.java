@@ -3,8 +3,8 @@ package com.back.letter.service;
 import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.adapter.in.web.dto.AuditAiResponse;
 import com.back.ai.application.service.AiService;
+import com.back.global.event.LetterNotificationEvent;
 import com.back.global.exception.ServiceException;
-import com.back.letter.application.port.out.LetterNotificationPort;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;
 import com.back.letter.application.port.in.dto.CreateLetterReq;
@@ -15,6 +15,8 @@ import com.back.letter.domain.Letter;
 import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import com.back.notification.application.port.out.NotificationSsePort;
+import com.back.notification.domain.Notification;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -47,8 +50,9 @@ class LetterServiceTest {
     @Mock
     private AiService aiService;
 
+
     @Mock
-    private LetterNotificationPort notificationPort;
+    private ApplicationEventPublisher eventPublisher;
 
     @Nested
     @DisplayName("편지 생성 및 발송 테스트")
@@ -85,7 +89,7 @@ class LetterServiceTest {
             assertThat(resultId).isEqualTo(100L);
             verify(letterPort, times(1)).save(any(Letter.class));
 
-            verify(notificationPort, times(1)).sendNotification(eq(receiverId), anyString(), any());
+            verify(eventPublisher, times(1)).publishEvent(any(LetterNotificationEvent.class));
         }
 
         @Test
@@ -171,7 +175,7 @@ class LetterServiceTest {
                 assertThat(letter.getStatus()).isEqualTo(LetterStatus.REPLIED);
                 assertThat(letter.getReplyContent()).isEqualTo("정성스러운 답장");
 
-                verify(notificationPort).sendNotification(eq(senderId), eq("reply_arrival"), any());
+                verify(eventPublisher).publishEvent(any(LetterNotificationEvent.class));
             }
         }
 

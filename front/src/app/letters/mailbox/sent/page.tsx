@@ -95,7 +95,7 @@ export default function SentLettersPage() {
       ? rawBaseUrl.slice(0, -1)
       : rawBaseUrl;
 
-    const es = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
+    const es = new EventSource(`${baseUrl}/api/v1/notifications/subscribe`, {
       withCredentials: true,
     });
     eventSourceRef.current = es;

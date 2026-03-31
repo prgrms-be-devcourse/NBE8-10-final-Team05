@@ -2,17 +2,17 @@ package com.back.letter.application.service;
 
 import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.application.service.AiService;
+import com.back.global.event.LetterNotificationEvent;
 import com.back.global.exception.ServiceException;
-import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.application.port.in.*;
 import com.back.letter.application.port.in.dto.*; // DTO 패키지 경로 주의
-import com.back.letter.application.port.out.LetterNotificationPort;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.domain.Letter;
 import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,8 +28,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private final LetterPort letterPort;
     private final MemberRepository memberRepository;
     private final AiService aiService;
-    private final LetterNotificationPort notificationPort;
-
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * [AI 검수 로직]
@@ -73,11 +72,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
 
         Letter saved = letterPort.save(letter);
-        notificationPort.sendNotification(
-                receiver.getId(), // 수신자 ID
+        eventPublisher.publishEvent(new LetterNotificationEvent(
+                receiver.getId(),
                 "new_letter",
                 "새로운 랜덤 편지가 도착했습니다!"
-        );
+        ));
 
         System.out.println("=== 편지 발송 ===");
         System.out.println("letterId: " + saved.getId());
@@ -122,11 +121,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         auditContent(req.replyContent(), "Reply");
         letter.reply(req.replyContent());
 
-        notificationPort.sendNotification(
+        eventPublisher.publishEvent(new LetterNotificationEvent(
                 letter.getSender().getId(),
                 "reply_arrival",
                 "보낸 편지에 답장이 도착했습니다!"
-        );
+        ));
     }
 
     /**
@@ -186,15 +185,16 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
+        // 수신자가 처음 읽었을 때만 상태 변경
         if (letter.getStatus() == LetterStatus.SENT) {
             letter.setStatus(LetterStatus.ACCEPTED);
         }
 
-        notificationPort.sendNotification(
+        eventPublisher.publishEvent(new LetterNotificationEvent(
                 letter.getSender().getId(),
                 "new_letter",
                 "상대방이 당신의 편지를 읽었습니다."
-        );
+        ));
     }
 
     @Override
@@ -208,11 +208,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         }
 
         // [추가] 발신자에게 답장 작성 중임을 실시간 알림
-        notificationPort.sendNotification(
+        eventPublisher.publishEvent(new LetterNotificationEvent(
                 letter.getSender().getId(),
-                "new_letter",
+                "reply_arrival",
                 "상대방이 답장을 작성하고 있습니다."
-        );
+        ));
     }
 
     @Override
@@ -253,11 +253,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
                                 newReceiver.getNickname()
                         ));
 
-                        notificationPort.sendNotification(
+                        eventPublisher.publishEvent(new LetterNotificationEvent(
                                 newReceiver.getId(),
                                 "new_letter",
                                 "새로운 랜덤 편지가 도착했습니다!"
-                        );
+                        ));
                     }, () -> {
                         System.out.println("    [FAIL] 편지 ID: " + letterId + " - 매칭 가능한 새로운 유저가 없습니다.");
                     });

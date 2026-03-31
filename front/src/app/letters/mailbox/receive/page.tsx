@@ -16,7 +16,6 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
-import { useLetterNotification } from "@/lib/hook/useLetterNotification"; // 커스텀 훅 임포트
 
 interface LetterSummary {
   id: number;
@@ -54,9 +53,7 @@ export default function ReceivedLettersPage() {
   const [stats, setStats] = useState<MailboxStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // [수정] 통합 SSE 알림 훅 사용 (전역적 연결 유지)
-  useLetterNotification();
-
+  // 1. 데이터 fetch 로직
   const fetchMailboxData = useCallback(
     async (showLoadingSpinner = false) => {
       if (!isAuthenticated) {
@@ -87,43 +84,26 @@ export default function ReceivedLettersPage() {
     [isAuthenticated],
   );
 
+  // 2. 초기 로드
   useEffect(() => {
     void fetchMailboxData(true);
   }, [fetchMailboxData, sessionRevision]);
 
-  // [수정] 실시간 업데이트를 위한 전용 리스너 (포트 8080 직접 연결)
+  // 3. [핵심 수정] NotificationProvider의 전역 알림 이벤트를 구독
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-
-    const eventSource = new EventSource(
-      `${cleanBaseUrl}/api/v1/letters/subscribe`,
-      {
-        withCredentials: true,
-      },
-    );
-
-    eventSource.addEventListener("new_letter", () => {
-      void fetchMailboxData(false);
-    });
-
-    eventSource.addEventListener("reply_arrival", () => {
-      void fetchMailboxData(false);
-    });
-
-    eventSource.addEventListener("connect", (e: MessageEvent) => {
-      console.log("🚀 SSE Connected (Received):", e.data);
-    });
-
-    eventSource.onerror = () => {
-      console.error("SSE 연결 오류 (받은편지함)");
-      eventSource.close();
+    const handleUpdate = () => {
+      console.log("🔄 실시간 알림 감지: 받은 편지 목록 갱신 중...");
+      void fetchMailboxData(false); // 배경에서 조용히 업데이트
     };
 
-    return () => eventSource.close();
+    // 전역 커스텀 이벤트 리스너 등록
+    window.addEventListener("notification_received", handleUpdate);
+
+    return () => {
+      window.removeEventListener("notification_received", handleUpdate);
+    };
   }, [isAuthenticated, fetchMailboxData]);
 
   function handleGoBack() {
@@ -208,7 +188,7 @@ export default function ReceivedLettersPage() {
           <button
             type="button"
             onClick={handleGoBack}
-            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-lg transition hover:bg-white hover:text-[#355b88]"
           >
             <ChevronLeft size={16} />
             돌아가기
