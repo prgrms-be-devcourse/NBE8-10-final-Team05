@@ -15,6 +15,7 @@ import java.util.Optional;
 
 public interface LetterRepository extends JpaRepository<Letter, Long> {
 
+
     @Query("SELECT l FROM Letter l JOIN FETCH l.sender WHERE l.receiver.id = :memberId")
     Page<Letter> findByReceiverId(@Param("memberId") Long memberId, Pageable pageable);
 
@@ -34,4 +35,6 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     boolean existsByTitle(String title);
     @Query("SELECT l FROM Letter l WHERE l.status = 'SENT' AND l.createDate <= :expirationTime")
     List<Letter> findUnreadLettersExceeding(@Param("expirationTime") LocalDateTime expirationTime);
+
+
 }

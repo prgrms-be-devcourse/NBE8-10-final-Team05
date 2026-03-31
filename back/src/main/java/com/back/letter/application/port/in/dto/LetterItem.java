@@ -19,4 +19,13 @@ public record LetterItem(
                 letter.getStatus()
         );
     }
+
+    public static LetterItem from(Letter letter, boolean isWriting) {
+        return new LetterItem(
+                letter.getId(),
+                letter.getTitle(),
+                letter.getCreateDate(),
+                isWriting ? LetterStatus.WRITING : letter.getStatus()
+        );
+    }
 }

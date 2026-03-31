@@ -50,6 +50,16 @@ export const NotificationProvider = ({
       window.dispatchEvent(new CustomEvent("notification_received"));
     });
 
+    es.addEventListener("letter_read", (e: MessageEvent) => {
+      toast.success(e.data, { icon: "📖", duration: 5000 });
+      window.dispatchEvent(new CustomEvent("notification_received"));
+    });
+
+    es.addEventListener("writing_status", () => {
+      // "작성 중"은 너무 빈번할 수 있어 toast는 띄우지 않고 데이터만 갱신
+      window.dispatchEvent(new CustomEvent("notification_received"));
+    });
+
     // 답장 도착 이벤트
     es.addEventListener("reply_arrival", (e: MessageEvent) => {
       toast.success(e.data, { icon: "✍️", duration: 5000 });

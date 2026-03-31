@@ -35,6 +35,10 @@ spring:
             scope:
               - openid
               - profile_nickname
+  data:
+    redis:
+      host: localhost
+      port: 6379
   servlet:
     multipart:
       max-file-size: 300MB
@@ -60,3 +64,4 @@ custom:
 gemini:
   api:
     key: ${GOOGLE_API_KEY}
+
