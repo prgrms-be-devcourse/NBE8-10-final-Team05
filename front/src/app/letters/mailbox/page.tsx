@@ -15,7 +15,6 @@ import { toast } from "react-hot-toast";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
-import { useLetterNotification } from "@/lib/hook/useLetterNotification";
 
 type MailboxTab = "received" | "sent";
 
@@ -46,25 +45,21 @@ export default function MailboxPage() {
   const [isRandomAllowed, setIsRandomAllowed] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // 데이터 fetch 로직을 useCallback으로 분리
   const fetchStats = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       const statsRes = await requestData<MailboxStats>("/api/v1/letters/stats");
       setStats(statsRes);
     } catch {
-      console.error("데이터 로딩 실패");
+      console.error("통계 데이터 로딩 실패");
     }
   }, [isAuthenticated]);
 
-  useLetterNotification();
-
-  // 3. 데이터 초기 로드
+  // 1. 페이지 진입 시 초기 데이터 로드
   useEffect(() => {
     const initData = async () => {
-      if (!isAuthenticated) {
-        setStats(null);
-        return;
-      }
+      if (!isAuthenticated) return;
       try {
         const [statsRes, memberRes] = await Promise.all([
           requestData<MailboxStats>("/api/v1/letters/stats"),
@@ -73,33 +68,26 @@ export default function MailboxPage() {
         setStats(statsRes);
         setIsRandomAllowed(memberRes.randomReceiveAllowed);
       } catch {
-        console.error("데이터 로딩 실패");
+        console.error("초기 데이터 로딩 실패");
       }
     };
     void initData();
   }, [isAuthenticated, sessionRevision]);
 
-  // 4. 실시간 통계 갱신 전용 리스너
+  // 2. [핵심] 전역 알림 이벤트를 구독하여 실시간 통계 갱신
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    const eventSource = new EventSource(`${baseUrl}/api/v1/letters/subscribe`, {
-      withCredentials: true,
-    });
-
     const handleUpdate = () => {
-      fetchStats(); // 알림 발생 시 통계(숫자) 업데이트
+      console.log("🔄 실시간 알림 수신: 통계 수치 갱신 중...");
+      fetchStats();
     };
 
-    eventSource.addEventListener("new_letter", handleUpdate);
-    eventSource.addEventListener("reply_arrival", handleUpdate);
+    // NotificationProvider에서 dispatch한 이벤트를 수신
+    window.addEventListener("notification_received", handleUpdate);
 
     return () => {
-      eventSource.removeEventListener("new_letter", handleUpdate);
-      eventSource.removeEventListener("reply_arrival", handleUpdate);
-      eventSource.close();
+      window.removeEventListener("notification_received", handleUpdate);
     };
   }, [isAuthenticated, fetchStats]);
 
@@ -213,8 +201,8 @@ export default function MailboxPage() {
         </div>
 
         {/* 메인 카드 */}
-        <section className="mb-16 w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="flex flex-col items-center rounded-[3rem] border border-white bg-white/80 p-10 text-center shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] backdrop-blur-xl">
+        <section className="mb-16 w-full max-w-md">
+          <div className="flex flex-col items-center rounded-[3rem] border border-white bg-white/80 p-10 text-center shadow-xl backdrop-blur-xl">
             <span className="mb-6 rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-400">
               {isReceived
                 ? hasLetters
@@ -312,7 +300,6 @@ export default function MailboxPage() {
   );
 }
 
-// 하단 정보 카드를 위한 컴포넌트 추출 (가독성 향상)
 function InfoCard({
   href,
   icon,

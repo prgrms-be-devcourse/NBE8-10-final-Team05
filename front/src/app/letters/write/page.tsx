@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, RefreshCcw, Waves } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
 import { requestData } from "@/lib/api/http-client";
-import { useLetterNotification } from "@/lib/hook/useLetterNotification";
 import { toast } from "react-hot-toast";
+import { useAuthStore } from "@/lib/auth/auth-store";
 
 interface ApiErrorResponse {
   response?: {
@@ -40,14 +40,15 @@ function resolveErrorMessage(error: unknown): string {
 
 export default function WriteLetterPage() {
   const router = useRouter();
-
-  // [추가] SSE 알림 구독 시작: 이 페이지에 머무는 동안 서버와의 연결을 유지합니다.
-  useLetterNotification();
+  const { isAuthenticated } = useAuthStore();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // [수정] 직접적인 useLetterNotification() 호출을 제거했습니다.
+  // 알림 연결은 이제 루트 Layout의 NotificationProvider(또는 Bootstrap 컴포넌트)에서 전역적으로 관리됩니다.
 
   const currentDateText = useMemo(
     () =>
@@ -84,8 +85,7 @@ export default function WriteLetterPage() {
     setIsSending(true);
 
     try {
-      // [수정 포인트] 전체 URL을 직접 만들지 말고, 상대 경로만 전달합니다.
-      // http-client.ts 내부에서 자동으로 환경변수의 baseUrl과 합쳐줍니다.
+      // requestData 내부에서 자동으로 API_BASE_URL을 결합하므로 상대 경로만 사용합니다.
       await requestData("/api/v1/letters", {
         method: "POST",
         headers: {
@@ -94,6 +94,7 @@ export default function WriteLetterPage() {
         body: JSON.stringify({ title, content }),
       });
 
+      // 애니메이션을 위해 약간의 지연 후 이동
       setTimeout(() => {
         router.push("/letters/mailbox");
       }, 3800);
@@ -105,6 +106,7 @@ export default function WriteLetterPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
+
   function handleReset() {
     if (!hasDraft) return;
 
@@ -139,17 +141,17 @@ export default function WriteLetterPage() {
             <button
               type="button"
               onClick={handleGoBack}
-              className="inline-flex items-center gap-2 rounded-full bg-white/78 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+              className="inline-flex items-center gap-2 rounded-full bg-white/78 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-lg transition hover:bg-white hover:text-[#355b88]"
             >
               <ChevronLeft size={16} />
               돌아가기
             </button>
           </div>
 
-          <div className="relative rounded-[44px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.66),rgba(238,247,255,0.92))] px-4 pb-8 pt-14 shadow-[0_36px_90px_-54px_rgba(92,139,203,0.52)] sm:px-8 sm:pb-10 sm:pt-16">
-            <div className="absolute left-1/2 top-0 h-7 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#c59f74] shadow-[0_10px_18px_-14px_rgba(88,61,34,0.7)]" />
+          <div className="relative rounded-[44px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.66),rgba(238,247,255,0.92))] px-4 pb-8 pt-14 shadow-2xl sm:px-8 sm:pb-10 sm:pt-16">
+            <div className="absolute left-1/2 top-0 h-7 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#c59f74] shadow-md" />
 
-            <div className="rounded-[34px] border border-[#f3eadb] bg-[#fffdf7] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_60px_-48px_rgba(125,150,188,0.68)] sm:px-8 sm:py-8">
+            <div className="rounded-[34px] border border-[#f3eadb] bg-[#fffdf7] px-6 py-6 shadow-inner sm:px-8 sm:py-8">
               <label htmlFor="letter-title" className="sr-only">
                 편지 제목
               </label>
@@ -205,7 +207,7 @@ export default function WriteLetterPage() {
               type="button"
               onClick={() => void handleSend()}
               disabled={!canSend}
-              className={`inline-flex min-w-[320px] items-center justify-center gap-2 rounded-full px-8 py-4 text-[20px] font-semibold tracking-[-0.03em] text-white shadow-[0_24px_46px_-28px_rgba(52,152,219,0.76)] transition ${
+              className={`inline-flex min-w-[320px] items-center justify-center gap-2 rounded-full px-8 py-4 text-[20px] font-semibold tracking-[-0.03em] text-white shadow-xl transition ${
                 canSend
                   ? "bg-[linear-gradient(180deg,#49b6f2,#31a7ee)] hover:translate-y-[-1px] hover:brightness-[1.02]"
                   : "cursor-not-allowed bg-[#bad4ea] shadow-none"

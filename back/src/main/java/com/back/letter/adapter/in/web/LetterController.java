@@ -6,8 +6,6 @@ import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.letter.application.port.in.*; // DTO와 UseCase를 인터페이스 패키지에서 가져옴
 import com.back.letter.application.port.in.dto.*;
-import com.back.letter.application.port.out.LetterNotificationPort;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,8 +15,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
-
 @RestController
 @RequestMapping("/api/v1/letters")
 @RequiredArgsConstructor
@@ -26,7 +22,6 @@ public class LetterController {
 
     private final SendLetterUseCase sendLetterUseCase;
     private final InquiryLetterUseCase inquiryLetterUseCase;
-    private final LetterNotificationPort notificationPort;
 
 
     @PostMapping
@@ -124,21 +119,5 @@ public class LetterController {
 
         LettersStatsRes stats = inquiryLetterUseCase.getMailboxStats(authMember.memberId());
         return ResponseEntity.ok(new RsData<>("200", "통계 조회 성공", stats));
-    }
-
-    @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<?> subscribe(@AuthenticationPrincipal AuthenticatedMember authMember) {
-        if (authMember == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        try {
-            SseEmitter emitter = notificationPort.subscribe(authMember.memberId());
-            return ResponseEntity.ok()
-                    .header("X-Accel-Buffering", "no")
-                    .body(emitter);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
     }
 }

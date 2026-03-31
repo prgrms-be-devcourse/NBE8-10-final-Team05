@@ -4,7 +4,6 @@ import com.back.ai.adapter.in.web.dto.AuditAiRequest;
 import com.back.ai.adapter.in.web.dto.AuditAiResponse;
 import com.back.ai.application.service.AiService;
 import com.back.global.exception.ServiceException;
-import com.back.letter.application.port.out.LetterNotificationPort;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;
 import com.back.letter.application.port.in.dto.CreateLetterReq;
