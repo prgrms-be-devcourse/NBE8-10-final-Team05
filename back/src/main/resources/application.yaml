@@ -3,3 +3,60 @@ spring:
     name: back
   profiles:
     active: dev
+  security:
+    oauth2:
+      client:
+        provider:
+          maum-on-oidc:
+            issuer-uri: ${OIDC_ISSUER_URI}
+            user-name-attribute: ${OIDC_USER_NAME_ATTRIBUTE:sub}
+          kakao:
+            issuer-uri: https://kauth.kakao.com
+            user-name-attribute: sub
+        registration:
+          maum-on-oidc:
+            provider: maum-on-oidc
+            client-id: ${OIDC_CLIENT_ID}
+            client-secret: ${OIDC_CLIENT_SECRET}
+            client-authentication-method: client_secret_basic
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/api/v1/auth/oidc/callback/{registrationId}"
+            scope:
+              - openid
+              - profile
+              - email
+          kakao:
+            provider: kakao
+            client-id: ${KAKAO_CLIENT_ID}
+            client-secret: ${KAKAO_CLIENT_SECRET}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/api/v1/auth/oidc/callback/{registrationId}"
+            scope:
+              - openid
+              - profile_nickname
+  servlet:
+    multipart:
+      max-file-size: 300MB
+      max-request-size: 300MB
+custom:
+  auth:
+    oidc:
+      authorize-enabled: ${AUTH_OIDC_AUTHORIZE_ENABLED:true}
+      authorize-ttl-seconds: ${AUTH_OIDC_AUTHORIZE_TTL_SECONDS:300}
+      redirect-uri-allowlist:
+        - ${AUTH_OIDC_REDIRECT_URI_ALLOWLIST_1:http://localhost:3000}
+        - ${AUTH_OIDC_REDIRECT_URI_ALLOWLIST_2:http://127.0.0.1:3000}
+  jwt:
+    issuer: ${JWT_ISSUER:maum-on}
+    secret-key: ${JWT_SECRET_KEY}
+    access-token-expire-seconds: ${JWT_ACCESS_TOKEN_EXPIRE_SECONDS:3600}
+    refresh-token-expire-seconds: ${JWT_REFRESH_TOKEN_EXPIRE_SECONDS:1209600}
+    refresh-token-cookie-name: ${JWT_REFRESH_TOKEN_COOKIE_NAME:refreshToken}
+    refresh-token-cookie-secure: ${JWT_REFRESH_TOKEN_COOKIE_SECURE:false}
+    refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+  file:
+    upload-dir: C:/javadev/diary_image
+gemini:
+  api:
+    key: ${GOOGLE_API_KEY}
