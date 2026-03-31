@@ -7,6 +7,7 @@ import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtProperties;
 import jakarta.servlet.DispatcherType;
+import java.util.Arrays;
 import java.time.Clock;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
@@ -14,6 +15,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -45,6 +47,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 @EnableConfigurationProperties({JwtProperties.class, OidcAuthorizeProperties.class})
 public class SecurityConfig {
+
+  private final Environment environment;
+
+  public SecurityConfig(Environment environment) {
+    this.environment = environment;
+  }
 
   @Bean
   SecurityFilterChain securityFilterChain(
@@ -88,46 +96,58 @@ public class SecurityConfig {
     }
 
     http.authorizeHttpRequests(
-            auth ->
-                auth.dispatcherTypeMatchers(DispatcherType.ERROR)
-                    .permitAll()
-                    .requestMatchers(CorsUtils::isPreFlightRequest)
-                    .permitAll()
-                    .requestMatchers("/error")
-                    .permitAll()
-                    .requestMatchers(
-                        HttpMethod.GET,
-                        "/api/v1/health",
-                        "/api/v1/posts",
-                        "/api/v1/posts/*",
-                        "/api/v1/auth/oidc/authorize/**",
-                        "/api/v1/auth/oidc/callback/**",
-                            "/gen/**")
-                    .permitAll()
-                    .requestMatchers("/oauth2/**", "/login/oauth2/**")
-                    .permitAll()
-                    .requestMatchers(
-                        HttpMethod.POST,
-                        "/api/v1/members",
-                        "/api/v1/auth/signup",
-                        "/api/v1/auth/login",
-                        "/api/v1/auth/refresh",
-                        "/api/v1/auth/logout",
-                        "/api/v1/images/upload")
-                    .permitAll()
-                    // 관리자 경로는 ADMIN 권한이 필요하다.
-                    .requestMatchers("/api/v1/admin/**")
-                    .hasRole("ADMIN")
-                    // 나머지 /api/v1 경로는 모두 인증이 필요하다.
-                    .requestMatchers("/api/v1/**")
-                    .authenticated()
-                    // 허용 목록에 없는 모든 경로는 기본적으로 차단한다.
-                    .anyRequest()
-                    .denyAll())
+            auth -> {
+              auth.dispatcherTypeMatchers(DispatcherType.ERROR)
+                  .permitAll()
+                  .requestMatchers(CorsUtils::isPreFlightRequest)
+                  .permitAll()
+                  .requestMatchers("/error")
+                  .permitAll();
+
+              if (isDevProfile()) {
+                auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/prometheus")
+                    .permitAll();
+              }
+
+              auth.requestMatchers(
+                      HttpMethod.GET,
+                      "/api/v1/health",
+                      "/api/v1/posts",
+                      "/api/v1/posts/*",
+                      "/api/v1/auth/oidc/authorize/**",
+                      "/api/v1/auth/oidc/callback/**",
+                      "/gen/**")
+                  .permitAll()
+                  .requestMatchers("/oauth2/**", "/login/oauth2/**")
+                  .permitAll()
+                  .requestMatchers(
+                      HttpMethod.POST,
+                      "/api/v1/members",
+                      "/api/v1/auth/signup",
+                      "/api/v1/auth/login",
+                      "/api/v1/auth/refresh",
+                      "/api/v1/auth/logout",
+                      "/api/v1/images/upload")
+                  .permitAll()
+                  // 관리자 경로는 ADMIN 권한이 필요하다.
+                  .requestMatchers("/api/v1/admin/**")
+                  .hasRole("ADMIN")
+                  // 나머지 /api/v1 경로는 모두 인증이 필요하다.
+                  .requestMatchers("/api/v1/**")
+                  .authenticated()
+                  // 허용 목록에 없는 모든 경로는 기본적으로 차단한다.
+                  .anyRequest()
+                  .denyAll();
+            })
         // 비인증 허용 엔드포인트를 위해 anonymous principal 유지.
         .anonymous(Customizer.withDefaults());
 
     return http.build();
+  }
+
+  private boolean isDevProfile() {
+    return Arrays.stream(environment.getActiveProfiles())
+        .anyMatch(profile -> "dev".equalsIgnoreCase(profile));
   }
 
   @Bean

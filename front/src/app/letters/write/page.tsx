@@ -7,7 +7,6 @@ import MainHeader from "@/components/layout/MainHeader";
 import SendingAnimation from "@/components/letters/SendingAnimation";
 import { requestData } from "@/lib/api/http-client";
 import { toast } from "react-hot-toast";
-import { useAuthStore } from "@/lib/auth/auth-store";
 
 interface ApiErrorResponse {
   response?: {

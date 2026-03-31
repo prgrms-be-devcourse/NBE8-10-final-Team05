@@ -7,6 +7,7 @@ import com.back.report.domain.TargetType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 // ... 생략
@@ -38,6 +39,21 @@ public class ReportPersistenceAdapter implements ReportPersistencePort {
     @Override
     public List<Report> findAllByTargetTypeAndTargetIdAndStatus(TargetType targetType, Long targetId, ReportStatus status) {
         return reportRepository.findAllByTargetTypeAndTargetIdAndStatus(targetType, targetId, status);
+    }
+
+    @Override
+    public long countByStatus(ReportStatus status) {
+        return reportRepository.countByStatus(status);
+    }
+
+    @Override
+    public long countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive) {
+        return reportRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+                startInclusive,
+                endExclusive
+        );
     }
 
 }

@@ -2,16 +2,19 @@ package com.back.report.application.service;
 
 import com.back.comment.entity.Comment;
 import com.back.comment.repository.CommentRepository;
+import com.back.diary.adapter.out.persistence.repository.DiaryRepository;
 import com.back.global.exception.ServiceException;
 import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.domain.Letter;
 import com.back.member.domain.Member;
+import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
+import com.back.report.adapter.in.web.dto.AdminDashboardStatsResponse;
 import com.back.report.adapter.in.web.dto.ReportCreateRequest;
 import com.back.report.adapter.in.web.dto.ReportDetailResponse;
 import com.back.report.adapter.in.web.dto.ReportHandleRequest;
@@ -24,6 +27,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -34,8 +40,10 @@ public class ReportService {
     private final MemberRepository memberRepository;
     private final PostRepository postRepository;
     private final LetterRepository letterRepository;
+    private final DiaryRepository diaryRepository;
     private final CommentRepository commentRepository;
     private final NotificationService notificationService;
+    private final Clock clock;
 
     @Transactional
     public Long createReport(Long reporterId, ReportCreateRequest request) {
@@ -71,6 +79,22 @@ public class ReportService {
                             report.getCreateDate()
                     );
                 }).toList();
+    }
+
+    public AdminDashboardStatsResponse getDashboardStats() {
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+
+        return new AdminDashboardStatsResponse(
+                reportPersistencePort.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
+                reportPersistencePort.countByStatus(ReportStatus.RECEIVED),
+                reportPersistencePort.countByStatus(ReportStatus.PROCESSED),
+                letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
+                diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
+                memberRepository.countByStatusAndRoleAndRandomReceiveAllowed(
+                        MemberStatus.ACTIVE, MemberRole.USER, true)
+        );
     }
 
     // 관리자용 신고 상세 조회

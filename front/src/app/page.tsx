@@ -77,8 +77,13 @@ const LETTER_BOTTLE_OUTLINE_PATH =
 export default function HomePage() {
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
-  const [activeStoryCategory, setActiveStoryCategory] =
-    useState<HomeStoryCategory>("전체");
+  const lettersWriteHref = isAuthenticated
+    ? "/letters/write"
+    : "/login?next=%2Fletters%2Fwrite";
+  const lettersMailboxHref = isAuthenticated
+    ? "/letters/mailbox"
+    : "/login?next=%2Fletters%2Fmailbox";
+  const [activeStoryCategory, setActiveStoryCategory] = useState<HomeStoryCategory>("전체");
   const [stories, setStories] = useState<StoryCardItem[]>([]);
   const [isStoriesLoading, setIsStoriesLoading] = useState(true);
   const [storiesError, setStoriesError] = useState<string | null>(null);
@@ -248,13 +253,13 @@ export default function HomePage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
                     <Link
-                      href="/letters/write"
+                      href={lettersWriteHref}
                       className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
                     >
                       편지 띄우기
                     </Link>
                     <Link
-                      href="/letters/mailbox"
+                      href={lettersMailboxHref}
                       className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
                     >
                       편지함 보기

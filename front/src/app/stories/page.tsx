@@ -125,6 +125,12 @@ export default function StoriesPage() {
   const [storiesError, setStoriesError] = useState<string | null>(null);
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
+  const lettersWriteHref = isAuthenticated
+    ? "/letters/write"
+    : "/login?next=%2Fletters%2Fwrite";
+  const lettersMailboxHref = isAuthenticated
+    ? "/letters/mailbox"
+    : "/login?next=%2Fletters%2Fmailbox";
   const storyWriteHref = isAuthenticated ? "/stories/write" : "/login?next=%2Fstories%2Fwrite";
   const deferredQuery = useDeferredValue(query);
 
@@ -324,13 +330,13 @@ export default function StoriesPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Link
-                      href="/letters/write"
+                      href={lettersWriteHref}
                       className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
                     >
                       편지 띄우기
                     </Link>
                     <Link
-                      href="/letters/mailbox"
+                      href={lettersMailboxHref}
                       className="inline-flex items-center text-sm font-semibold text-[#4f70a6] underline decoration-[#9eb5d4] underline-offset-4 transition hover:text-[#35527e]"
                     >
                       편지함 보기

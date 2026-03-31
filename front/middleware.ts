@@ -8,6 +8,8 @@ const BACKEND_BASE_URL =
   "http://localhost:8080";
 const REFRESH_PATH = "/api/v1/auth/refresh";
 const REFRESH_COOKIE_NAME = "refreshToken";
+const AUTH_HINT_MEMBER = "member";
+const AUTH_HINT_ADMIN = "admin";
 
 interface AuthMember {
   role: string;
@@ -28,7 +30,22 @@ function isAdminPath(pathname: string): boolean {
   return pathname.startsWith("/admin");
 }
 
-function buildLoginRedirect(request: NextRequest): NextResponse {
+function isObservabilityPath(pathname: string): boolean {
+  return pathname.startsWith("/grafana") || pathname.startsWith("/prometheus");
+}
+
+function isObservabilityApiPath(pathname: string): boolean {
+  return pathname.startsWith("/grafana/api/") || pathname.startsWith("/prometheus/api/");
+}
+
+function isValidAuthHint(value: string | undefined): value is "member" | "admin" {
+  return value === AUTH_HINT_MEMBER || value === AUTH_HINT_ADMIN;
+}
+
+function buildLoginRedirect(
+  request: NextRequest,
+  options: { clearRefreshCookie?: boolean } = {},
+): NextResponse {
   const nextUrl = request.nextUrl.clone();
   const target = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   nextUrl.pathname = "/login";
@@ -40,6 +57,16 @@ function buildLoginRedirect(request: NextRequest): NextResponse {
     path: "/",
     sameSite: "lax",
   });
+
+  if (options.clearRefreshCookie) {
+    response.cookies.set(REFRESH_COOKIE_NAME, "", {
+      maxAge: 0,
+      path: "/",
+      sameSite: "lax",
+      httpOnly: true,
+    });
+  }
+
   return response;
 }
 
@@ -49,6 +76,28 @@ function buildForbiddenRedirect(request: NextRequest): NextResponse {
   nextUrl.pathname = "/forbidden";
   nextUrl.search = `?from=${encodeURIComponent(from)}`;
   return NextResponse.redirect(nextUrl);
+}
+
+function buildUnauthorizedApiResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      resultCode: "401-2",
+      msg: "Authentication required.",
+      data: null,
+    },
+    { status: 401 },
+  );
+}
+
+function buildForbiddenApiResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      resultCode: "403-1",
+      msg: "Forbidden.",
+      data: null,
+    },
+    { status: 403 },
+  );
 }
 
 async function fetchRefreshedSession(
@@ -91,17 +140,39 @@ async function fetchRefreshedSession(
 }
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const observabilityApiPath = isObservabilityApiPath(pathname);
+  const authHint = request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value;
+  if (!isValidAuthHint(authHint)) {
+    if (observabilityApiPath) {
+      return buildUnauthorizedApiResponse();
+    }
+    return buildLoginRedirect(request, { clearRefreshCookie: true });
+  }
+
   const refreshCookie = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
   if (!refreshCookie) {
+    if (observabilityApiPath) {
+      return buildUnauthorizedApiResponse();
+    }
     return buildLoginRedirect(request);
   }
 
   const session = await fetchRefreshedSession(request);
   if (!session) {
-    return buildLoginRedirect(request);
+    if (observabilityApiPath) {
+      return buildUnauthorizedApiResponse();
+    }
+    return buildLoginRedirect(request, { clearRefreshCookie: true });
   }
 
-  if (isAdminPath(request.nextUrl.pathname) && session.memberRole !== "ADMIN") {
+  if (
+    (isAdminPath(pathname) || isObservabilityPath(pathname)) &&
+    session.memberRole !== "ADMIN"
+  ) {
+    if (observabilityApiPath) {
+      return buildForbiddenApiResponse();
+    }
     return buildForbiddenRedirect(request);
   }
 
@@ -127,10 +198,13 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/admin",
     "/dashboard/:path*",
     "/letters/:path*",
     "/stories/write/:path*",
     "/settings/:path*",
     "/admin/:path*",
+    "/grafana/:path*",
+    "/prometheus/:path*",
   ],
 };

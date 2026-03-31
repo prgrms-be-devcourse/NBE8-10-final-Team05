@@ -23,13 +23,14 @@ type AdminNavItem = {
   label: string;
   icon: typeof LayoutDashboard;
   href?: string;
+  matchMode?: "exact" | "prefix";
 };
 
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
-  { label: "대시보드", icon: LayoutDashboard },
+  { label: "대시보드", icon: LayoutDashboard, href: "/admin", matchMode: "exact" },
   { label: "회원 관리", icon: Users },
   { label: "비밀편지 관리", icon: BookHeart },
-  { label: "신고 관리", icon: ShieldAlert, href: "/admin/reports" },
+  { label: "신고 관리", icon: ShieldAlert, href: "/admin/reports", matchMode: "prefix" },
   { label: "설정", icon: Settings },
 ];
 
@@ -53,7 +54,11 @@ export default function AdminShell({ children }: AdminShellProps) {
           <nav className="mt-6 grid gap-2">
             {ADMIN_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
-              const active = item.href ? pathname.startsWith(item.href) : false;
+              const active = item.href
+                ? item.matchMode === "exact"
+                  ? pathname === item.href
+                  : pathname.startsWith(item.href)
+                : false;
 
               if (!item.href) {
                 return (

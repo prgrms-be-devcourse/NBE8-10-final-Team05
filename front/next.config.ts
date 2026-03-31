@@ -25,7 +25,6 @@ function remotePatternFromApiBaseUrl(baseUrl: string | undefined) {
 const apiBasePattern = remotePatternFromApiBaseUrl(
   process.env.NEXT_PUBLIC_API_BASE_URL,
 );
-
 const nextConfig: NextConfig = {
   // [추가] 프록시 설정: 브라우저의 /api/v1 요청을 백엔드(8080)로 전달합니다.
   async rewrites() {
