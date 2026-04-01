@@ -55,6 +55,7 @@ dependencies {
 
     // dev 전용
     developmentOnly("org.springframework.boot:spring-boot-devtools")
+    developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 
     // DB 드라이버
     runtimeOnly("org.postgresql:postgresql:$postgresqlVersion")
