@@ -35,6 +35,11 @@ spring:
             scope:
               - openid
               - profile_nickname
+  docker:
+    compose:
+      file: back/docker-compose.dev.yml
+      lifecycle-management: start_only
+      enabled: true
   data:
     redis:
       host: localhost
