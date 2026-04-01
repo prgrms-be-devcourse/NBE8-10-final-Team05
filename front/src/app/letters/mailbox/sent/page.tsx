@@ -16,7 +16,6 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
-import { toast } from "react-hot-toast";
 
 // 1. 타입 정의
 interface SentLetter {
@@ -27,64 +26,98 @@ interface SentLetter {
   createdDate: string;
 }
 
-// 응답 객체 구조를 명확히 정의하여 any 제거
 interface SentLettersResponse {
-  letters?: SentLetter[];
+  letters: SentLetter[];
+  totalPages: number;
+  totalElements: number; // 전체 개수
+  currentPage: number;
 }
 
 export default function SentLettersPage() {
   const router = useRouter();
   const { isAuthenticated, sessionRevision } = useAuthStore();
+
+  // 상태 관리
   const [letters, setLetters] = useState<SentLetter[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0); // ✅ 전체 개수 상태 추가
   const [isLoading, setIsLoading] = useState(true);
 
+  // 무한 스크롤 상태
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
   const eventSourceRef = useRef<EventSource | null>(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   // 2. 데이터 가져오는 로직
   const fetchSentLetters = useCallback(
-    async (showLoadingSpinner = false) => {
+    async (targetPage: number, isInitial = false) => {
       if (!isAuthenticated) {
-        setLetters([]);
-        setIsLoading(false);
+        if (isInitial) {
+          setLetters([]);
+          setTotalCount(0);
+          setIsLoading(false);
+        }
         return;
       }
 
-      if (showLoadingSpinner) setIsLoading(true);
+      if (isInitial) setIsLoading(true);
+      else setIsFetchingMore(true);
 
       try {
-        // 응답 타입을 유니온으로 처리하여 안전하게 접근
-        const response = await requestData<SentLetter[] | SentLettersResponse>(
-          "/api/v1/letters/sent",
+        const response = await requestData<SentLettersResponse>(
+          `/api/v1/letters/sent?page=${targetPage}&size=9`,
         );
 
-        if (Array.isArray(response)) {
-          setLetters(response);
-        } else if (
-          response &&
-          response.letters &&
-          Array.isArray(response.letters)
-        ) {
-          // ✅ (response as any) 제거: 인터페이스를 통해 안전하게 접근
-          setLetters(response.letters);
-        } else {
-          setLetters([]);
-        }
+        const newLetters = Array.isArray(response.letters)
+          ? response.letters
+          : [];
+
+        setLetters((prev) =>
+          isInitial ? newLetters : [...prev, ...newLetters],
+        );
+
+        // ✅ API 응답의 전체 개수를 상태에 저장 (무한 스크롤 시에도 유지됨)
+        setTotalCount(response.totalElements ?? 0);
+        setHasMore(targetPage < response.totalPages - 1);
       } catch (error) {
-        console.error("편지 목록 로드 실패:", error);
-        setLetters([]);
+        console.error("보낸 편지 목록 로드 실패:", error);
       } finally {
         setIsLoading(false);
+        setIsFetchingMore(false);
       }
     },
     [isAuthenticated],
   );
 
-  // 3. 초기 데이터 로드
+  // 3. 초기 데이터 로드 및 세션 갱신 대응
   useEffect(() => {
-    fetchSentLetters(true);
+    setPage(0);
+    void fetchSentLetters(0, true);
   }, [fetchSentLetters, sessionRevision]);
 
-  // 4. SSE 실시간 상태 갱신 설정
+  // 4. 무한 스크롤 Observer 설정
+  useEffect(() => {
+    if (!observerTarget.current || !hasMore || isLoading || isFetchingMore)
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          void fetchSentLetters(nextPage, false);
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(observerTarget.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, isFetchingMore, page, fetchSentLetters]);
+
+  // 5. SSE 실시간 상태 갱신 설정
   useEffect(() => {
     if (!isAuthenticated) return;
     if (eventSourceRef.current) return;
@@ -100,25 +133,51 @@ export default function SentLettersPage() {
     });
     eventSourceRef.current = es;
 
-    const handleUpdate = (event: MessageEvent) => {
-      console.log("📩 실시간 상태 변경 감지:", event.type);
-      fetchSentLetters(false);
+    // ✅ 핵심 수정: 서버 재요청 없이 상태만 변경하는 핸들러
+    const handlePartialUpdate = (event: MessageEvent) => {
+      try {
+        // 백엔드 페이로드 예시: { "letterId": 123, "newStatus": "ACCEPTED" }
+        const data = JSON.parse(event.data);
+        const { letterId, newStatus } = data;
+
+        console.log(
+          `📩 [${event.type}] 실시간 부분 업데이트 실행: ID ${letterId} -> ${newStatus}`,
+        );
+
+        // 1. 편지 목록 상태 업데이트 (해당 ID만 찾아 교체)
+        setLetters((prevLetters) =>
+          prevLetters.map((letter) =>
+            letter.id === Number(letterId)
+              ? { ...letter, status: newStatus as SentLetter["status"] }
+              : letter,
+          ),
+        );
+
+        // 2. 만약 새 편지 발송 등의 사유로 전체 개수가 변해야 한다면
+        // (이 부분은 백엔드 기획에 따라 totalCount를 +1 하거나 유지합니다)
+        if (event.type === "new_letter") {
+          setTotalCount((prev) => prev + 1);
+        }
+      } catch (error) {
+        // 파싱 에러나 데이터가 없는 경우 안전장치로 첫 페이지만 다시 불러오기
+        console.warn("SSE 데이터 파싱 실패, 전체 갱신으로 폴백합니다.");
+        setPage(0);
+        void fetchSentLetters(0, true);
+      }
     };
 
-    es.addEventListener("letter_read", handleUpdate);
+    // 이벤트 리스너 등록
+    es.addEventListener("letter_read", handlePartialUpdate);
+    es.addEventListener("writing_status", handlePartialUpdate);
+    es.addEventListener("reply_arrival", handlePartialUpdate);
 
-    es.addEventListener("new_letter", handleUpdate);
-    es.addEventListener("reply_arrival", handleUpdate);
-
-    // ✅ (e: any) 제거: MessageEvent 타입 지정
-    es.addEventListener("connect", (e: MessageEvent) =>
-      console.log("🚀 SSE Connected:", e.data),
-    );
-
-    es.addEventListener("writing_status", handleUpdate);
+    // 신규 편지 알림은 목록 최상단에 추가해야 하므로 전체 갱신이 유리할 수 있음
+    es.addEventListener("new_letter", () => {
+      setPage(0);
+      void fetchSentLetters(0, true);
+    });
 
     es.onerror = () => {
-      console.error("❌ SSE 연결 오류 - 재연결 시도");
       es.close();
       eventSourceRef.current = null;
     };
@@ -181,7 +240,7 @@ export default function SentLettersPage() {
           <button
             type="button"
             onClick={handleGoBack}
-            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-[0_18px_34px_-28px_rgba(96,138,190,0.72)] transition hover:bg-white hover:text-[#355b88]"
+            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-lg transition hover:bg-white hover:text-[#355b88]"
           >
             <ChevronLeft size={16} />
             돌아가기
@@ -193,10 +252,11 @@ export default function SentLettersPage() {
           </div>
         </div>
 
+        {/* ✅ 배너 섹션: letters.length 대신 totalCount 사용 */}
         <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/40 shadow-sm">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">
-              나의 진심이 {letters.length}번 전달되었어요
+              나의 진심이 {totalCount}번 전달되었어요
             </h2>
             <p className="text-slate-500">
               당신이 띄워 보낸 편지들이 누군가의 하루를 따뜻하게 만들고
@@ -216,51 +276,75 @@ export default function SentLettersPage() {
             </p>
           </div>
         ) : letters.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {letters.map((letter) => {
-              const statusInfo = getStatusDisplay(letter.status);
-              return (
-                <div
-                  key={letter.id}
-                  onClick={() =>
-                    router.push(`/letters/mailbox/sent/${letter.id}`)
-                  }
-                  className="group relative bg-white/80 hover:bg-white backdrop-blur-sm p-8 rounded-[2.5rem] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.05)] border border-white transition-all duration-300 cursor-pointer hover:-translate-y-2 hover:shadow-xl"
-                >
-                  <div className="flex justify-between items-start mb-6 gap-2">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-wider">
-                      <Calendar size={12} />
-                      {letter.createdDate
-                        ? new Date(letter.createdDate).toLocaleDateString()
-                        : "-"}
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {letters.map((letter) => {
+                const statusInfo = getStatusDisplay(letter.status);
+                return (
+                  <div
+                    key={letter.id}
+                    onClick={() =>
+                      router.push(`/letters/mailbox/sent/${letter.id}`)
+                    }
+                    className="group relative bg-white/80 hover:bg-white backdrop-blur-sm p-8 rounded-[2.5rem] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.05)] border border-white transition-all duration-300 cursor-pointer hover:-translate-y-2 hover:shadow-xl flex flex-col"
+                  >
+                    <div className="flex justify-between items-start mb-6 gap-2">
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-wider">
+                        <Calendar size={12} />
+                        {letter.createdDate
+                          ? new Date(letter.createdDate).toLocaleDateString()
+                          : "-"}
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 text-[10px] font-bold px-3 py-1 rounded-full border transition-all duration-300 ${statusInfo.className}`}
+                      >
+                        {statusInfo.icon}
+                        {statusInfo.label}
+                      </div>
                     </div>
-                    <div
-                      className={`flex items-center gap-1 text-[10px] font-bold px-3 py-1 rounded-full border transition-all duration-300 ${statusInfo.className}`}
-                    >
-                      {statusInfo.icon}
-                      {statusInfo.label}
+
+                    <h3 className="text-xl font-bold text-slate-800 mb-3 line-clamp-1 group-hover:text-sky-600 transition-colors">
+                      {letter.title || "제목 없는 편지"}
+                    </h3>
+                    <p className="text-slate-500 text-sm leading-relaxed line-clamp-3 font-serif italic mb-8">
+                      {letter.content}
+                    </p>
+
+                    <div className="mt-auto pt-6 border-t border-slate-50 flex justify-between items-center text-slate-400">
+                      <span className="text-xs font-serif italic">
+                        To. 바다 건너 누군가
+                      </span>
+                      <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-400 group-hover:bg-sky-400 group-hover:text-white transition-all">
+                        <Waves size={16} />
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  <h3 className="text-xl font-bold text-slate-800 mb-3 line-clamp-1 group-hover:text-sky-600 transition-colors">
-                    {letter.title || "제목 없는 편지"}
-                  </h3>
-                  <p className="text-slate-500 text-sm leading-relaxed line-clamp-3 font-serif italic mb-4">
-                    {letter.content}
-                  </p>
-
-                  <div className="mt-auto pt-6 border-t border-slate-50 flex justify-between items-center">
-                    <span className="text-xs text-slate-300 font-serif italic">
-                      To. 바다 건너 누군가
-                    </span>
-                    <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-400 group-hover:bg-sky-400 group-hover:text-white transition-all">
-                      <Waves size={16} />
-                    </div>
-                  </div>
+            <div
+              ref={observerTarget}
+              className="mt-16 flex h-20 items-center justify-center"
+            >
+              {isFetchingMore && (
+                <div className="flex flex-col items-center gap-2 text-sky-500">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="text-sm font-medium animate-pulse">
+                    더 많은 진심을 찾는 중...
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              )}
+              {!hasMore && letters.length > 0 && (
+                <div className="flex flex-col items-center gap-2 text-slate-300">
+                  <Waves size={24} />
+                  <span className="text-sm font-medium">
+                    당신의 모든 진심을 불러왔습니다.
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
         ) : (
           <div className="text-center py-24 bg-white/30 rounded-[3rem] border-2 border-dashed border-sky-100 flex flex-col items-center">
             <p className="text-slate-400 text-lg mb-6">

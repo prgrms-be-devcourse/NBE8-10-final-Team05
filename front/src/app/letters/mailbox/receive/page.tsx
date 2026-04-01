@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox,
@@ -53,32 +53,39 @@ export default function ReceivedLettersPage() {
   const [stats, setStats] = useState<MailboxStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
   // 1. 데이터 fetch 로직
   const fetchMailboxData = useCallback(
-    async (showLoadingSpinner = false) => {
-      if (!isAuthenticated) {
-        setLetters([]);
-        setStats(null);
-        setIsLoading(false);
-        return;
-      }
+    async (targetPage: number, isInitial = false) => {
+      if (!isAuthenticated) return;
 
-      if (showLoadingSpinner) setIsLoading(true);
+      if (isInitial) setIsLoading(true);
+      else setIsFetchingMore(true);
 
       try {
         const [lettersData, statsData] = await Promise.all([
-          requestData<LetterListRes>("/api/v1/letters/received?page=0&size=10"),
+          requestData<LetterListRes>(
+            `/api/v1/letters/received?page=${targetPage}&size=9`,
+          ),
           requestData<MailboxStats>("/api/v1/letters/stats"),
         ]);
 
-        setLetters(
-          Array.isArray(lettersData.letters) ? lettersData.letters : [],
+        const newLetters = lettersData.letters || [];
+
+        setLetters((prev) =>
+          isInitial ? newLetters : [...prev, ...newLetters],
         );
         setStats(statsData);
+        setHasMore(targetPage < lettersData.totalPages - 1);
       } catch (error) {
-        console.error("받은 편지함 데이터 로드 실패:", error);
+        console.error("데이터 로드 실패:", error);
       } finally {
         setIsLoading(false);
+        setIsFetchingMore(false);
       }
     },
     [isAuthenticated],
@@ -86,24 +93,40 @@ export default function ReceivedLettersPage() {
 
   // 2. 초기 로드
   useEffect(() => {
-    void fetchMailboxData(true);
+    setPage(0);
+    void fetchMailboxData(0, true);
   }, [fetchMailboxData, sessionRevision]);
 
-  // 3. [핵심 수정] NotificationProvider의 전역 알림 이벤트를 구독
+  // 3. 무한 스크롤 Observer 설정
+  useEffect(() => {
+    if (!observerTarget.current || !hasMore || isLoading || isFetchingMore)
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          void fetchMailboxData(nextPage);
+        }
+      },
+      { threshold: 1.0 },
+    );
+
+    observer.observe(observerTarget.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, isFetchingMore, page, fetchMailboxData]);
+
+  // 3.NotificationProvider의 전역 알림 이벤트를 구독
   useEffect(() => {
     if (!isAuthenticated) return;
-
     const handleUpdate = () => {
-      console.log("🔄 실시간 알림 감지: 받은 편지 목록 갱신 중...");
-      void fetchMailboxData(false); // 배경에서 조용히 업데이트
+      setPage(0);
+      void fetchMailboxData(0, false);
     };
-
-    // 전역 커스텀 이벤트 리스너 등록
     window.addEventListener("notification_received", handleUpdate);
-
-    return () => {
+    return () =>
       window.removeEventListener("notification_received", handleUpdate);
-    };
   }, [isAuthenticated, fetchMailboxData]);
 
   function handleGoBack() {
@@ -250,55 +273,80 @@ export default function ReceivedLettersPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {letters.map((letter) => {
-              const statusInfo = getStatusDisplay(letter.status);
-              return (
-                <div
-                  key={letter.id}
-                  onClick={() =>
-                    router.push(`/letters/mailbox/receive/${letter.id}`)
-                  }
-                  className={`group relative cursor-pointer rounded-[2.5rem] border p-8 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${statusInfo.cardClass}`}
-                >
-                  <div className="mb-6 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 rounded-full bg-slate-100/50 px-3 py-1.5 text-[11px] font-bold text-slate-400">
-                      <Clock size={14} />
-                      {formatDate(letter.createdDate)}
-                    </div>
-                    <div
-                      className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-[10px] font-black ${statusInfo.className}`}
-                    >
-                      {statusInfo.icon}
-                      {statusInfo.label}
-                    </div>
-                  </div>
-
-                  <h3 className="mb-3 line-clamp-1 text-xl font-bold text-slate-800 transition-colors group-hover:text-sky-600">
-                    {letter.title || "제목 없는 편지"}
-                  </h3>
-                  <p className="mb-8 line-clamp-2 text-sm italic leading-relaxed text-slate-400">
-                    {letter.content}
-                  </p>
-
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-6 text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-sky-400 transition-all group-hover:bg-sky-400 group-hover:text-white">
-                        <MessageSquare size={14} />
+          <>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {letters.map((letter) => {
+                const statusInfo = getStatusDisplay(letter.status);
+                return (
+                  <div
+                    key={letter.id}
+                    onClick={() =>
+                      router.push(`/letters/mailbox/receive/${letter.id}`)
+                    }
+                    className={`group relative cursor-pointer rounded-[2.5rem] border p-8 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${statusInfo.cardClass}`}
+                  >
+                    <div className="mb-6 flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 rounded-full bg-slate-100/50 px-3 py-1.5 text-[11px] font-bold text-slate-400">
+                        <Clock size={14} />
+                        {formatDate(letter.createdDate)}
                       </div>
-                      <span className="text-xs font-medium">
-                        From. {letter.senderNickname || "익명의 파도"}
-                      </span>
+                      <div
+                        className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-[10px] font-black ${statusInfo.className}`}
+                      >
+                        {statusInfo.icon}
+                        {statusInfo.label}
+                      </div>
                     </div>
-                    <Waves
-                      size={16}
-                      className="text-sky-200 transition-colors group-hover:text-sky-400"
-                    />
+
+                    <h3 className="mb-3 line-clamp-1 text-xl font-bold text-slate-800 transition-colors group-hover:text-sky-600">
+                      {letter.title || "제목 없는 편지"}
+                    </h3>
+                    <p className="mb-8 line-clamp-2 text-sm italic leading-relaxed text-slate-400">
+                      {letter.content}
+                    </p>
+
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-6 text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-50 text-sky-400 transition-all group-hover:bg-sky-400 group-hover:text-white">
+                          <MessageSquare size={14} />
+                        </div>
+                        <span className="text-xs font-medium">
+                          From. {letter.senderNickname || "익명의 파도"}
+                        </span>
+                      </div>
+                      <Waves
+                        size={16}
+                        className="text-sky-200 transition-colors group-hover:text-sky-400"
+                      />
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+
+            {/* 하단 무한 스크롤 트리거 & 로딩 바 */}
+            <div
+              ref={observerTarget}
+              className="mt-16 flex h-20 items-center justify-center"
+            >
+              {isFetchingMore && (
+                <div className="flex flex-col items-center gap-2 text-sky-500">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="text-sm font-medium animate-pulse">
+                    다음 파도가 오는 중...
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              )}
+              {!hasMore && letters.length > 0 && (
+                <div className="flex flex-col items-center gap-2 text-slate-300">
+                  <Waves size={24} />
+                  <span className="text-sm font-medium">
+                    모든 편지를 확인했습니다.
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </main>
     </div>
