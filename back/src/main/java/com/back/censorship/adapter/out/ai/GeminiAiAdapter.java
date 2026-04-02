@@ -1,8 +1,8 @@
-package com.back.ai.adapter.out.ai;
+package com.back.censorship.adapter.out.ai;
 
-import com.back.ai.adapter.in.web.dto.AuditAiRequest;
-import com.back.ai.adapter.in.web.dto.AuditAiResponse;
-import com.back.ai.application.port.out.AiAuditPort;
+import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
+import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
+import com.back.censorship.application.port.out.AiAuditPort;
 import com.back.global.exception.ServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;

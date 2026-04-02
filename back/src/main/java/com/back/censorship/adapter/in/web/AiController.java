@@ -1,8 +1,8 @@
-package com.back.ai.adapter.in.web;
+package com.back.censorship.adapter.in.web;
 
-import com.back.ai.adapter.in.web.dto.AuditAiRequest;
-import com.back.ai.adapter.in.web.dto.AuditAiResponse;
-import com.back.ai.application.service.AiService;
+import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
+import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
+import com.back.censorship.application.service.AiService;
 import com.back.global.rsData.RsData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;

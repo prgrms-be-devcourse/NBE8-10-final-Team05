@@ -1,4 +1,4 @@
-package com.back.ai.adapter.in.web.dto;
+package com.back.censorship.adapter.in.web.dto;
 
 
 public record AuditAiRequest(
