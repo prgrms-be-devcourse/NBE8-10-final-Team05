@@ -10,10 +10,15 @@ import {
   Heart,
   Send,
   MessageSquareText,
+  Flag,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
+import ReportCreateDialog from "@/components/report/ReportCreateDialog";
+import { useAuthStore } from "@/lib/auth/auth-store";
 import { toErrorMessage } from "@/lib/api/rs-data";
+import { createReport } from "@/lib/report/report-service";
+import type { ReportReasonCode } from "@/lib/report/report-types";
 
 interface ReceivedLetterDetail {
   id: number;
@@ -28,6 +33,7 @@ interface ReceivedLetterDetail {
 export default function ReceivedLetterDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { isAuthenticated } = useAuthStore();
 
   // 상태 및 Ref 관리
   const isNotifiedRef = useRef(false);
@@ -36,6 +42,11 @@ export default function ReceivedLetterDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [replyContent, setReplyContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportDialogKey, setReportDialogKey] = useState(0);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportErrorMessage, setReportErrorMessage] = useState<string | null>(null);
+  const [reportNoticeMessage, setReportNoticeMessage] = useState<string | null>(null);
 
   const letterId = typeof params.id === "string" ? params.id : "";
 
@@ -138,6 +149,46 @@ export default function ReceivedLetterDetailPage() {
     }
   };
 
+  function openReportDialog(): void {
+    if (!letter) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      router.push(`/login?next=${encodeURIComponent(`/letters/mailbox/receive/${letter.id}`)}`);
+      return;
+    }
+
+    setReportErrorMessage(null);
+    setReportNoticeMessage(null);
+    setReportDialogKey((prev) => prev + 1);
+    setIsReportDialogOpen(true);
+  }
+
+  async function submitReport(reason: ReportReasonCode, content: string): Promise<void> {
+    if (!letter || isSubmittingReport) {
+      return;
+    }
+
+    setIsSubmittingReport(true);
+    setReportErrorMessage(null);
+
+    try {
+      await createReport({
+        targetId: letter.id,
+        targetType: "LETTER",
+        reason,
+        content: content.trim().length > 0 ? content.trim() : undefined,
+      });
+      setIsReportDialogOpen(false);
+      setReportNoticeMessage("신고가 접수되었습니다.");
+    } catch (error: unknown) {
+      setReportErrorMessage(toErrorMessage(error));
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#EBF5FF] flex items-center justify-center">
@@ -157,19 +208,35 @@ export default function ReceivedLetterDetailPage() {
       <main className="mx-auto mt-10 max-w-4xl px-6">
         {/* 상단 버튼 및 타이틀 */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            onClick={handleGoBack}
-            className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-sm transition hover:bg-white"
-          >
-            <ChevronLeft size={16} />
-            돌아가기
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGoBack}
+              className="inline-flex items-center gap-2 self-start rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#5e7ea5] ring-1 ring-[#d8e7f7] shadow-sm transition hover:bg-white"
+            >
+              <ChevronLeft size={16} />
+              돌아가기
+            </button>
+            <button
+              type="button"
+              onClick={openReportDialog}
+              className="inline-flex items-center gap-2 self-start rounded-full bg-[#fff4f4] px-4 py-2 text-sm font-semibold text-[#b56060] ring-1 ring-[#f2dede] shadow-sm transition hover:bg-[#ffecec]"
+            >
+              <Flag size={15} />
+              신고
+            </button>
+          </div>
           <div className="inline-flex items-center gap-2 rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900">
             <MailOpen size={18} className="text-sky-400" />
             도착한 마음
           </div>
         </div>
+
+        {reportNoticeMessage ? (
+          <div className="mb-4 rounded-[14px] border border-[#d6eadb] bg-[#f1fbf4] px-4 py-3 text-sm text-[#3f7d50]">
+            {reportNoticeMessage}
+          </div>
+        ) : null}
 
         {/* 편지 본문 카드 */}
         <section className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 md:p-14 shadow-lg border border-white relative overflow-hidden">
@@ -237,6 +304,15 @@ export default function ReceivedLetterDetailPage() {
           )}
         </section>
       </main>
+      <ReportCreateDialog
+        key={reportDialogKey}
+        open={isReportDialogOpen}
+        targetLabel="편지"
+        isSubmitting={isSubmittingReport}
+        errorMessage={reportErrorMessage}
+        onClose={() => setIsReportDialogOpen(false)}
+        onSubmit={submitReport}
+      />
     </div>
   );
 }

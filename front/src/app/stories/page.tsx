@@ -15,13 +15,16 @@ const LETTER_BOTTLE_OUTLINE_PATH =
 type StoryCategory = (typeof STORY_CATEGORIES)[number];
 type StorySort = (typeof STORY_SORTS)[number];
 type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
+type PostResolutionStatus = "ONGOING" | "RESOLVED";
 
 type StoryCategoryFilter = Exclude<StoryCategory, "전체">;
 
 type CommunityStory = {
   id: number;
   category: StoryCategoryFilter;
+  resolutionStatus: PostResolutionStatus;
   title: string;
+  authorNickname: string;
   timeAgo: string;
   createdAt: string;
   createdAtMs: number;
@@ -36,6 +39,7 @@ type PostListItem = {
   modifyDate: string;
   thumbnail: string | null;
   category: BackendPostCategory;
+  resolutionStatus: PostResolutionStatus;
   nickname: string;
 };
 
@@ -76,6 +80,16 @@ const STORY_CARD_THEMES: Record<
   },
 };
 
+const RESOLUTION_STATUS_LABEL: Record<PostResolutionStatus, string> = {
+  ONGOING: "고민중",
+  RESOLVED: "고민해결",
+};
+
+const RESOLUTION_STATUS_BADGE_CLASS: Record<PostResolutionStatus, string> = {
+  ONGOING: "bg-[#fff4e8] text-[#a86b2e]",
+  RESOLVED: "bg-[#eaf8ef] text-[#2f7d49]",
+};
+
 function formatRelativeTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -108,7 +122,9 @@ function mapPostToCommunityStory(post: PostListItem): CommunityStory {
   return {
     id: post.id,
     category: API_CATEGORY_TO_FILTER[post.category] ?? "고민",
+    resolutionStatus: post.resolutionStatus,
     title: post.title,
+    authorNickname: post.nickname?.trim() || "익명",
     timeAgo: formatRelativeTime(post.createDate),
     createdAt: post.createDate,
     createdAtMs: Number.isNaN(createdAt.getTime()) ? 0 : createdAt.getTime(),
@@ -377,11 +393,19 @@ function CommunityStoryCard({ story }: { story: CommunityStory }) {
     <article className="flex h-full flex-col overflow-hidden rounded-[12px] border border-[#dbe6f5] bg-white text-[#324763] shadow-[0_18px_34px_-24px_rgba(73,107,167,0.32)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_42px_-22px_rgba(73,107,167,0.42)]">
       <Link href={`/stories/${story.id}`} className="group flex h-full flex-col">
         <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
-          <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
-            <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
-              {story.category}
-            </span>
-            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+          <div className="absolute inset-x-5 top-4 flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
+                {story.category}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  RESOLUTION_STATUS_BADGE_CLASS[story.resolutionStatus]
+                }`}
+              >
+                {RESOLUTION_STATUS_LABEL[story.resolutionStatus]}
+              </span>
+            </div>
           </div>
           <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
             <span className="block h-[4px] w-16 rounded-full bg-white/75" />
@@ -394,6 +418,8 @@ function CommunityStoryCard({ story }: { story: CommunityStory }) {
             {story.title}
           </h2>
           <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
+            <span className="max-w-[55%] truncate">{story.authorNickname}</span>
+            <span aria-hidden="true">·</span>
             <span>{story.timeAgo}</span>
           </div>
         </div>
