@@ -5,10 +5,13 @@ spring:
     url: ${PROD_DB_URL}
     username: ${PROD_DB_USERNAME}
     password: ${PROD_DB_PASSWORD}
+  data:
+    redis:
+      host: ${PROD_REDIS_URL}
+      password: ${PROD_REDIS_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: validate
-
+      ddl-auto: update
 custom:
   jwt:
     secret-key: ${JWT_SECRET_KEY}

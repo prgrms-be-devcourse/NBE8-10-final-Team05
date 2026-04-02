@@ -7,8 +7,6 @@ services:
     environment:
       TZ: Asia/Seoul
     command: redis-server --maxmemory 50mb --maxmemory-policy allkeys-lru
-    networks:
-      - maum-on
   postgres:
     image: jangka512/pgj:latest
     container_name: maum-on-postgres
