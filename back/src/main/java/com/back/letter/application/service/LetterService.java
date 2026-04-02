@@ -1,8 +1,10 @@
 package com.back.letter.application.service;
 
+
+
 import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
 import com.back.censorship.application.service.AiService;
-import com.back.global.event.LetterNotificationEvent;
+import com.back.global.event.LetterEvents;
 import com.back.global.exception.ServiceException;
 import com.back.letter.adapter.out.persistence.repository.LetterRedisRepository;
 import com.back.letter.application.port.in.*;
@@ -13,7 +15,6 @@ import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.Cache;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
@@ -27,7 +28,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional
 public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
     private final LetterPort letterPort;
@@ -35,197 +36,48 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private final AiService aiService;
     private final ApplicationEventPublisher eventPublisher;
     private final LetterRedisRepository letterRedisRepository;
-
     private final RedisTemplate<String, Object> redisTemplate;
-    private final org.springframework.cache.CacheManager cacheManager;
 
-    /**
-     * [AI 검수 로직]
-     */
-    private void auditContent(String content, String type) {
-        var auditResponse = aiService.auditContent(new AuditAiRequest(content, type));
+    @Override
+    public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId) {
+        checkSendRateLimit(senderId);
+        auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
 
-        if (!auditResponse.isPassed()) {
-            throw new ServiceException("400-AI", auditResponse.message());
-        }
+        return saveAndDispatch(req, senderId);
     }
 
-    /**
-     * [고민 편지 작성 및 즉시 랜덤 발송]
-     */
-    @Override
     @Transactional
-    public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId) {
-        String limitKey = "user:send:limit:" + senderId;
-
-        // 원자적 체크 및 락 설정
-        Boolean isFirstRequest = redisTemplate.opsForValue()
-                .setIfAbsent(limitKey, "LOCKED", Duration.ofMinutes(1));
-
-        if (Boolean.FALSE.equals(isFirstRequest)) {
-            throw new ServiceException("429-1", "편지는 1분에 한 번만 보낼 수 있습니다.");
-        }
-
-        // 1. AI 검수
-        String fullContent = String.format("[제목] %s [내용] %s", req.title(), req.content());
-        auditContent(fullContent, "Letter");
-
-        // 2. 발신자 조회
+    public long saveAndDispatch(CreateLetterReq req, long senderId) {
         Member sender = memberRepository.findById(senderId)
                 .orElseThrow(() -> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
 
-        // 3. 랜덤 수신자 매칭
-        Long receiverId = letterRedisRepository.getRandomReceiver();
-        Member receiver;
+        Member receiver = findMatchingReceiver(senderId);
 
-        if (receiverId == null || receiverId.equals(senderId)) {
-            receiver = letterPort.findRandomMemberExceptMe(senderId)
-                    .orElseThrow(() -> new ServiceException("404-2", "매칭 가능한 회원이 없습니다."));
-        } else {
-            receiver = memberRepository.findById(receiverId)
-                    .orElseGet(() -> letterPort.findRandomMemberExceptMe(senderId)
-                            .orElseThrow(() -> new ServiceException("404-2", "매칭 가능한 회원이 없습니다.")));
-        }
-
-        // 4. 편지 생성 및 저장
         Letter letter = Letter.builder()
                 .title(req.title())
                 .content(req.content())
                 .sender(sender)
-                .receiver(receiver)
-                .status(LetterStatus.SENT)
                 .build();
 
+        letter.dispatch(receiver);
         Letter saved = letterPort.save(letter);
 
-        // 5. 알림 이벤트 발행
-        eventPublisher.publishEvent(new LetterNotificationEvent(
-                receiver.getId(),
-                "new_letter",
-                new LetterStatusUpdatePayload(saved.getId(), "SENT", "새로운 랜덤 편지가 도착했습니다!")
-        ));
-
-        // 6. 수신자의 통계 캐시 무효화 (수동 처리)
-        Cache cache = cacheManager.getCache("mailboxStats");
-        if (cache != null) {
-            cache.evict(receiver.getId());
-        }
-
+        eventPublisher.publishEvent(new LetterEvents.LetterSentEvent(saved.getId(), receiver.getId()));
         return saved.getId();
     }
 
-    /**
-     * [편지 단건 조회]
-     */
-    @Override
-    @Transactional
-    public LetterInfoRes getLetter(long id, long accessorId) {
-        Letter letter = letterPort.findById(id)
-                .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
-
-        // 상대방이 보낸 편지를 처음 읽는 경우
-        if (!letter.getSender().getId().equals(accessorId) && letter.getStatus() == LetterStatus.SENT) {
-            letter.setStatus(LetterStatus.ACCEPTED);
-            letterPort.save(letter);
-
-            eventPublisher.publishEvent(new LetterNotificationEvent(
-                    letter.getSender().getId(),
-                    "letter_read",
-                    new LetterStatusUpdatePayload(id, "ACCEPTED", "상대방이 편지를 읽었습니다.")
-            ));
-
-            // 캐시 무효화
-            Cache cache = cacheManager.getCache("mailboxStats");
-            if (cache != null) cache.evict(accessorId);
-        }
-
-        return LetterInfoRes.from(letter);
-    }
-
-    /**
-     * [답장 작성]
-     */
     @Override
     @Transactional
     public void replyLetter(long id, ReplyLetterReq req, long accessorId) {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
-        if (!letter.getReceiver().getId().equals(accessorId)) {
-            throw new ServiceException("403-2", "본인이 받은 편지에만 답장할 수 있습니다.");
-        }
-
         auditContent(req.replyContent(), "Reply");
-        letter.reply(req.replyContent());
+
+        letter.reply(req.replyContent(), accessorId);
 
         letterRedisRepository.deleteWritingStatus(id);
-
-        Cache cache = cacheManager.getCache("mailboxStats");
-        if (cache != null) {
-            cache.evict(letter.getSender().getId());
-            cache.evict(accessorId);
-        }
-
-        eventPublisher.publishEvent(new LetterNotificationEvent(
-                letter.getSender().getId(),
-                "reply_arrival",
-                new LetterStatusUpdatePayload(id, "REPLIED", "보낸 편지에 답장이 도착했습니다!")
-        ));
-    }
-
-    /**
-     * [보관함 조회 로직들]
-     */
-    @Override
-    public LetterListRes getMyInbox(long memberId, int page, int size) {
-        Page<Letter> letterPage = letterPort.findByReceiverId(memberId, getPageable(page, size));
-        return getLetterList(letterPage);
-    }
-
-    @Override
-    @Cacheable(value = "mailboxStats", key = "#memberId", cacheManager = "monthlyCalendarCacheManager")
-    public LettersStatsRes getMailboxStats(long memberId) {
-        long receivedCount = letterPort.countByReceiverId(memberId);
-
-        LettersStatsRes.LetterSummary latestReceived = letterPort.findLatestReceived(memberId)
-                .map(l -> LettersStatsRes.LetterSummary.builder()
-                        .id(l.getId())
-                        .title(l.getTitle())
-                        .createdDate(l.getCreateDate().toString())
-                        .replied(l.getStatus() == LetterStatus.REPLIED)
-                        .build())
-                .orElse(null);
-
-        LettersStatsRes.LetterSummary latestSent = letterPort.findLatestSent(memberId)
-                .map(l -> LettersStatsRes.LetterSummary.builder()
-                        .id(l.getId())
-                        .title(l.getTitle())
-                        .createdDate(l.getCreateDate().toString())
-                        .build())
-                .orElse(null);
-
-        return LettersStatsRes.builder()
-                .receivedCount(receivedCount)
-                .latestReceivedLetter(latestReceived)
-                .latestSentLetter(latestSent)
-                .build();
-    }
-
-    @Override
-    public LetterListRes getMySentBox(long memberId, int page, int size) {
-        Page<Letter> letterPage = letterPort.findBySenderId(memberId, getPageable(page, size));
-        return getLetterList(letterPage);
-    }
-
-    private Pageable getPageable(int page, int size) {
-        return PageRequest.of(page, size, Sort.by("id").descending());
-    }
-
-    private LetterListRes getLetterList(Page<Letter> letterPage) {
-        return LetterListRes.from(letterPage.map(letter -> {
-            boolean isWriting = letterRedisRepository.isWriting(letter.getId());
-            return LetterItem.from(letter, isWriting);
-        }));
+        eventPublisher.publishEvent(new LetterEvents.LetterRepliedEvent(id, letter.getSender().getId(), accessorId));
     }
 
     @Override
@@ -234,25 +86,9 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
-        if (!letter.getReceiver().getId().equals(accessorId)) {
-            throw new ServiceException("403-2", "권한이 없습니다.");
-        }
+        letter.accept(accessorId);
 
-        if (letter.getStatus() == LetterStatus.SENT) {
-            letter.setStatus(LetterStatus.ACCEPTED);
-
-            // 수신자의 캐시 갱신 (읽음 상태가 바뀌었으므로)
-            Cache cache = cacheManager.getCache("mailboxStats");
-            if (cache != null) {
-                cache.evict(accessorId);
-            }
-        }
-
-        eventPublisher.publishEvent(new LetterNotificationEvent(
-                letter.getSender().getId(),
-                "letter_read",
-                new LetterStatusUpdatePayload(id, "ACCEPTED", "상대방이 편지를 읽었습니다.")
-        ));
+        eventPublisher.publishEvent(new LetterEvents.LetterAcceptedEvent(id, letter.getSender().getId()));
     }
 
     @Override
@@ -261,70 +97,84 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         letterRedisRepository.setWritingStatus(id);
 
         letterPort.findById(id).ifPresent(letter -> {
-            eventPublisher.publishEvent(new LetterNotificationEvent(
-                    letter.getSender().getId(),
-                    "writing_status",
-                    new LetterStatusUpdatePayload(id, "WRITING", "상대방이 답장을 작성하고 있습니다.")
-            ));
+            eventPublisher.publishEvent(new LetterEvents.LetterWritingEvent(id, letter.getSender().getId()));
         });
-    }
-
-    @Override
-    public String getLiveStatus(long id) {
-        if (letterRedisRepository.isWriting(id)) {
-            return "WRITING";
-        }
-        return letterPort.findById(id)
-                .map(l -> l.getStatus().name())
-                .orElse("NONE");
     }
 
     @Override
     @Transactional
     public void reassignUnreadLetters() {
-        //테스트 시 1분 사용
-//        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(1);
         LocalDateTime expirationTime = LocalDateTime.now().minusHours(12);
         List<Letter> expiredLetters = letterPort.findUnreadLettersExceeding(expirationTime);
 
-        if (expiredLetters.isEmpty()) {
-            System.out.println("===> [재매칭 스케줄러] 대상 편지가 없습니다.");
-            return;
-        }
-
-        System.out.println("===> [재매칭 스케줄러] 미수신 편지 발견: " + expiredLetters.size() + "건");
-
         for (Letter letter : expiredLetters) {
-            Long oldReceiverId = letter.getReceiver().getId();
-            String oldReceiverName = letter.getReceiver().getNickname(); // 기존 수신자
-            long letterId = letter.getId();
-
             letterPort.findRandomMemberExceptMe(letter.getSender().getId())
-                    .ifPresentOrElse(newReceiver -> {
+                    .ifPresent(newReceiver -> {
                         letter.reassignReceiver(newReceiver);
-
-                        System.out.println(String.format(
-                                "    [SUCCESS] 편지 ID: %d | 발신자: %s | 기존 수신자: %s -> 새 수신자: %s",
-                                letterId,
-                                letter.getSender().getNickname(),
-                                oldReceiverName,
-                                newReceiver.getNickname()
-                        ));
-
-                        Cache cache = cacheManager.getCache("mailboxStats");
-                        if (cache != null) {
-                            cache.evict(oldReceiverId); // 기존 수신자 캐시 삭제
-                            cache.evict(newReceiver.getId()); // 새 수신자 캐시 삭제
-                        }
-                        eventPublisher.publishEvent(new LetterNotificationEvent(
-                                newReceiver.getId(),
-                                "new_letter",
-                                "새로운 랜덤 편지가 도착했습니다!"
-                        ));
-                    }, () -> {
-                        System.out.println("    [FAIL] 편지 ID: " + letterId + " - 매칭 가능한 새로운 유저가 없습니다.");
+                        eventPublisher.publishEvent(new LetterEvents.LetterSentEvent(letter.getId(), newReceiver.getId()));
                     });
         }
-        System.out.println("===> [재매칭 스케줄러] 모든 처리 완료");
+    }
+
+    @Override
+    @Transactional
+    public LetterInfoRes getLetter(long id, long accessorId) {
+        Letter letter = letterPort.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
+
+        if (!letter.getSender().getId().equals(accessorId) && letter.getStatus() == LetterStatus.SENT) {
+            acceptLetter(id, accessorId);
+        }
+
+        return LetterInfoRes.from(letter);
+    }
+
+    @Override
+    public LetterListRes getMyInbox(long memberId, int page, int size) {
+        Page<Letter> letterPage = letterPort.findByReceiverId(memberId, PageRequest.of(page, size, Sort.by("id").descending()));
+        return LetterListRes.from(letterPage.map(l -> LetterItem.from(l, letterRedisRepository.isWriting(l.getId()))));
+    }
+
+    @Override
+    public LetterListRes getMySentBox(long memberId, int page, int size) {
+        Page<Letter> letterPage = letterPort.findBySenderId(memberId, PageRequest.of(page, size, Sort.by("id").descending()));
+        return LetterListRes.from(letterPage.map(l -> LetterItem.from(l, letterRedisRepository.isWriting(l.getId()))));
+    }
+
+    @Override
+    @Cacheable(value = "mailboxStats", key = "#memberId", cacheManager = "monthlyCalendarCacheManager")
+    public LettersStatsRes getMailboxStats(long memberId) {
+        long receivedCount = letterPort.countByReceiverId(memberId);
+        return LettersStatsRes.builder()
+                .receivedCount(receivedCount)
+                .latestReceivedLetter(letterPort.findLatestReceived(memberId).map(l -> LettersStatsRes.LetterSummary.from(l, l.getStatus() == LetterStatus.REPLIED)).orElse(null))
+                .latestSentLetter(letterPort.findLatestSent(memberId).map(l -> LettersStatsRes.LetterSummary.from(l, false)).orElse(null))
+                .build();
+    }
+
+    @Override
+    public String getLiveStatus(long id) {
+        if (letterRedisRepository.isWriting(id)) return "WRITING";
+        return letterPort.findById(id).map(l -> l.getStatus().name()).orElse("NONE");
+    }
+
+    private void checkSendRateLimit(long senderId) {
+        String limitKey = "user:send:limit:" + senderId;
+        if (Boolean.FALSE.equals(redisTemplate.opsForValue().setIfAbsent(limitKey, "LOCKED", Duration.ofMinutes(1)))) {
+            throw new ServiceException("429-1", "편지는 1분에 한 번만 보낼 수 있습니다.");
+        }
+    }
+
+    private void auditContent(String content, String type) {
+        var response = aiService.auditContent(new AuditAiRequest(content, type));
+        if (!response.isPassed()) throw new ServiceException("400-AI", response.message());
+    }
+
+    private Member findMatchingReceiver(long senderId) {
+        Long rId = letterRedisRepository.getRandomReceiver();
+        if (rId != null && !rId.equals(senderId)) {
+            return memberRepository.findById(rId).orElseGet(() -> letterPort.findRandomMemberExceptMe(senderId).orElseThrow());
+        }
+        return letterPort.findRandomMemberExceptMe(senderId).orElseThrow();
     }
 }

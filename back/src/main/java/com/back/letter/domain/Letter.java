@@ -5,6 +5,7 @@ import com.back.global.jpa.entity.BaseEntity;
 import com.back.member.domain.Member;
 import jakarta.persistence.*;
 import lombok.*;
+import com.back.global.exception.ServiceException;
 
 import java.time.LocalDateTime;
 
@@ -38,20 +39,61 @@ public class Letter extends BaseEntity {
     private LetterStatus status;
 
 
-    public void reply(String replyContent){
+
+
+    /**
+     * 편지 최초 발송 (수신자 할당 및 상태 변경)
+     */
+    public void dispatch(Member receiver) {
+        if (this.status != null) {
+            throw new ServiceException("400-1", "이미 처리된 편지입니다.");
+        }
+        this.receiver = receiver;
+        this.status = LetterStatus.SENT;
+    }
+
+    /**
+     * 수신자가 편지를 읽음 (수락)
+     */
+    public void accept(long accessorId) {
+        verifyReceiver(accessorId);
+
+        if (this.status == LetterStatus.SENT) {
+            this.status = LetterStatus.ACCEPTED;
+        }
+    }
+
+    /**
+     * 답장 작성 완료
+     */
+    public void reply(String replyContent, long accessorId) {
+        verifyReceiver(accessorId);
+
+        if (this.status == LetterStatus.REPLIED) {
+            throw new ServiceException("400-2", "이미 답장이 완료된 편지입니다.");
+        }
+
         this.replyContent = replyContent;
         this.status = LetterStatus.REPLIED;
         this.replyCreatedDate = LocalDateTime.now();
     }
 
-    public void setStatus(LetterStatus status) {
-        this.status = status;
-    }
-
+    /**
+     * 수신자 재할당 (재매칭 스케줄러용)
+     */
     public void reassignReceiver(Member newReceiver) {
+        if (this.status != LetterStatus.SENT) {
+            throw new ServiceException("400-3", "대기 중인 편지만 재할당이 가능합니다.");
+        }
         this.receiver = newReceiver;
-        this.setCreateDate(LocalDateTime.now()); // 생성일 갱신 옵션
-        this.status = LetterStatus.SENT;
     }
 
+    /**
+     * 권한 검증 내부 헬퍼 메서드
+     */
+    private void verifyReceiver(long accessorId) {
+        if (this.receiver == null || !this.receiver.getId().equals(accessorId)) {
+            throw new ServiceException("403-2", "해당 편지에 대한 권한이 없습니다.");
+        }
+    }
 }
