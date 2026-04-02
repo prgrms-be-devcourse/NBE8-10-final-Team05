@@ -273,7 +273,7 @@ jobs:
               --restart unless-stopped \
               --network "${NET}" \
               -e TZ=Asia/Seoul \
-              -v /tmp/.env:/app/.env:ro \
+              --env-file /tmp/.env \
               "${IMAGE}"
 
             # ---------------------------------------------------------
