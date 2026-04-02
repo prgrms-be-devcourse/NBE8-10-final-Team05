@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Send,
@@ -29,7 +35,7 @@ interface SentLetter {
 interface SentLettersResponse {
   letters: SentLetter[];
   totalPages: number;
-  totalElements: number; // 전체 개수
+  totalElements: number;
   currentPage: number;
 }
 
@@ -37,9 +43,15 @@ export default function SentLettersPage() {
   const router = useRouter();
   const { isAuthenticated, sessionRevision } = useAuthStore();
 
+  // 0. baseUrl 정의 (환경 변수 처리 및 에러 방지)
+  const baseUrl = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  }, []);
+
   // 상태 관리
   const [letters, setLetters] = useState<SentLetter[]>([]);
-  const [totalCount, setTotalCount] = useState<number>(0); // ✅ 전체 개수 상태 추가
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // 무한 스크롤 상태
@@ -78,7 +90,6 @@ export default function SentLettersPage() {
           isInitial ? newLetters : [...prev, ...newLetters],
         );
 
-        // ✅ API 응답의 전체 개수를 상태에 저장 (무한 스크롤 시에도 유지됨)
         setTotalCount(response.totalElements ?? 0);
         setHasMore(targetPage < response.totalPages - 1);
       } catch (error) {
@@ -122,62 +133,48 @@ export default function SentLettersPage() {
     if (!isAuthenticated) return;
     if (eventSourceRef.current) return;
 
-    const rawBaseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    const baseUrl = rawBaseUrl.endsWith("/")
-      ? rawBaseUrl.slice(0, -1)
-      : rawBaseUrl;
-
+    // 절대 경로를 사용하여 SSE 연결
     const es = new EventSource(`${baseUrl}/api/v1/notifications/subscribe`, {
       withCredentials: true,
     });
     eventSourceRef.current = es;
 
-    // ✅ 핵심 수정: 서버 재요청 없이 상태만 변경하는 핸들러
     const handlePartialUpdate = (event: MessageEvent) => {
       try {
-        // 백엔드 페이로드 예시: { "letterId": 123, "newStatus": "ACCEPTED" }
         const data = JSON.parse(event.data);
-        const { letterId, newStatus } = data;
+        const { letterId, status } = data;
 
-        console.log(
-          `📩 [${event.type}] 실시간 부분 업데이트 실행: ID ${letterId} -> ${newStatus}`,
-        );
+        if (!letterId || !status) return;
 
-        // 1. 편지 목록 상태 업데이트 (해당 ID만 찾아 교체)
+        console.log(`📩 [SSE] 상태 업데이트: ID ${letterId} -> ${status}`);
+
         setLetters((prevLetters) =>
           prevLetters.map((letter) =>
             letter.id === Number(letterId)
-              ? { ...letter, status: newStatus as SentLetter["status"] }
+              ? { ...letter, status: status as SentLetter["status"] }
               : letter,
           ),
         );
-
-        // 2. 만약 새 편지 발송 등의 사유로 전체 개수가 변해야 한다면
-        // (이 부분은 백엔드 기획에 따라 totalCount를 +1 하거나 유지합니다)
-        if (event.type === "new_letter") {
-          setTotalCount((prev) => prev + 1);
-        }
       } catch (error) {
-        // 파싱 에러나 데이터가 없는 경우 안전장치로 첫 페이지만 다시 불러오기
         console.warn("SSE 데이터 파싱 실패, 전체 갱신으로 폴백합니다.");
         setPage(0);
         void fetchSentLetters(0, true);
       }
     };
 
-    // 이벤트 리스너 등록
+    // 서버에서 정의된 이벤트 리스너 등록
     es.addEventListener("letter_read", handlePartialUpdate);
     es.addEventListener("writing_status", handlePartialUpdate);
     es.addEventListener("reply_arrival", handlePartialUpdate);
 
-    // 신규 편지 알림은 목록 최상단에 추가해야 하므로 전체 갱신이 유리할 수 있음
+    // 본인이 보낸 편지가 새로 생기는 경우는 드물지만(작성 완료 시), 목록 동기화를 위해 리로드 이벤트 처리 가능
     es.addEventListener("new_letter", () => {
       setPage(0);
       void fetchSentLetters(0, true);
     });
 
-    es.onerror = () => {
+    es.onerror = (err) => {
+      console.error("SSE Connection Error:", err);
       es.close();
       eventSourceRef.current = null;
     };
@@ -188,7 +185,7 @@ export default function SentLettersPage() {
         eventSourceRef.current = null;
       }
     };
-  }, [isAuthenticated, fetchSentLetters]);
+  }, [isAuthenticated, fetchSentLetters, baseUrl]);
 
   const handleGoBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -220,6 +217,7 @@ export default function SentLettersPage() {
           icon: <Eye size={12} />,
           className: "text-sky-600 bg-sky-50 border-sky-100",
         };
+      case "SENT":
       default:
         return {
           label: "발송 완료",
@@ -252,9 +250,9 @@ export default function SentLettersPage() {
           </div>
         </div>
 
-        {/* ✅ 배너 섹션: letters.length 대신 totalCount 사용 */}
+        {/* 배너 섹션 */}
         <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-8 mb-12 flex flex-col md:flex-row items-center justify-between border border-white/40 shadow-sm">
-          <div>
+          <div className="text-center md:text-left">
             <h2 className="text-2xl font-bold text-slate-800 mb-2">
               나의 진심이 {totalCount}번 전달되었어요
             </h2>

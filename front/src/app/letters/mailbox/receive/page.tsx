@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox,
@@ -49,6 +49,13 @@ interface LetterListRes {
 export default function ReceivedLettersPage() {
   const router = useRouter();
   const { isAuthenticated, sessionRevision } = useAuthStore();
+
+  // 0. baseUrl 정의 (에러 방지 및 환경 변수 처리)
+  const baseUrl = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  }, []);
+
   const [letters, setLetters] = useState<LetterItem[]>([]);
   const [stats, setStats] = useState<MailboxStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,6 +74,7 @@ export default function ReceivedLettersPage() {
       else setIsFetchingMore(true);
 
       try {
+        // requestData 내부에서 baseUrl을 처리하지 않는 경우 `${baseUrl}/api/...`로 수정 가능
         const [lettersData, statsData] = await Promise.all([
           requestData<LetterListRes>(
             `/api/v1/letters/received?page=${targetPage}&size=9`,
@@ -91,7 +99,7 @@ export default function ReceivedLettersPage() {
     [isAuthenticated],
   );
 
-  // 2. 초기 로드
+  // 2. 초기 로드 (인증 상태나 세션이 변경될 때)
   useEffect(() => {
     setPage(0);
     void fetchMailboxData(0, true);
@@ -117,13 +125,16 @@ export default function ReceivedLettersPage() {
     return () => observer.disconnect();
   }, [hasMore, isLoading, isFetchingMore, page, fetchMailboxData]);
 
-  // 3.NotificationProvider의 전역 알림 이벤트를 구독
+  // 4. NotificationProvider의 전역 알림 이벤트를 구독
   useEffect(() => {
     if (!isAuthenticated) return;
+
     const handleUpdate = () => {
+      // 알림이 오면 첫 페이지부터 다시 로드
       setPage(0);
-      void fetchMailboxData(0, false);
+      void fetchMailboxData(0, true);
     };
+
     window.addEventListener("notification_received", handleUpdate);
     return () =>
       window.removeEventListener("notification_received", handleUpdate);

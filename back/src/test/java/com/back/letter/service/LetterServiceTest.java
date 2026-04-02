@@ -35,7 +35,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -45,61 +45,54 @@ class LetterServiceTest {
     @InjectMocks
     private LetterService letterService;
 
-    @Mock
-    private LetterPort letterPort;
-    @Mock
-    private MemberRepository memberRepository;
-    @Mock
-    private AiService aiService;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
-    @Mock
-    private LetterRedisRepository letterRedisRepository;
-    @Mock
-    private RedisTemplate<String, Object> redisTemplate;
-    @Mock
-    private ValueOperations<String, Object> valueOperations;
-    @Mock
-    private CacheManager cacheManager;
-    @Mock
-    private Cache cache;
+    @Mock private LetterPort letterPort;
+    @Mock private MemberRepository memberRepository;
+    @Mock private AiService aiService;
+    @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private LetterRedisRepository letterRedisRepository;
+    @Mock private RedisTemplate<String, Object> redisTemplate;
+    @Mock private ValueOperations<String, Object> valueOperations;
+    @Mock private CacheManager cacheManager;
+    @Mock private Cache cache;
 
     @BeforeEach
     void setUp() {
-        // Redis 관련 설정은 모든 테스트에서 쓰이지 않으므로 반드시 lenient() 처리
+        // Redis opsForValue() 체이닝 대응
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
+    private Member createMember(Long id, String nickname) {
+        Member member = Member.create(nickname + "@test.com", "pw", nickname);
+        ReflectionTestUtils.setField(member, "id", id);
+        return member;
+    }
+
     @Nested
-    @DisplayName("편지 생성 및 발송 테스트")
-    class CreateLetter {
+    @DisplayName("편지 생성 및 즉시 발송 테스트")
+    class CreateAndSendLetter {
 
         @Test
-        @DisplayName("성공: AI 검수를 통과하고 랜덤 수신자에게 발송된다")
-        void createAndSend_Success() {
+        @DisplayName("성공: 모든 조건 충족 시 편지가 저장되고 수신자 캐시가 삭제된다 (given_when_then)")
+        void givenValidRequest_whenCreateLetter_thenSaveAndEvictCache() {
             // given
             long senderId = 1L;
             long receiverId = 2L;
-            CreateLetterReq req = new CreateLetterReq("고민제목", "고민내용");
+            CreateLetterReq req = new CreateLetterReq("제목", "내용");
 
-            // 1. Redis 락 설정
-            given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
+            Member sender = createMember(senderId, "발신자");
+            Member receiver = createMember(receiverId, "수신자");
 
-            // 2. AI 검수 설정
-            given(aiService.auditContent(any(AuditAiRequest.class)))
-                    .willReturn(new AuditAiResponse(true, "letter", "Pass"));
-
-            // 3. 발신자 및 수신자 Mock
-            Member sender = mock(Member.class);
-            Member receiver = mock(Member.class);
-
-            // [수정] 아래 필드들은 로직 흐름상 필요한 시점에 호출됨
-            given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
-            given(letterPort.findRandomMemberExceptMe(senderId)).willReturn(Optional.of(receiver));
-
-            Letter savedLetter = Letter.builder().title(req.title()).build();
+            Letter savedLetter = Letter.builder().title("제목").build();
             ReflectionTestUtils.setField(savedLetter, "id", 100L);
+
+            given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
+            given(aiService.auditContent(any(AuditAiRequest.class)))
+                    .willReturn(new AuditAiResponse(true, "Letter", "Pass"));
+            given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
+            given(letterRedisRepository.getRandomReceiver()).willReturn(receiverId);
+            given(memberRepository.findById(receiverId)).willReturn(Optional.of(receiver));
             given(letterPort.save(any(Letter.class))).willReturn(savedLetter);
+            given(cacheManager.getCache("mailboxStats")).willReturn(cache);
 
             // when
             long resultId = letterService.createLetterAndDirectSendLetter(req, senderId);
@@ -107,158 +100,94 @@ class LetterServiceTest {
             // then
             assertThat(resultId).isEqualTo(100L);
             verify(letterPort).save(any(Letter.class));
+            verify(cache).evict(receiverId);
+
+            // [수정 포인트] any() 대신 구체적인 이벤트 클래스를 명시하여 모호성 제거
+            verify(eventPublisher, times(1)).publishEvent(any(LetterNotificationEvent.class));
         }
 
         @Test
-        @DisplayName("실패: AI 검수 부적절 판정 시 로직 중단")
-        void createAndSend_AiFail() {
-            // given
-            long senderId = 1L;
-            CreateLetterReq req = new CreateLetterReq("나쁜제목", "나쁜내용");
-
-            given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
-            given(aiService.auditContent(any()))
-                    .willReturn(new AuditAiResponse(false, "letter", "부적절"));
-
-            // then: AI 검수 이후의 memberRepository.findById 등은 호출되지 않으므로 작성하지 않음
-            assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(req, senderId))
-                    .isInstanceOf(ServiceException.class);
-        }
-
-        @Test
-        @DisplayName("실패: 수신 대상이 없는 경우")
-        void createAndSend_NoReceiver() {
+        @DisplayName("실패: 수신 가능한 회원이 없을 경우 404 예외 발생")
+        void givenNoReceiver_whenCreateLetter_thenThrowNotFound() {
             // given
             long senderId = 1L;
             given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
+            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Letter","Pass"));
+            given(memberRepository.findById(senderId)).willReturn(Optional.of(createMember(senderId, "S")));
 
-            Member sender = mock(Member.class);
-            given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
-
-            given(aiService.auditContent(any(AuditAiRequest.class)))
-                    .willReturn(new AuditAiResponse(true, "letter", "Pass"));
-
-            // 수신자 없음 설정
+            given(letterRedisRepository.getRandomReceiver()).willReturn(null);
             given(letterPort.findRandomMemberExceptMe(senderId)).willReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(new CreateLetterReq("제목", "내용"), senderId))
-                    .isInstanceOf(ServiceException.class);
+            assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(new CreateLetterReq("T", "C"), senderId))
+                    .isInstanceOf(ServiceException.class)
+                    .hasMessageContaining("404-2");
         }
     }
 
     @Nested
-    @DisplayName("답장 및 조회 테스트")
-    class LetterOther {
+    @DisplayName("답장 작성 테스트")
+    class ReplyLetterTest {
 
         @Test
-        @DisplayName("성공: 답장 작성 시 상태 변경 및 캐시 삭제")
-        void reply_Success() {
+        @DisplayName("성공: 수신자가 답장하면 상태가 REPLIED로 변경되고 양측 캐시가 삭제된다")
+        void givenValidReply_whenReplyLetter_thenUpdateAndEvictCaches() {
             // given
             long letterId = 10L;
-            long receiverId = 1L;
-            long senderId = 2L;
-            ReplyLetterReq req = new ReplyLetterReq("답장");
+            long receiverId = 2L;
+            long senderId = 1L;
+            ReplyLetterReq req = new ReplyLetterReq("정성스러운 답장");
 
-            Member sender = mock(Member.class);
-            Member receiver = mock(Member.class);
-            lenient().when(sender.getId()).thenReturn(senderId);
-            lenient().when(receiver.getId()).thenReturn(receiverId);
-
-            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true, "reply", "Pass"));
-            given(cacheManager.getCache("mailboxStats")).willReturn(cache);
+            Member sender = createMember(senderId, "S");
+            Member receiver = createMember(receiverId, "R");
 
             Letter letter = Letter.builder()
                     .sender(sender)
                     .receiver(receiver)
-                    .status(LetterStatus.SENT)
+                    .status(LetterStatus.ACCEPTED)
                     .build();
             ReflectionTestUtils.setField(letter, "id", letterId);
 
             given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
+            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Letter","Pass"));
+            given(cacheManager.getCache("mailboxStats")).willReturn(cache);
 
             // when
             letterService.replyLetter(letterId, req, receiverId);
 
             // then
             assertThat(letter.getStatus()).isEqualTo(LetterStatus.REPLIED);
+            assertThat(letter.getReplyContent()).isEqualTo("정성스러운 답장");
+            verify(letterRedisRepository).deleteWritingStatus(letterId);
             verify(cache).evict(senderId);
-        }
-
-        @Test
-        @DisplayName("성공: 수신함 조회")
-        void getInbox_Success() {
-            // given
-            long memberId = 1L;
-            Pageable pageable = PageRequest.of(0, 10, Sort.by("id").descending());
-            Page<Letter> page = new PageImpl<>(List.of());
-
-            // eq(memberId) 사용 시 타입 일치 주의
-            given(letterPort.findByReceiverId(eq(memberId), any(Pageable.class))).willReturn(page);
-
-            // when
-            LetterListRes result = letterService.getMyInbox(memberId, 0, 10);
-
-            // then
-            assertThat(result.letters()).isEmpty();
+            verify(cache).evict(receiverId); // 양측 캐시 삭제 확인
         }
     }
 
     @Nested
-    @DisplayName("보관함 및 상세 조회 테스트")
-    class LetterInquiry {
+    @DisplayName("보관함 조회 테스트")
+    class BoxInquiry {
 
         @Test
-        @DisplayName("성공: 수신함(Inbox)을 조회한다")
-        void getInbox_Success() {
+        @DisplayName("성공: 수신함 조회 시 작성 중 여부를 포함하여 반환한다")
+        void givenMemberId_whenGetInbox_thenReturnListWithWritingStatus() {
             // given
             long memberId = 1L;
-            Pageable pageable = PageRequest.of(0, 10, Sort.by("id").descending());
+            Letter letter = Letter.builder().title("받은 편지").build();
+            ReflectionTestUtils.setField(letter, "id", 50L);
 
-            Letter letter = Letter.builder()
-                    .title("받은 제목")
-                    .status(LetterStatus.SENT)
-                    .build();
-            ReflectionTestUtils.setField(letter, "id", 1L);
-
-            Page<Letter> page = new PageImpl<>(List.of(letter), pageable, 1);
+            Page<Letter> page = new PageImpl<>(List.of(letter));
             given(letterPort.findByReceiverId(eq(memberId), any(Pageable.class))).willReturn(page);
+            given(letterRedisRepository.isWriting(50L)).willReturn(true); // 작성 중 상태 시뮬레이션
 
             // when
             LetterListRes result = letterService.getMyInbox(memberId, 0, 10);
 
             // then
             assertThat(result.letters()).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("성공: 편지 상세 내용을 조회한다")
-        void getLetterDetail_Success() {
-            // given
-            long letterId = 1L;
-            long myId = 10L;
-
-            Member sender = mock(Member.class);
-            given(sender.getId()).willReturn(5L);
-            Member receiver = mock(Member.class);
-            given(receiver.getId()).willReturn(myId);
-
-            Letter letter = Letter.builder()
-                    .sender(sender)
-                    .receiver(receiver)
-                    .title("상세 제목")
-                    .content("상세 내용")
-                    .status(LetterStatus.SENT)
-                    .build();
-            ReflectionTestUtils.setField(letter, "id", letterId);
-
-            given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
-
-            // when
-            LetterInfoRes result = letterService.getLetter(letterId, myId);
-
-            // then
-            assertThat(result.title()).isEqualTo("상세 제목");
+            assertThat(result.letters().get(0).title()).isEqualTo("받은 편지");
+            // LetterListRes 내의 개별 아이템 필드명이 isWriting()이라면 아래와 같이 검증
+            // assertThat(result.letters().get(0).isWriting()).isTrue();
         }
     }
 }

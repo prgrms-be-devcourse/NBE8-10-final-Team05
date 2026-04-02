@@ -6,5 +6,5 @@ package com.back.global.event;
 public record LetterNotificationEvent(
     Long receiverId,
     String eventName,
-    String content
+    Object content
 ) {}
