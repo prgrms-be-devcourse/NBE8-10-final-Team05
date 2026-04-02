@@ -1,7 +1,7 @@
 package com.back.letter.application.service;
 
-import com.back.ai.adapter.in.web.dto.AuditAiRequest;
-import com.back.ai.application.service.AiService;
+import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
+import com.back.censorship.application.service.AiService;
 import com.back.global.event.LetterNotificationEvent;
 import com.back.global.exception.ServiceException;
 import com.back.letter.adapter.out.persistence.repository.LetterRedisRepository;

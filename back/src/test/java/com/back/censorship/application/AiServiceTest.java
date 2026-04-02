@@ -1,26 +1,18 @@
-package com.back.ai.application;
+package com.back.censorship.application;
 
-import com.back.ai.adapter.in.web.dto.AuditAiRequest;
-import com.back.ai.adapter.in.web.dto.AuditAiResponse;
-import com.back.ai.application.port.out.AiAuditPort;
-import com.back.ai.application.service.AiService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.genai.Client;
-import com.google.genai.Models;
-import com.google.genai.types.GenerateContentResponse;
-import org.junit.jupiter.api.BeforeEach;
+import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
+import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
+import com.back.censorship.application.port.out.AiAuditPort;
+import com.back.censorship.application.service.AiService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
