@@ -107,10 +107,8 @@ public class SecurityConfig {
               auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
                   .permitAll();
 
-              if (isDevProfile()) {
-                auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/prometheus")
-                    .permitAll();
-              }
+              auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/prometheus")
+                   .permitAll();
 
               auth.requestMatchers(
                       HttpMethod.GET,
