@@ -7,9 +7,16 @@ import { ArrowRight, CircleAlert } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 
-const STORY_WRITE_CATEGORIES = ["연애", "진로", "친구", "가족", "직장", "기타"] as const;
+const STORY_WRITE_CATEGORIES = ["고민", "일상", "질문"] as const;
 
 type StoryWriteCategory = (typeof STORY_WRITE_CATEGORIES)[number];
+type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
+
+const STORY_WRITE_CATEGORY_TO_API_CATEGORY: Record<StoryWriteCategory, BackendPostCategory> = {
+  고민: "WORRY",
+  일상: "DAILY",
+  질문: "QUESTION",
+};
 
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -29,7 +36,7 @@ function resolveErrorMessage(error: unknown): string {
 
 export default function WriteStoryPage() {
   const router = useRouter();
-  const [selectedCategory, setSelectedCategory] = useState<StoryWriteCategory>("연애");
+  const [selectedCategory, setSelectedCategory] = useState<StoryWriteCategory>("고민");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -57,7 +64,7 @@ export default function WriteStoryPage() {
           title,
           content,
           thumbnail: null,
-          category: "WORRY",
+          category: STORY_WRITE_CATEGORY_TO_API_CATEGORY[selectedCategory],
         }),
       });
 

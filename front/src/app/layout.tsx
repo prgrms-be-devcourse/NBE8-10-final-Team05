@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthBootstrap from "@/components/auth/AuthBootstrap";
 import AuthHintProvider from "@/components/auth/AuthHintProvider";
+import ConsultationLauncher from "@/components/consultation/ConsultationLauncher";
 import SiteFooter from "@/components/layout/SiteFooter";
 import {
   AUTH_HINT_COOKIE_NAME,
@@ -64,6 +65,7 @@ export default async function RootLayout({
       >
         <AuthHintProvider initialAuthHint={authHint}>
           <AuthBootstrap />
+          <ConsultationLauncher />
           <div className="flex min-h-screen flex-col">
             <div className="flex-1">{children}</div>
             <SiteFooter />

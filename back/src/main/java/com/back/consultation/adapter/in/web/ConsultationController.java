@@ -1,5 +1,6 @@
 package com.back.consultation.adapter.in.web;
 
+import com.back.auth.application.AuthErrorCode;
 import com.back.consultation.adapter.in.web.dto.ConsultationRequest;
 import com.back.consultation.application.ConsultationService;
 import com.back.global.rsData.RsData;
@@ -21,7 +22,7 @@ public class ConsultationController {
     // SSE 연결
     @GetMapping(value = "/connect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(@AuthenticationPrincipal AuthenticatedMember authMember) {
-        return consultationService.subscribe(authMember.memberId());
+        return consultationService.subscribe(requiredMemberId(authMember));
     }
 
     // 채팅 전송
@@ -30,7 +31,14 @@ public class ConsultationController {
             @AuthenticationPrincipal AuthenticatedMember authMember,
             @RequestBody @Valid ConsultationRequest request
     ) {
-        consultationService.chat(authMember.memberId(), request.message());
+        consultationService.chat(requiredMemberId(authMember), request.message());
         return new RsData<>("200-1", "메시지가 전송되었습니다.");
+    }
+
+    private Long requiredMemberId(AuthenticatedMember authMember) {
+        if (authMember == null || authMember.memberId() == null) {
+            throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+        }
+        return authMember.memberId();
     }
 }

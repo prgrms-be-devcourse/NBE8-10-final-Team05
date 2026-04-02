@@ -27,6 +27,7 @@ public class ConsultationSseAdapter implements ConsultationSsePort {
         emitters.put(userId, emitter);
         emitter.onCompletion(() -> emitters.remove(userId));
         emitter.onTimeout(() -> emitters.remove(userId));
+        sendToLocal(userId, "connect", "connected");
         return emitter;
     }
 
@@ -34,6 +35,18 @@ public class ConsultationSseAdapter implements ConsultationSsePort {
     public void sendStreaming(Long userId, String content) {
         RedisSseMessage message = new RedisSseMessage("CONSULTATION", userId, "chat", content);
         redisTemplate.convertAndSend(CHANNEL_NAME, message);
+    }
+
+    @Override
+    public void sendCompleted(Long userId) {
+        RedisSseMessage message = new RedisSseMessage("CONSULTATION", userId, "chat_done", "done");
+        redisTemplate.convertAndSend(CHANNEL_NAME, message);
+    }
+
+    @Override
+    public void sendError(Long userId, String message) {
+        RedisSseMessage payload = new RedisSseMessage("CONSULTATION", userId, "chat_error", message);
+        redisTemplate.convertAndSend(CHANNEL_NAME, payload);
     }
 
      // 상담 유저에게 SSE 전송

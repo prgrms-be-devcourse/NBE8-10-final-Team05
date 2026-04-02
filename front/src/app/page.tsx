@@ -15,6 +15,7 @@ type StoryCardItem = {
   id: number;
   category: Exclude<HomeStoryCategory, "전체">;
   title: string;
+  authorNickname: string;
   timeAgo: string;
 };
 
@@ -308,14 +309,11 @@ function StoryCard({ story }: { story: StoryCardItem }) {
         <div
           className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}
         >
-          <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
+          <div className="absolute inset-x-5 top-4 flex items-center gap-3">
             <span
               className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}
             >
               {story.category}
-            </span>
-            <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">
-              {story.timeAgo}
             </span>
           </div>
           <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
@@ -329,6 +327,8 @@ function StoryCard({ story }: { story: StoryCardItem }) {
             {story.title}
           </h2>
           <div className="mt-auto flex items-center gap-2 pt-6 text-[14px] text-[#7a8eab]">
+            <span className="max-w-[55%] truncate">{story.authorNickname}</span>
+            <span aria-hidden="true">·</span>
             <span>{story.timeAgo}</span>
           </div>
         </div>
@@ -368,6 +368,7 @@ function mapPostToStoryCard(post: PostListItem): StoryCardItem {
     id: post.id,
     category: API_CATEGORY_TO_STORY_CATEGORY[post.category] ?? "고민",
     title: post.title,
+    authorNickname: post.nickname?.trim() || "익명",
     timeAgo: formatRelativeTime(post.createDate),
   };
 }

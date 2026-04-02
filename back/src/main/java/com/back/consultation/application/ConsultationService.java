@@ -43,12 +43,18 @@ public class ConsultationService {
         List<ChatMessage> history = persistencePort.findLastMessages(consultation.getId(), 10);
 
         StringBuilder fullResponse = new StringBuilder();
-        aiConsultationPort.generateStreamingResponse(history, userMessage, chunk -> {
-            fullResponse.append(chunk);
-            ssePort.sendStreaming(userId, chunk);
-        });
+        try {
+            aiConsultationPort.generateStreamingResponse(history, userMessage, chunk -> {
+                fullResponse.append(chunk);
+                ssePort.sendStreaming(userId, chunk);
+            });
 
-        // AI의 최종 답변 DB 저장
-        persistencePort.saveMessage(ChatMessage.create(consultation, MessageRole.ASSISTANT, fullResponse.toString()));
+            // AI의 최종 답변 DB 저장
+            persistencePort.saveMessage(ChatMessage.create(consultation, MessageRole.ASSISTANT, fullResponse.toString()));
+            ssePort.sendCompleted(userId);
+        } catch (RuntimeException exception) {
+            ssePort.sendError(userId, "상담 응답 생성 중 오류가 발생했습니다.");
+            throw exception;
+        }
     }
 }
