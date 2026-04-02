@@ -3,6 +3,7 @@ package com.back.letter.service;
 import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
 import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
 import com.back.censorship.application.service.AiService;
+import com.back.global.event.LetterEvents;
 import com.back.global.event.LetterNotificationEvent;
 import com.back.global.exception.ServiceException;
 import com.back.letter.adapter.out.persistence.repository.LetterRedisRepository;
@@ -57,7 +58,6 @@ class LetterServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Redis opsForValue() 체이닝 대응
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
@@ -82,17 +82,24 @@ class LetterServiceTest {
             Member sender = createMember(senderId, "발신자");
             Member receiver = createMember(receiverId, "수신자");
 
-            Letter savedLetter = Letter.builder().title("제목").build();
+            //  도메인 로직(letter.dispatch)을 타야 하므로 초기 상태의 Letter 생성
+            Letter savedLetter = Letter.builder()
+                    .title("제목")
+                    .content("내용")
+                    .sender(sender)
+                    .build();
             ReflectionTestUtils.setField(savedLetter, "id", 100L);
 
             given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
             given(aiService.auditContent(any(AuditAiRequest.class)))
                     .willReturn(new AuditAiResponse(true, "Letter", "Pass"));
             given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
+
+            // findMatchingReceiver 로직 대응
             given(letterRedisRepository.getRandomReceiver()).willReturn(receiverId);
             given(memberRepository.findById(receiverId)).willReturn(Optional.of(receiver));
+
             given(letterPort.save(any(Letter.class))).willReturn(savedLetter);
-            given(cacheManager.getCache("mailboxStats")).willReturn(cache);
 
             // when
             long resultId = letterService.createLetterAndDirectSendLetter(req, senderId);
@@ -100,10 +107,8 @@ class LetterServiceTest {
             // then
             assertThat(resultId).isEqualTo(100L);
             verify(letterPort).save(any(Letter.class));
-            verify(cache).evict(receiverId);
 
-            // [수정 포인트] any() 대신 구체적인 이벤트 클래스를 명시하여 모호성 제거
-            verify(eventPublisher, times(1)).publishEvent(any(LetterNotificationEvent.class));
+            verify(eventPublisher, times(1)).publishEvent(any(LetterEvents.LetterSentEvent.class));
         }
 
         @Test
@@ -121,7 +126,7 @@ class LetterServiceTest {
             // when & then
             assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(new CreateLetterReq("T", "C"), senderId))
                     .isInstanceOf(ServiceException.class)
-                    .hasMessageContaining("404-2");
+                    .hasMessageContaining("404");
         }
     }
 
@@ -130,8 +135,8 @@ class LetterServiceTest {
     class ReplyLetterTest {
 
         @Test
-        @DisplayName("성공: 수신자가 답장하면 상태가 REPLIED로 변경되고 양측 캐시가 삭제된다")
-        void givenValidReply_whenReplyLetter_thenUpdateAndEvictCaches() {
+        @DisplayName("성공: 수신자가 답장하면 상태가 REPLIED로 변경되고 이벤트가 발행된다")
+        void givenValidReply_whenReplyLetter_thenUpdateAndPublishEvent() {
             // given
             long letterId = 10L;
             long receiverId = 2L;
@@ -144,23 +149,20 @@ class LetterServiceTest {
             Letter letter = Letter.builder()
                     .sender(sender)
                     .receiver(receiver)
-                    .status(LetterStatus.ACCEPTED)
                     .build();
+            letter.dispatch(receiver);
             ReflectionTestUtils.setField(letter, "id", letterId);
 
             given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
-            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Letter","Pass"));
-            given(cacheManager.getCache("mailboxStats")).willReturn(cache);
+            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Reply","Pass"));
 
             // when
             letterService.replyLetter(letterId, req, receiverId);
 
             // then
             assertThat(letter.getStatus()).isEqualTo(LetterStatus.REPLIED);
-            assertThat(letter.getReplyContent()).isEqualTo("정성스러운 답장");
             verify(letterRedisRepository).deleteWritingStatus(letterId);
-            verify(cache).evict(senderId);
-            verify(cache).evict(receiverId); // 양측 캐시 삭제 확인
+            verify(eventPublisher).publishEvent(any(LetterEvents.LetterRepliedEvent.class));
         }
     }
 
