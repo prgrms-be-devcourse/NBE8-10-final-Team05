@@ -38,6 +38,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final org.springframework.cache.CacheManager cacheManager;
+
     /**
      * [AI 검수 로직]
      */
@@ -101,7 +102,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         eventPublisher.publishEvent(new LetterNotificationEvent(
                 receiver.getId(),
                 "new_letter",
-                "새로운 랜덤 편지가 도착했습니다!"
+                new LetterStatusUpdatePayload(saved.getId(), "SENT", "새로운 랜덤 편지가 도착했습니다!")
         ));
 
         // 6. 수신자의 통계 캐시 무효화 (수동 처리)
@@ -117,12 +118,25 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
      * [편지 단건 조회]
      */
     @Override
+    @Transactional
     public LetterInfoRes getLetter(long id, long accessorId) {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
-        if (!letter.getSender().getId().equals(accessorId) && !letter.getReceiver().getId().equals(accessorId)) {
-            throw new ServiceException("403-1", "이 편지를 볼 권한이 없습니다.");
+        // 상대방이 보낸 편지를 처음 읽는 경우
+        if (!letter.getSender().getId().equals(accessorId) && letter.getStatus() == LetterStatus.SENT) {
+            letter.setStatus(LetterStatus.ACCEPTED);
+            letterPort.save(letter);
+
+            eventPublisher.publishEvent(new LetterNotificationEvent(
+                    letter.getSender().getId(),
+                    "letter_read",
+                    new LetterStatusUpdatePayload(id, "ACCEPTED", "상대방이 편지를 읽었습니다.")
+            ));
+
+            // 캐시 무효화
+            Cache cache = cacheManager.getCache("mailboxStats");
+            if (cache != null) cache.evict(accessorId);
         }
 
         return LetterInfoRes.from(letter);
@@ -155,7 +169,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         eventPublisher.publishEvent(new LetterNotificationEvent(
                 letter.getSender().getId(),
                 "reply_arrival",
-                "보낸 편지에 답장이 도착했습니다!"
+                new LetterStatusUpdatePayload(id, "REPLIED", "보낸 편지에 답장이 도착했습니다!")
         ));
     }
 
@@ -237,7 +251,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         eventPublisher.publishEvent(new LetterNotificationEvent(
                 letter.getSender().getId(),
                 "letter_read",
-                "상대방이 당신의 편지를 읽었습니다."
+                new LetterStatusUpdatePayload(id, "ACCEPTED", "상대방이 편지를 읽었습니다.")
         ));
     }
 
@@ -246,14 +260,13 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     public void updateWritingStatus(long id) {
         letterRedisRepository.setWritingStatus(id);
 
-        Letter letter = letterPort.findById(id).orElse(null);
-        if (letter != null) {
+        letterPort.findById(id).ifPresent(letter -> {
             eventPublisher.publishEvent(new LetterNotificationEvent(
                     letter.getSender().getId(),
-                    "writing_status", // 프론트엔드 리스너와 일치시킴
-                    "상대방이 답장을 작성하고 있습니다."
+                    "writing_status",
+                    new LetterStatusUpdatePayload(id, "WRITING", "상대방이 답장을 작성하고 있습니다.")
             ));
-        }
+        });
     }
 
     @Override

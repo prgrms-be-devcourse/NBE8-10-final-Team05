@@ -45,24 +45,49 @@ export const NotificationProvider = ({
 
     // 편지 도착 이벤트
     es.addEventListener("new_letter", (e: MessageEvent) => {
-      toast.success(e.data, { icon: "✉️", duration: 5000 });
-      // 다른 컴포넌트(MailboxPage 등)에게 데이터 갱신이 필요함을 알림
+      try {
+        const data = JSON.parse(e.data); // ✨ JSON 파싱 추가
+        toast.success(data.message || "새로운 편지가 도착했습니다!", {
+          icon: "✉️",
+          duration: 5000,
+        });
+      } catch (err) {
+        // 만약 기존처럼 단순 문자열이 올 경우를 대비한 예외 처리
+        toast.success(e.data, { icon: "✉️", duration: 5000 });
+      }
       window.dispatchEvent(new CustomEvent("notification_received"));
     });
 
+    // 2. 편지 읽음 상태 이벤트
     es.addEventListener("letter_read", (e: MessageEvent) => {
-      toast.success(e.data, { icon: "📖", duration: 5000 });
+      try {
+        const data = JSON.parse(e.data);
+        toast.success(data.message || "상대방이 편지를 읽었습니다.", {
+          icon: "📖",
+          duration: 5000,
+        });
+      } catch (err) {
+        toast.success(e.data, { icon: "📖", duration: 5000 });
+      }
       window.dispatchEvent(new CustomEvent("notification_received"));
     });
 
+    // 3. 작성 중 상태 (이건 데이터 갱신만 하면 되니 파싱 불필요)
     es.addEventListener("writing_status", () => {
-      // "작성 중"은 너무 빈번할 수 있어 toast는 띄우지 않고 데이터만 갱신
       window.dispatchEvent(new CustomEvent("notification_received"));
     });
 
-    // 답장 도착 이벤트
+    // 4. 답장 도착 이벤트
     es.addEventListener("reply_arrival", (e: MessageEvent) => {
-      toast.success(e.data, { icon: "✍️", duration: 5000 });
+      try {
+        const data = JSON.parse(e.data);
+        toast.success(data.message || "답장이 도착했습니다!", {
+          icon: "✍️",
+          duration: 5000,
+        });
+      } catch (err) {
+        toast.success(e.data, { icon: "✍️", duration: 5000 });
+      }
       window.dispatchEvent(new CustomEvent("notification_received"));
     });
 
