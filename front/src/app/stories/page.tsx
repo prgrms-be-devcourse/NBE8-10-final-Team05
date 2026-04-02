@@ -15,12 +15,14 @@ const LETTER_BOTTLE_OUTLINE_PATH =
 type StoryCategory = (typeof STORY_CATEGORIES)[number];
 type StorySort = (typeof STORY_SORTS)[number];
 type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
+type PostResolutionStatus = "ONGOING" | "RESOLVED";
 
 type StoryCategoryFilter = Exclude<StoryCategory, "전체">;
 
 type CommunityStory = {
   id: number;
   category: StoryCategoryFilter;
+  resolutionStatus: PostResolutionStatus;
   title: string;
   timeAgo: string;
   createdAt: string;
@@ -36,6 +38,7 @@ type PostListItem = {
   modifyDate: string;
   thumbnail: string | null;
   category: BackendPostCategory;
+  resolutionStatus: PostResolutionStatus;
   nickname: string;
 };
 
@@ -76,6 +79,16 @@ const STORY_CARD_THEMES: Record<
   },
 };
 
+const RESOLUTION_STATUS_LABEL: Record<PostResolutionStatus, string> = {
+  ONGOING: "고민중",
+  RESOLVED: "고민해결",
+};
+
+const RESOLUTION_STATUS_BADGE_CLASS: Record<PostResolutionStatus, string> = {
+  ONGOING: "bg-[#fff4e8] text-[#a86b2e]",
+  RESOLVED: "bg-[#eaf8ef] text-[#2f7d49]",
+};
+
 function formatRelativeTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -108,6 +121,7 @@ function mapPostToCommunityStory(post: PostListItem): CommunityStory {
   return {
     id: post.id,
     category: API_CATEGORY_TO_FILTER[post.category] ?? "고민",
+    resolutionStatus: post.resolutionStatus,
     title: post.title,
     timeAgo: formatRelativeTime(post.createDate),
     createdAt: post.createDate,
@@ -382,6 +396,15 @@ function CommunityStoryCard({ story }: { story: CommunityStory }) {
               {story.category}
             </span>
             <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
+          </div>
+          <div className="absolute left-5 top-11">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                RESOLUTION_STATUS_BADGE_CLASS[story.resolutionStatus]
+              }`}
+            >
+              {RESOLUTION_STATUS_LABEL[story.resolutionStatus]}
+            </span>
           </div>
           <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
             <span className="block h-[4px] w-16 rounded-full bg-white/75" />

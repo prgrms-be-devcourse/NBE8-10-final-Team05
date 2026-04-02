@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, Clock3, Eye, UserRound } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
@@ -10,6 +10,7 @@ import { useAuthStore } from "@/lib/auth/auth-store";
 import { toErrorMessage } from "@/lib/api/rs-data";
 
 type PostCategory = "DAILY" | "WORRY" | "QUESTION";
+type PostResolutionStatus = "ONGOING" | "RESOLVED";
 
 type StoryDetail = {
   id: number;
@@ -20,6 +21,7 @@ type StoryDetail = {
   modifyDate: string;
   thumbnail: string | null;
   category: PostCategory;
+  resolutionStatus: PostResolutionStatus;
   authorid: number;
   nickname: string;
 };
@@ -56,6 +58,15 @@ const CATEGORY_LABEL: Record<PostCategory, string> = {
   DAILY: "일상",
   WORRY: "고민",
   QUESTION: "질문",
+};
+const EDITABLE_STORY_CATEGORIES: PostCategory[] = ["WORRY", "DAILY", "QUESTION"];
+const RESOLUTION_STATUS_LABEL: Record<PostResolutionStatus, string> = {
+  ONGOING: "고민중",
+  RESOLVED: "고민해결",
+};
+const RESOLUTION_STATUS_BADGE_CLASS: Record<PostResolutionStatus, string> = {
+  ONGOING: "bg-[#fff4e8] text-[#a86b2e]",
+  RESOLVED: "bg-[#eaf8ef] text-[#2f7d49]",
 };
 
 const MAX_COMMENT_CONTENT_LENGTH = 1000;
@@ -206,6 +217,7 @@ function applyDeleteOptimistically(prevComments: CommentInfo[], commentId: numbe
 
 export default function StoryDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const storyId = useMemo(() => parseStoryId(params.id), [params.id]);
   const { isAuthenticated, member } = useAuthStore();
 
@@ -227,6 +239,14 @@ export default function StoryDetailPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null);
   const [commentActionError, setCommentActionError] = useState<string | null>(null);
+  const [isStoryEditMode, setIsStoryEditMode] = useState(false);
+  const [storyEditTitle, setStoryEditTitle] = useState("");
+  const [storyEditContent, setStoryEditContent] = useState("");
+  const [storyEditCategory, setStoryEditCategory] = useState<PostCategory>("WORRY");
+  const [isSavingStory, setIsSavingStory] = useState(false);
+  const [isDeletingStory, setIsDeletingStory] = useState(false);
+  const [isUpdatingResolution, setIsUpdatingResolution] = useState(false);
+  const [storyActionError, setStoryActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -310,6 +330,18 @@ export default function StoryDetailPage() {
 
     void fetchComments(storyId, 0, false);
   }, [storyId]);
+
+  useEffect(() => {
+    if (!story) {
+      return;
+    }
+
+    setStoryEditTitle(story.title);
+    setStoryEditContent(story.content);
+    setStoryEditCategory(story.category);
+    setIsStoryEditMode(false);
+    setStoryActionError(null);
+  }, [story]);
 
   function isMyComment(authorId: number): boolean {
     return Boolean(member && member.id === authorId);
@@ -559,6 +591,147 @@ export default function StoryDetailPage() {
     }
   }
 
+  function isStoryAuthor(): boolean {
+    if (!member || !story) {
+      return false;
+    }
+
+    return member.id === story.authorid;
+  }
+
+  function beginStoryEdit(): void {
+    if (!story) {
+      return;
+    }
+
+    setStoryActionError(null);
+    setStoryEditTitle(story.title);
+    setStoryEditContent(story.content);
+    setStoryEditCategory(story.category);
+    setIsStoryEditMode(true);
+  }
+
+  function cancelStoryEdit(): void {
+    if (!story) {
+      return;
+    }
+
+    setStoryEditTitle(story.title);
+    setStoryEditContent(story.content);
+    setStoryEditCategory(story.category);
+    setIsStoryEditMode(false);
+  }
+
+  async function saveStoryEdit(): Promise<void> {
+    if (!story || isSavingStory) {
+      return;
+    }
+
+    const title = storyEditTitle.trim();
+    const content = storyEditContent.trim();
+
+    if (!title || !content) {
+      setStoryActionError("제목과 내용을 모두 입력해 주세요.");
+      return;
+    }
+
+    setStoryActionError(null);
+    setIsSavingStory(true);
+
+    try {
+      await requestVoid(`/api/v1/posts/${story.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          content,
+          thumbnail: story.thumbnail,
+          category: storyEditCategory,
+        }),
+      });
+
+      setStory((prev) =>
+        prev
+          ? {
+              ...prev,
+              title,
+              content,
+              category: storyEditCategory,
+              modifyDate: new Date().toISOString(),
+            }
+          : prev,
+      );
+      setIsStoryEditMode(false);
+    } catch (error: unknown) {
+      setStoryActionError(toErrorMessage(error));
+    } finally {
+      setIsSavingStory(false);
+    }
+  }
+
+  async function toggleStoryResolutionStatus(): Promise<void> {
+    if (!story || isUpdatingResolution) {
+      return;
+    }
+
+    const nextStatus: PostResolutionStatus =
+      story.resolutionStatus === "ONGOING" ? "RESOLVED" : "ONGOING";
+
+    setStoryActionError(null);
+    setIsUpdatingResolution(true);
+
+    try {
+      await requestVoid(`/api/v1/posts/${story.id}/resolution-status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          resolutionStatus: nextStatus,
+        }),
+      });
+
+      setStory((prev) =>
+        prev
+          ? {
+              ...prev,
+              resolutionStatus: nextStatus,
+              modifyDate: new Date().toISOString(),
+            }
+          : prev,
+      );
+    } catch (error: unknown) {
+      setStoryActionError(toErrorMessage(error));
+    } finally {
+      setIsUpdatingResolution(false);
+    }
+  }
+
+  async function deleteStory(): Promise<void> {
+    if (!story || isDeletingStory) {
+      return;
+    }
+
+    if (!window.confirm("게시글을 삭제할까요? 삭제 후 복구할 수 없습니다.")) {
+      return;
+    }
+
+    setStoryActionError(null);
+    setIsDeletingStory(true);
+
+    try {
+      await requestVoid(`/api/v1/posts/${story.id}`, {
+        method: "DELETE",
+      });
+      router.push("/stories");
+    } catch (error: unknown) {
+      setStoryActionError(toErrorMessage(error));
+      setIsDeletingStory(false);
+    }
+  }
+
   return (
     <div className="home-atmosphere min-h-screen">
       <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
@@ -593,6 +766,13 @@ export default function StoryDetailPage() {
                   <span className="rounded-full bg-[#edf5ff] px-3 py-1 text-[#486ca1]">
                     {CATEGORY_LABEL[story.category] ?? story.category}
                   </span>
+                  <span
+                    className={`rounded-full px-3 py-1 ${
+                      RESOLUTION_STATUS_BADGE_CLASS[story.resolutionStatus]
+                    }`}
+                  >
+                    {RESOLUTION_STATUS_LABEL[story.resolutionStatus]}
+                  </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#f7fbff] px-3 py-1">
                     <Clock3 size={13} />
                     {formatDate(story.createDate)}
@@ -603,13 +783,113 @@ export default function StoryDetailPage() {
                   </span>
                 </div>
 
-                <h1 className="mt-6 text-[30px] font-semibold leading-[1.35] tracking-[-0.03em] text-[#223552] sm:text-[34px]">
-                  {story.title}
-                </h1>
+                {isStoryAuthor() ? (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (isStoryEditMode ? cancelStoryEdit() : beginStoryEdit())}
+                      disabled={isSavingStory || isDeletingStory || isUpdatingResolution}
+                      className="rounded-[10px] bg-[#edf2f9] px-3 py-1.5 text-xs font-semibold text-[#4f70a6] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isStoryEditMode ? "수정 취소" : "게시글 수정"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void toggleStoryResolutionStatus()}
+                      disabled={isSavingStory || isDeletingStory || isUpdatingResolution}
+                      className="rounded-[10px] bg-[#edf5ff] px-3 py-1.5 text-xs font-semibold text-[#3d6fb9] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isUpdatingResolution
+                        ? "변경 중..."
+                        : story.resolutionStatus === "ONGOING"
+                          ? "해결됨으로 변경"
+                          : "고민중으로 변경"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteStory()}
+                      disabled={isSavingStory || isDeletingStory || isUpdatingResolution}
+                      className="rounded-[10px] bg-[#fff1f1] px-3 py-1.5 text-xs font-semibold text-[#a45f5f] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isDeletingStory ? "삭제 중..." : "게시글 삭제"}
+                    </button>
+                  </div>
+                ) : null}
 
-                <p className="mt-8 whitespace-pre-wrap text-[16px] leading-8 text-[#415a7d]">
-                  {story.content}
-                </p>
+                {storyActionError ? (
+                  <div className="mt-4 rounded-[14px] border border-[#f3d0d0] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4b4b]">
+                    {storyActionError}
+                  </div>
+                ) : null}
+
+                {isStoryEditMode ? (
+                  <div className="mt-6 rounded-[20px] border border-[#dce7fb] bg-[#f9fbff] p-4">
+                    <div className="flex flex-wrap gap-2">
+                      {EDITABLE_STORY_CATEGORIES.map((category) => {
+                        const active = storyEditCategory === category;
+
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => setStoryEditCategory(category)}
+                            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                              active
+                                ? "bg-[#4f8cf0] text-white"
+                                : "bg-white text-[#5b749a] hover:bg-[#edf5ff]"
+                            }`}
+                          >
+                            {CATEGORY_LABEL[category]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      value={storyEditTitle}
+                      onChange={(event) => setStoryEditTitle(event.target.value)}
+                      placeholder="제목을 입력해 주세요."
+                      className="mt-3 h-[52px] w-full rounded-[14px] border border-[#d8e4f7] bg-white px-4 text-[16px] text-[#2b4162] outline-none placeholder:text-[#9ab0cc] focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
+                    />
+                    <textarea
+                      value={storyEditContent}
+                      onChange={(event) => setStoryEditContent(event.target.value)}
+                      placeholder="내용을 입력해 주세요."
+                      className="mt-3 h-[220px] w-full resize-y rounded-[14px] border border-[#d8e4f7] bg-white px-4 py-3 text-[15px] leading-7 text-[#2b4162] outline-none placeholder:text-[#9ab0cc] focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
+                    />
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={cancelStoryEdit}
+                        className="rounded-[10px] bg-[#edf2f9] px-4 py-2 text-sm font-semibold text-[#5f7598]"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void saveStoryEdit()}
+                        disabled={isSavingStory}
+                        className={`rounded-[10px] px-4 py-2 text-sm font-semibold text-white ${
+                          isSavingStory
+                            ? "cursor-not-allowed bg-[#b6c9e7]"
+                            : "bg-[#4f8cf0] hover:bg-[#3f80eb]"
+                        }`}
+                      >
+                        {isSavingStory ? "저장 중..." : "수정 저장"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="mt-6 text-[30px] font-semibold leading-[1.35] tracking-[-0.03em] text-[#223552] sm:text-[34px]">
+                      {story.title}
+                    </h1>
+
+                    <p className="mt-8 whitespace-pre-wrap text-[16px] leading-8 text-[#415a7d]">
+                      {story.content}
+                    </p>
+                  </>
+                )}
 
                 <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#e8f0fd] pt-5 text-sm text-[#6f84a5]">
                   <span className="inline-flex items-center gap-1.5">
