@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, Clock3, Eye, UserRound } from "lucide-react";
+import { ChevronLeft, Clock3, Eye, Flag, UserRound } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
+import ReportCreateDialog from "@/components/report/ReportCreateDialog";
 import { requestData, requestVoid } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
 import { toErrorMessage } from "@/lib/api/rs-data";
+import { createReport } from "@/lib/report/report-service";
+import type { ReportReasonCode } from "@/lib/report/report-types";
 
 type PostCategory = "DAILY" | "WORRY" | "QUESTION";
 type PostResolutionStatus = "ONGOING" | "RESOLVED";
@@ -247,6 +250,11 @@ export default function StoryDetailPage() {
   const [isDeletingStory, setIsDeletingStory] = useState(false);
   const [isUpdatingResolution, setIsUpdatingResolution] = useState(false);
   const [storyActionError, setStoryActionError] = useState<string | null>(null);
+  const [storyActionNotice, setStoryActionNotice] = useState<string | null>(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportDialogKey, setReportDialogKey] = useState(0);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportErrorMessage, setReportErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -605,6 +613,7 @@ export default function StoryDetailPage() {
     }
 
     setStoryActionError(null);
+    setStoryActionNotice(null);
     setStoryEditTitle(story.title);
     setStoryEditContent(story.content);
     setStoryEditCategory(story.category);
@@ -636,6 +645,7 @@ export default function StoryDetailPage() {
     }
 
     setStoryActionError(null);
+    setStoryActionNotice(null);
     setIsSavingStory(true);
 
     try {
@@ -664,6 +674,7 @@ export default function StoryDetailPage() {
           : prev,
       );
       setIsStoryEditMode(false);
+      setStoryActionNotice("게시글이 수정되었습니다.");
     } catch (error: unknown) {
       setStoryActionError(toErrorMessage(error));
     } finally {
@@ -680,6 +691,7 @@ export default function StoryDetailPage() {
       story.resolutionStatus === "ONGOING" ? "RESOLVED" : "ONGOING";
 
     setStoryActionError(null);
+    setStoryActionNotice(null);
     setIsUpdatingResolution(true);
 
     try {
@@ -702,6 +714,7 @@ export default function StoryDetailPage() {
             }
           : prev,
       );
+      setStoryActionNotice("해결 상태가 변경되었습니다.");
     } catch (error: unknown) {
       setStoryActionError(toErrorMessage(error));
     } finally {
@@ -719,6 +732,7 @@ export default function StoryDetailPage() {
     }
 
     setStoryActionError(null);
+    setStoryActionNotice(null);
     setIsDeletingStory(true);
 
     try {
@@ -729,6 +743,52 @@ export default function StoryDetailPage() {
     } catch (error: unknown) {
       setStoryActionError(toErrorMessage(error));
       setIsDeletingStory(false);
+    }
+  }
+
+  function openStoryReportDialog(): void {
+    if (!story) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      router.push(`/login?next=${encodeURIComponent(`/stories/${story.id}`)}`);
+      return;
+    }
+
+    if (isStoryAuthor()) {
+      setStoryActionError("본인 게시글은 신고할 수 없습니다.");
+      return;
+    }
+
+    setStoryActionError(null);
+    setStoryActionNotice(null);
+    setReportErrorMessage(null);
+    setReportDialogKey((prev) => prev + 1);
+    setIsReportDialogOpen(true);
+  }
+
+  async function submitStoryReport(reason: ReportReasonCode, content: string): Promise<void> {
+    if (!story || isSubmittingReport) {
+      return;
+    }
+
+    setIsSubmittingReport(true);
+    setReportErrorMessage(null);
+
+    try {
+      await createReport({
+        targetId: story.id,
+        targetType: "POST",
+        reason,
+        content: content.trim().length > 0 ? content.trim() : undefined,
+      });
+      setIsReportDialogOpen(false);
+      setStoryActionNotice("신고가 접수되었습니다.");
+    } catch (error: unknown) {
+      setReportErrorMessage(toErrorMessage(error));
+    } finally {
+      setIsSubmittingReport(false);
     }
   }
 
@@ -781,6 +841,14 @@ export default function StoryDetailPage() {
                     <Eye size={13} />
                     조회 {story.viewCount}
                   </span>
+                  <button
+                    type="button"
+                    onClick={openStoryReportDialog}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#fff4f4] px-3 py-1 text-[#b56060] transition hover:bg-[#ffecec]"
+                  >
+                    <Flag size={13} />
+                    신고
+                  </button>
                 </div>
 
                 {isStoryAuthor() ? (
@@ -819,6 +887,11 @@ export default function StoryDetailPage() {
                 {storyActionError ? (
                   <div className="mt-4 rounded-[14px] border border-[#f3d0d0] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4b4b]">
                     {storyActionError}
+                  </div>
+                ) : null}
+                {storyActionNotice ? (
+                  <div className="mt-4 rounded-[14px] border border-[#d6eadb] bg-[#f1fbf4] px-4 py-3 text-sm text-[#3f7d50]">
+                    {storyActionNotice}
                   </div>
                 ) : null}
 
@@ -1197,6 +1270,15 @@ export default function StoryDetailPage() {
           ) : null}
         </section>
       </div>
+      <ReportCreateDialog
+        key={reportDialogKey}
+        open={isReportDialogOpen}
+        targetLabel="게시글"
+        isSubmitting={isSubmittingReport}
+        errorMessage={reportErrorMessage}
+        onClose={() => setIsReportDialogOpen(false)}
+        onSubmit={submitStoryReport}
+      />
     </div>
   );
 }
