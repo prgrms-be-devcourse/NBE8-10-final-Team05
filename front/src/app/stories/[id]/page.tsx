@@ -355,12 +355,38 @@ export default function StoryDetailPage() {
     return Boolean(member && member.id === authorId);
   }
 
+  function shouldPrefillReplyMention(targetNickname: string): boolean {
+    if (!member) {
+      return true;
+    }
+
+    if (member.nickname === targetNickname) {
+      return false;
+    }
+
+    if (story && member.id === story.authorid) {
+      return false;
+    }
+
+    return true;
+  }
+
   function openReplyEditor(commentId: number, targetNickname: string): void {
     setReplyTargetId(commentId);
     setReplyDrafts((prev) => {
       const mentionPrefix = `@${targetNickname} `;
       const current = prev[commentId] ?? "";
       const normalizedCurrent = current.trim();
+
+      if (!shouldPrefillReplyMention(targetNickname)) {
+        if (normalizedCurrent === `@${targetNickname}`) {
+          return {
+            ...prev,
+            [commentId]: "",
+          };
+        }
+        return prev;
+      }
 
       if (normalizedCurrent.length > 0 && !normalizedCurrent.startsWith("@")) {
         return prev;
@@ -1126,7 +1152,7 @@ export default function StoryDetailPage() {
                                   [comment.id]: clampCommentContent(event.target.value),
                                 }))
                               }
-                              placeholder="답글을 입력해 주세요. (예: @닉네임)"
+                              placeholder="답글을 입력해 주세요."
                               className="h-[86px] w-full resize-y rounded-[12px] border border-[#d8e4f7] bg-white px-3 py-2 text-[14px] leading-7 text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
                             />
                             <div className="mt-2 text-right text-xs text-[#7a8ea9]">
