@@ -392,19 +392,19 @@ function CommunityStoryCard({ story }: { story: CommunityStory }) {
       <Link href={`/stories/${story.id}`} className="group flex h-full flex-col">
         <div className={`relative h-[118px] overflow-hidden border-b border-[#edf2fb] bg-gradient-to-br ${theme.hero}`}>
           <div className="absolute inset-x-5 top-4 flex items-center justify-between gap-3">
-            <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
-              {story.category}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${theme.badge}`}>
+                {story.category}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  RESOLUTION_STATUS_BADGE_CLASS[story.resolutionStatus]
+                }`}
+              >
+                {RESOLUTION_STATUS_LABEL[story.resolutionStatus]}
+              </span>
+            </div>
             <span className="shrink-0 text-[12px] font-medium text-[#6f84a5]">{story.timeAgo}</span>
-          </div>
-          <div className="absolute left-5 top-11">
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                RESOLUTION_STATUS_BADGE_CLASS[story.resolutionStatus]
-              }`}
-            >
-              {RESOLUTION_STATUS_LABEL[story.resolutionStatus]}
-            </span>
           </div>
           <div className="absolute left-5 bottom-5 space-y-2 opacity-85">
             <span className="block h-[4px] w-16 rounded-full bg-white/75" />
