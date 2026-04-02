@@ -173,8 +173,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private Member findMatchingReceiver(long senderId) {
         Long rId = letterRedisRepository.getRandomReceiver();
         if (rId != null && !rId.equals(senderId)) {
-            return memberRepository.findById(rId).orElseGet(() -> letterPort.findRandomMemberExceptMe(senderId).orElseThrow());
+            return memberRepository.findById(rId)
+                    .orElseGet(() -> letterPort.findRandomMemberExceptMe(senderId)
+                            .orElseThrow(() -> new ServiceException("404-1", "수신 가능한 사용자가 없습니다.")));
         }
-        return letterPort.findRandomMemberExceptMe(senderId).orElseThrow();
+        return letterPort.findRandomMemberExceptMe(senderId)
+                .orElseThrow(() -> new ServiceException("404-1", "수신 가능한 사용자가 없습니다."));
     }
 }
