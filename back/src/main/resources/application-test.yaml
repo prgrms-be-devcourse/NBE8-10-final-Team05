@@ -2,7 +2,7 @@ spring:
   application:
     name: back
   datasource:
-    url: ${DEV_DB_URL:jdbc:postgresql://localhost:5432/maum_on_dev}
+    url: ${DEV_DB_URL:jdbc:postgresql://localhost:5432/maum_on_test}
     username: ${DEV_DB_USERNAME:maum_on}
     password: ${DEV_DB_PASSWORD:maum_on}
   jpa:

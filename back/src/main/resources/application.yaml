@@ -37,7 +37,7 @@ spring:
               - profile_nickname
   docker:
     compose:
-      file: back/docker-compose.dev.yml
+      file: docker-compose.dev.yml
       lifecycle-management: start_only
       enabled: true
   data:
