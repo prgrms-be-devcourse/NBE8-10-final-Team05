@@ -1,6 +1,12 @@
 name: deploy-monitoring
 
 on:
+  push:
+    branches:
+      - develop
+    paths:
+      - "infra/grafana/dashboards/**"
+      - "infra/grafana/provisioning/dashboards/**"
   workflow_dispatch:
 
 permissions:
