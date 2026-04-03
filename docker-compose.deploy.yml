@@ -44,6 +44,9 @@ services:
     image: ${GHCR_IMAGE}:${IMAGE_TAG:-latest}
     container_name: maum-on-backend-prod
     <<: *common-service
+    networks:
+      - maum-on-prod
+      - common
     env_file:
       - .env
     environment:
@@ -75,3 +78,6 @@ volumes:
 networks:
   maum-on-prod:
     name: maum-on-prod
+  common:
+    external: true
+    name: common
