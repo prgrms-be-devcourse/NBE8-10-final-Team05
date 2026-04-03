@@ -11,6 +11,7 @@ env:
   EC2_INSTANCE_TAG_NAME: devcos-team05-ec2-1 # 배포 대상 EC2 Name 태그
   DOCKER_NETWORK: common # 프록시용 도커 네트워크
   APP_NETWORK: maum-on-prod # 앱/DB/Redis 도커 네트워크
+  MONITORING_DEPLOY_PATH: /opt/maum-on/monitoring # monitoring .env 동기화 경로
   BACK_DIR: back # Dockerfile 위치
   NPM_BASE_URL: ${{ secrets.NPM_BASE_URL || 'https://127.0.0.1:81' }} # NPMplus 관리 API 베이스 URL
 
@@ -21,8 +22,7 @@ concurrency:
 on:
   push:
     paths:
-      - ".github/workflows/*.yml"
-      - ".github/workflows/*.yaml"
+      - ".github/workflows/deploy-backend.yml"
       - "back/.env"
       - "back/src/**"
       - "back/build.gradle.kts"
@@ -360,6 +360,21 @@ jobs:
               -d "${NEW_CFG}")
             [[ "${SWITCH_CODE}" == "200" ]] || { echo "❌ NPM switch failed (HTTP ${SWITCH_CODE})"; exit 1; }
             echo "🔁 switch upstream → ${GREEN}:${PORT_IN}"
+
+            # ---------------------------------------------------------
+            # 6-1) monitoring scrape target 동기화
+            # ---------------------------------------------------------
+            MONITORING_ENV="${{ env.MONITORING_DEPLOY_PATH }}/.env"
+            if [[ -f "${MONITORING_ENV}" ]]; then
+              if grep -q '^BACKEND_SCRAPE_TARGET=' "${MONITORING_ENV}"; then
+                sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${GREEN}:${PORT_IN}#" "${MONITORING_ENV}"
+              else
+                printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${GREEN}" "${PORT_IN}" >> "${MONITORING_ENV}"
+              fi
+              echo "📡 synced monitoring target → ${GREEN}:${PORT_IN}"
+            else
+              echo "ℹ️ monitoring env not found: ${MONITORING_ENV}"
+            fi
 
             # ---------------------------------------------------------
             # 7) 이전 blue 종료(최초 배포면 생략)
