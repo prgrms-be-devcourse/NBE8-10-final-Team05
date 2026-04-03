@@ -13,6 +13,49 @@ provider "aws" {
 }
 # AWS 설정 끝
 
+data "aws_caller_identity" "current" {}
+
+locals {
+  app_1_s3_bucket_name = var.app_1_s3_bucket_name != "" ? var.app_1_s3_bucket_name : "${var.prefix}-${data.aws_caller_identity.current.account_id}-assets"
+}
+
+# S3 버킷 설정 시작 (이미지/파일 저장소)
+resource "aws_s3_bucket" "app_assets" {
+  bucket = local.app_1_s3_bucket_name
+
+  tags = {
+    Name = "${var.prefix}-assets"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "app_assets" {
+  bucket = aws_s3_bucket.app_assets.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "app_assets" {
+  bucket = aws_s3_bucket.app_assets.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "app_assets" {
+  bucket = aws_s3_bucket.app_assets.id
+
+  block_public_acls       = true
+  ignore_public_acls      = true
+  block_public_policy     = true
+  restrict_public_buckets = true
+}
+# S3 버킷 설정 끝
+
 # VPC 설정 시작
 resource "aws_vpc" "vpc_1" {
   cidr_block = "10.0.0.0/16"
@@ -298,4 +341,9 @@ EOF
   tags = {
     Name = "${var.prefix}-ec2-1"
   }
+}
+
+output "app_1_s3_bucket_name" {
+  description = "S3 bucket name used by the application"
+  value       = aws_s3_bucket.app_assets.bucket
 }

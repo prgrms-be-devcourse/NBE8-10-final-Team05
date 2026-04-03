@@ -1,4 +1,4 @@
-name: deploy
+name: deploy-legacy
 
 # =========================
 # 전역 환경변수
@@ -18,17 +18,7 @@ concurrency:
   cancel-in-progress: false # 기존에 시작된 작업은 새 커밋이 들어왔다고 해서 바로 끄지 않고 끝날때까지 대기
 
 on:
-  push:
-    paths:
-      - ".github/workflows/*.yml"
-      - ".github/workflows/*.yaml"
-      - "back/.env"
-      - "back/src/**"
-      - "back/build.gradle.kts"
-      - "back/settings.gradle.kts"
-      - "back/Dockerfile"
-    branches:
-      - develop
+  workflow_dispatch:
 
 # 권한 최소화/명시화
 permissions:

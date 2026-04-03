@@ -3,7 +3,7 @@ x-common-service: &common-service
   environment:
     TZ: Asia/Seoul
   networks:
-    - maum-on
+    - maum-on-prod
   logging:
     driver: json-file
     options:
@@ -11,46 +11,28 @@ x-common-service: &common-service
       max-file: "3"
 
 services:
-  postgres:
-    profiles: [app]
-    image: postgres:16-alpine
-    container_name: maum-on-postgres
-    <<: *common-service
-    environment:
-      POSTGRES_DB: maum_on_dev
-      POSTGRES_USER: maum_on
-      POSTGRES_PASSWORD: maum_on
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-dev-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U maum_on -d maum_on_dev"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   prometheus:
-    profiles: [monitoring]
     image: prom/prometheus:v3.9.1
-    container_name: maum-on-prometheus
+    container_name: maum-on-prometheus-prod
     <<: *common-service
     env_file:
       - .env
+    environment:
+      BACKEND_SCRAPE_TARGET: ${BACKEND_SCRAPE_TARGET:-maum-on-backend-prod:8080}
+      PROMETHEUS_EXTERNAL_URL: ${PROMETHEUS_EXTERNAL_URL:-http://127.0.0.1:9090/}
     entrypoint:
       - /bin/sh
       - /etc/prometheus/render-and-run.sh
-    extra_hosts:
-      - host.docker.internal:host-gateway
+    ports:
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.tmpl:ro
       - ./infra/prometheus/render-and-run.sh:/etc/prometheus/render-and-run.sh:ro
       - prometheus-data:/prometheus
 
   grafana:
-    profiles: [monitoring]
     image: grafana/grafana:12.3.1
-    container_name: maum-on-grafana
+    container_name: maum-on-grafana-prod
     <<: *common-service
     env_file:
       - .env
@@ -63,31 +45,20 @@ services:
       GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
       GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "false"
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-http://127.0.0.1:3000/}
+    ports:
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
 
-  nginx:
-    profiles: [monitoring]
-    image: nginx:stable-alpine
-    container_name: maum-on-monitoring-proxy
-    <<: *common-service
-    depends_on:
-      - prometheus
-      - grafana
-    ports:
-      - "3400:80"
-    volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-
 volumes:
-  postgres-dev-data:
   prometheus-data:
   grafana-data:
 
 networks:
-  maum-on:
-    name: maum-on
+  maum-on-prod:
+    name: maum-on-prod

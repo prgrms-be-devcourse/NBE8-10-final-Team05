@@ -1,0 +1,128 @@
+name: deploy-monitoring
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-monitoring
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: monitoring
+    env:
+      DEPLOY_PATH: ${{ vars.MONITORING_DEPLOY_PATH || '/opt/maum-on/monitoring' }}
+      EC2_INSTANCE_TAG_NAME: ${{ vars.EC2_INSTANCE_TAG_NAME || 'devcos-team05-ec2-1' }}
+      DOT_ENV: ${{ secrets.DOT_ENV }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render monitoring env
+        run: |
+          set -euo pipefail
+          install -d "$RUNNER_TEMP/monitoring-deploy"
+          printf '%s' "$DOT_ENV" > "$RUNNER_TEMP/monitoring-deploy/.env"
+
+      - name: Validate monitoring compose
+        run: docker compose --env-file "$RUNNER_TEMP/monitoring-deploy/.env" -f docker-compose.monitoring.deploy.yml config >/dev/null
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Resolve EC2 instance by tag
+        id: resolve_instance
+        run: |
+          set -euo pipefail
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=${EC2_INSTANCE_TAG_NAME}" "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[].InstanceId" --output text)
+          [[ -n "${INSTANCE_ID}" && "${INSTANCE_ID}" != "None" ]] || { echo "No running instance found"; exit 1; }
+          echo "INSTANCE_ID=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy monitoring stack via SSM
+        run: |
+          set -euo pipefail
+
+          DOT_ENV_B64="$(base64 -w0 "$RUNNER_TEMP/monitoring-deploy/.env")"
+          GITHUB_TOKEN_B64="$(printf '%s' "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)"
+
+          DEPLOY_SCRIPT=$(cat <<'EOF'
+          set -euo pipefail
+
+          GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN_B64" | base64 -d)"
+          WORKDIR="/tmp/maum-on-deploy-${COMMIT_SHA}"
+
+          mkdir -p "$DEPLOY_PATH/infra"
+          rm -rf "$WORKDIR"
+          mkdir -p "$WORKDIR"
+
+          curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/tarball/${COMMIT_SHA}" \
+            | tar -xz --strip-components=1 -C "$WORKDIR"
+
+          cp "$WORKDIR/docker-compose.monitoring.deploy.yml" "$DEPLOY_PATH/docker-compose.monitoring.deploy.yml"
+          rm -rf "$DEPLOY_PATH/infra/prometheus" "$DEPLOY_PATH/infra/grafana"
+          cp -R "$WORKDIR/infra/prometheus" "$DEPLOY_PATH/infra/prometheus"
+          cp -R "$WORKDIR/infra/grafana" "$DEPLOY_PATH/infra/grafana"
+          printf '%s' "$DOT_ENV_B64" | base64 -d > "$DEPLOY_PATH/.env"
+
+          cd "$DEPLOY_PATH"
+          docker compose -f docker-compose.monitoring.deploy.yml up -d --remove-orphans
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null && \
+               curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "monitoring health check timed out" >&2
+          exit 1
+          EOF
+          )
+
+          EXPORTS_CMD="export DEPLOY_PATH='${DEPLOY_PATH}' REPO='${{ github.repository }}' COMMIT_SHA='${{ github.sha }}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}'"
+          PARAMS=$(jq -nc --arg c1 "$EXPORTS_CMD" --arg c2 "$DEPLOY_SCRIPT" '{"commands":[$c1,$c2]}')
+
+          COMMAND_ID=$(aws ssm send-command \
+            --region "${{ secrets.AWS_REGION }}" \
+            --instance-ids "${{ steps.resolve_instance.outputs.INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "$PARAMS" \
+            --query "Command.CommandId" \
+            --output text)
+
+          WAIT_MAX=900
+          WAIT_INTERVAL=10
+          WAIT_ELAPSED=0
+          while (( WAIT_ELAPSED < WAIT_MAX )); do
+            CMD_STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${{ steps.resolve_instance.outputs.INSTANCE_ID }}" \
+              --query 'Status' --output text 2>/dev/null || echo "Unknown")
+            [[ "${CMD_STATUS}" == "InProgress" || "${CMD_STATUS}" == "Pending" ]] || break
+            sleep "${WAIT_INTERVAL}"
+            WAIT_ELAPSED=$(( WAIT_ELAPSED + WAIT_INTERVAL ))
+          done
+
+          INVOCATION=$(aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${{ steps.resolve_instance.outputs.INSTANCE_ID }}")
+          STATUS=$(echo "$INVOCATION" | jq -r '.Status')
+          echo "$INVOCATION" | jq -r '.StandardOutputContent'
+          echo "$INVOCATION" | jq -r '.StandardErrorContent' >&2
+          [[ "$STATUS" == "Success" ]] || exit 1

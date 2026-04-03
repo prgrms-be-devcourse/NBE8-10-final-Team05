@@ -16,7 +16,7 @@ services:
     container_name: maum-on-prometheus
     <<: *common-service
     env_file:
-      - .env.monitoring
+      - .env
     entrypoint:
       - /bin/sh
       - /etc/prometheus/render-and-run.sh
@@ -32,7 +32,7 @@ services:
     container_name: maum-on-grafana
     <<: *common-service
     env_file:
-      - .env.monitoring
+      - .env
     environment:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"

@@ -1,6 +1,7 @@
 package com.back.global.webMvc;
 
 
+import java.nio.file.Paths;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.web.config.EnableSpringDataWebSupport;
@@ -27,8 +28,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry){
+        String absoluteUploadPath = Paths.get(uploadDir).toAbsolutePath().toUri().toString();
         registry.addResourceHandler("/gen/**")
-                //임시 이미지 저장 경로(수정 가능)
-                .addResourceLocations("file:///C:/javadev/diary_image/");
+                .addResourceLocations(absoluteUploadPath);
     }
 }

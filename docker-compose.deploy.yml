@@ -1,0 +1,77 @@
+x-common-service: &common-service
+  restart: unless-stopped
+  environment:
+    TZ: Asia/Seoul
+  networks:
+    - maum-on-prod
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: maum-on-postgres-prod
+    <<: *common-service
+    environment:
+      POSTGRES_DB: maum_on_prod
+      POSTGRES_USER: ${PROD_DB_USERNAME}
+      POSTGRES_PASSWORD: ${PROD_DB_PASSWORD}
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PROD_DB_USERNAME:-maum_on} -d maum_on_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: maum-on-redis-prod
+    <<: *common-service
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis-prod-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: ${GHCR_IMAGE}:${IMAGE_TAG:-latest}
+    container_name: maum-on-backend-prod
+    <<: *common-service
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PROD_REDIS_URL: ${PROD_REDIS_URL:-redis}
+      PROD_REDIS_PASSWORD: ${PROD_REDIS_PASSWORD:-}
+      JAVA_OPTS: ${JAVA_OPTS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - backend-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  postgres-prod-data:
+  redis-prod-data:
+  backend-uploads:
+
+networks:
+  maum-on-prod:
+    name: maum-on-prod
