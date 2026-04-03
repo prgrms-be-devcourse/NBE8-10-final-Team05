@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -114,5 +115,29 @@ public class LocalImageService implements ImageService {
         if (!StringUtils.hasText(fileName)) return "";
         int pos = fileName.lastIndexOf(".");
         return fileName.substring(pos + 1);
+    }
+
+    @Override
+    @Transactional
+    public void confirmUsage(List<String> imageUrls, String refType, Long refId) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return;
+        }
+
+        List<String> storedNames = imageUrls.stream()
+                .map(this::extractStoredName)
+                .toList();
+
+        imageRepository.findAllByStoredNameIn(storedNames)
+                .forEach(image -> image.connectTo(refType, refId));
+    }
+
+    private String extractStoredName(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl)) {
+            return "";
+        }
+        return fileUrl.contains("/")
+                ? fileUrl.substring(fileUrl.lastIndexOf("/") + 1)
+                : fileUrl;
     }
 }

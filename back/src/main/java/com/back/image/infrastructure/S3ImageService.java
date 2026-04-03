@@ -7,6 +7,7 @@ import com.back.image.domain.Image;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +94,17 @@ public class S3ImageService implements ImageService {
     }
 
     imageRepository.delete(imageOpt.get());
+  }
+
+  @Override
+  @Transactional
+  public void confirmUsage(List<String> imageUrls, String refType, Long refId) {
+    if (imageUrls == null || imageUrls.isEmpty()) {
+      return;
+    }
+
+    List<String> storedNames = imageUrls.stream().map(this::extractStoredName).toList();
+    imageRepository.findAllByStoredNameIn(storedNames).forEach(image -> image.connectTo(refType, refId));
   }
 
   private String buildObjectKey(String storedName) {
