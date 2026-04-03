@@ -163,6 +163,16 @@ jobs:
           SLOT_B="${BACKEND_SLOT_B}"
           CONTAINER_PORT="${CONTAINER_PORT}"
 
+          # Legacy compatibility: read APP_1_DOMAIN/PASSWORD_1 from host env if present.
+          if [[ -f /etc/environment ]]; then
+            set -a
+            while IFS='=' read -r key value; do
+              [[ -z "$key" || "$key" =~ ^# ]] && continue
+              printf -v "$key" '%s' "$value"
+            done < /etc/environment
+            set +a
+          fi
+
           mkdir -p "$DEPLOY_PATH"
           rm -rf "$WORKDIR"
           mkdir -p "$WORKDIR"
@@ -184,13 +194,14 @@ jobs:
           docker volume create backend-uploads >/dev/null
 
           TARGET_DOMAIN="${PROXY_HOST_DOMAIN:-${APP_1_DOMAIN:-}}"
+          NPM_PASSWORD_EFFECTIVE="${NPM_ADMIN_PASSWORD:-${PASSWORD_1:-}}"
           if [[ -z "${TARGET_DOMAIN}" ]]; then
             echo "TARGET_DOMAIN is required (set API_PROXY_DOMAIN or APP_1_DOMAIN)." >&2
             exit 1
           fi
 
-          [[ -n "${NPM_ADMIN_PASSWORD:-}" ]] || {
-            echo "NPM_ADMIN_PASSWORD is required for NPM sync" >&2
+          [[ -n "${NPM_PASSWORD_EFFECTIVE:-}" ]] || {
+            echo "NPM password is required (set NPM_ADMIN_PASSWORD or PASSWORD_1)." >&2
             exit 1
           }
 
@@ -198,7 +209,7 @@ jobs:
           LOGIN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -c "${COOKIE_JAR}" \
             -X POST "${NPM_BASE_URL}/api/tokens" \
             -H "Content-Type: application/json" \
-            -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_ADMIN_PASSWORD}" '{identity:$id, secret:$pw}')")
+            -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_PASSWORD_EFFECTIVE}" '{identity:$id, secret:$pw}')")
           [[ "${LOGIN_CODE}" == "200" ]] || {
             echo "NPM login failed (HTTP ${LOGIN_CODE})" >&2
             exit 1
