@@ -71,8 +71,13 @@ jobs:
           elif command -v docker-compose >/dev/null 2>&1; then
             COMPOSE_CMD=(docker-compose)
           else
-            echo "docker compose command is unavailable on target host" >&2
-            exit 1
+            COMPOSE_CMD=(
+              docker run --rm
+              -v /var/run/docker.sock:/var/run/docker.sock
+              -v "$PWD:$PWD"
+              -w "$PWD"
+              docker/compose:2.29.7
+            )
           fi
 
           GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN_B64" | base64 -d)"
