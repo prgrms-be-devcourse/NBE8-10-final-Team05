@@ -3,7 +3,16 @@ name: deploy-backend
 on:
   push:
     branches:
-      - main
+      - develop
+    paths:
+      - ".github/workflows/*.yml"
+      - ".github/workflows/*.yaml"
+      - "back/.env"
+      - "back/src/**"
+      - "back/build.gradle.kts"
+      - "back/settings.gradle.kts"
+      - "back/Dockerfile"
+      - "Dockerfile.cd"
   workflow_dispatch:
 
 permissions:
