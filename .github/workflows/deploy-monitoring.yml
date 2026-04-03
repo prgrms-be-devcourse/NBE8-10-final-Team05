@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - develop
+      - main
     paths:
       - "infra/grafana/dashboards/**"
       - "infra/grafana/provisioning/dashboards/**"
