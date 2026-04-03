@@ -1,4 +1,22 @@
-name: deploy-backend
+name: deploy
+
+env:
+  IMAGE_REPOSITORY: maum_on-backend
+  CONTAINER_1_NAME: ${{ vars.BACKEND_SLOT_A || 'maum_on_1_1' }}
+  CONTAINER_2_NAME: ${{ vars.BACKEND_SLOT_B || 'maum_on_1_2' }}
+  CONTAINER_PORT: ${{ vars.BACKEND_CONTAINER_PORT || 8080 }}
+  EC2_INSTANCE_TAG_NAME: ${{ vars.EC2_INSTANCE_TAG_NAME || 'devcos-team05-ec2-1' }}
+  DOCKER_NETWORK: common
+  APP_NETWORK: maum-on-prod
+  DEPLOY_PATH: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/maum-on/backend' }}
+  BACKEND_APP_PORT: ${{ vars.APP_PORT || 8080 }}
+  BUILD_CONTEXT: .
+  DOCKERFILE_PATH: ./Dockerfile.cd
+  NPM_BASE_URL: ${{ secrets.NPM_BASE_URL || 'https://127.0.0.1:81' }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 on:
   push:
@@ -16,34 +34,35 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
-concurrency:
-  group: deploy-backend-${{ github.ref }}
-  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  deploy:
-    name: deploy
+  calculateTag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.dry_run.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 다음 버전 태그 계산 (dry-run)
+        id: dry_run
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+
+  buildImageAndPush:
+    name: 도커 이미지 빌드와 푸시
+    needs: calculateTag
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: prod
-    env:
-      GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/maum_on-backend
-      DEPLOY_PATH: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/maum-on/backend' }}
-      APP_PORT: ${{ vars.APP_PORT || 8080 }}
-      CONTAINER_PORT: ${{ vars.BACKEND_CONTAINER_PORT || 8080 }}
-      BACKEND_SLOT_A: ${{ vars.BACKEND_SLOT_A || 'maum-on-backend-slot-a' }}
-      BACKEND_SLOT_B: ${{ vars.BACKEND_SLOT_B || 'maum-on-backend-slot-b' }}
-      EC2_INSTANCE_TAG_NAME: ${{ vars.EC2_INSTANCE_TAG_NAME || 'devcos-team05-ec2-1' }}
-      NPM_BASE_URL: ${{ secrets.NPM_BASE_URL || 'https://127.0.0.1:81' }}
-      PROXY_HOST_DOMAIN: ${{ secrets.API_PROXY_DOMAIN || '' }}
-      NPM_ADMIN_PASSWORD: ${{ secrets.NPM_ADMIN_PASSWORD || '' }}
-      DOT_ENV: ${{ secrets.DOT_ENV }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -64,278 +83,318 @@ jobs:
         run: |
           set -euo pipefail
           jar_file="$(find back/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n 1)"
-          if [ -z "$jar_file" ]; then
-            echo "boot jar not found" >&2
-            exit 1
-          fi
+          [[ -n "$jar_file" ]] || { echo "boot jar not found" >&2; exit 1; }
           cp "$jar_file" back/build/libs/app.jar
 
-      - name: Set up Docker Buildx
+      - name: Docker Buildx 설치
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR for push
+      - name: 레지스트리 로그인
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push backend image
+      - name: set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
+        env:
+          OWNER: "${{ github.repository_owner }}"
+
+      - name: 빌드 앤 푸시
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./Dockerfile.cd
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.DOCKERFILE_PATH }}
           push: true
-          tags: |
-            ${{ env.GHCR_IMAGE }}:${{ github.sha }}
-            ${{ env.GHCR_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/${{ env.IMAGE_REPOSITORY }}:${{ needs.calculateTag.outputs.tag_name }}
+            ghcr.io/${{ env.OWNER_LC }}/${{ env.IMAGE_REPOSITORY }}:latest
 
-      - name: Render backend env
-        run: |
-          set -euo pipefail
-          install -d "$RUNNER_TEMP/backend-deploy"
-          printf '%s' "$DOT_ENV" > "$RUNNER_TEMP/backend-deploy/.env"
-          {
-            printf '\nGHCR_IMAGE=%s\n' "$GHCR_IMAGE"
-            printf 'IMAGE_TAG=%s\n' "${GITHUB_SHA}"
-            printf 'APP_PORT=%s\n' "$APP_PORT"
-          } >> "$RUNNER_TEMP/backend-deploy/.env"
-
-      - name: Validate backend compose
-        run: |
-          set -euo pipefail
-          cp docker-compose.deploy.yml "$RUNNER_TEMP/backend-deploy/docker-compose.deploy.yml"
-          docker compose \
-            --env-file "$RUNNER_TEMP/backend-deploy/.env" \
-            -f "$RUNNER_TEMP/backend-deploy/docker-compose.deploy.yml" \
-            config >/dev/null
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+  deploy:
+    name: Blue/Green 무중단 배포
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: prod
+    needs: [calculateTag, buildImageAndPush]
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Resolve EC2 instance by tag
-        id: resolve_instance
+      - name: 인스턴스 ID 가져오기
+        id: get_instance_id
         run: |
-          set -euo pipefail
           INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=${EC2_INSTANCE_TAG_NAME}" "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Name,Values=${{ env.EC2_INSTANCE_TAG_NAME }}" "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" --output text)
           [[ -n "${INSTANCE_ID}" && "${INSTANCE_ID}" != "None" ]] || { echo "No running instance found"; exit 1; }
-          echo "INSTANCE_ID=${INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+          echo "INSTANCE_ID=${INSTANCE_ID}" >> "${GITHUB_ENV}"
 
-      - name: Deploy backend stack via SSM
+      - name: .env base64 인코딩
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
         run: |
-          set -euo pipefail
+          echo "DOT_ENV_B64=$(printf '%s' "${DOT_ENV}" | base64 -w0)" >> "${GITHUB_ENV}"
 
-          DOT_ENV_B64="$(base64 -w0 "$RUNNER_TEMP/backend-deploy/.env")"
-          GITHUB_TOKEN_B64="$(printf '%s' "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)"
-          NPM_ADMIN_PASSWORD_B64="$(printf '%s' "$NPM_ADMIN_PASSWORD" | base64 -w0)"
+      - name: AWS SSM 배포
+        env:
+          PROXY_HOST_DOMAIN: ${{ secrets.API_PROXY_DOMAIN || '' }}
+          NPM_ADMIN_PASSWORD: ${{ secrets.NPM_ADMIN_PASSWORD || '' }}
+        run: |
+          DEPLOY_SCRIPT=$(cat << 'SCRIPT_EOF'
+            set -Eeuo pipefail
 
-          DEPLOY_SCRIPT=$(cat <<'EOF'
-          set -euo pipefail
+            SCRIPT_TS="$(date +%Y%m%d_%H%M%S)"
+            LOG="/tmp/ssm-${SCRIPT_TS}.log"
+            exec > >(awk '{ fflush(); print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }' | tee -a "$LOG")
+            exec 2> >(awk '{ fflush(); print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }' | tee -a "$LOG" >&2)
 
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE_CMD=(docker compose)
-          elif command -v docker-compose >/dev/null 2>&1; then
-            COMPOSE_CMD=(docker-compose)
-          else
-            COMPOSE_CMD=(
-              docker run --rm
-              -v /var/run/docker.sock:/var/run/docker.sock
-              -v "$PWD:$PWD"
-              -w "$PWD"
-              --entrypoint /docker-compose
-              docker/compose-bin:v2.40.3
-            )
-          fi
+            cp "$0" "/tmp/blue_green.${SCRIPT_TS}.sh"
+            cp "$0" "/tmp/blue_green.sh"
+            chmod 755 "/tmp/blue_green.${SCRIPT_TS}.sh" "/tmp/blue_green.sh"
 
-          GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN_B64" | base64 -d)"
-          NPM_ADMIN_PASSWORD="$(printf '%s' "$NPM_ADMIN_PASSWORD_B64" | base64 -d)"
-          WORKDIR="/tmp/maum-on-deploy-${COMMIT_SHA}"
-          IMAGE="${GHCR_IMAGE}:${COMMIT_SHA}"
-          SLOT_A="${BACKEND_SLOT_A}"
-          SLOT_B="${BACKEND_SLOT_B}"
-          CONTAINER_PORT="${CONTAINER_PORT}"
-
-          # Legacy compatibility: read APP_1_DOMAIN/PASSWORD_1 from host env if present.
-          if [[ -f /etc/environment ]]; then
-            set -a
-            while IFS='=' read -r key value; do
-              [[ -z "$key" || "$key" =~ ^# ]] && continue
-              printf -v "$key" '%s' "$value"
-            done < /etc/environment
-            set +a
-          fi
-
-          mkdir -p "$DEPLOY_PATH"
-          rm -rf "$WORKDIR"
-          mkdir -p "$WORKDIR"
-
-          curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/tarball/${COMMIT_SHA}" \
-            | tar -xz --strip-components=1 -C "$WORKDIR"
-
-          cp "$WORKDIR/docker-compose.deploy.yml" "$DEPLOY_PATH/docker-compose.deploy.yml"
-          printf '%s' "$DOT_ENV_B64" | base64 -d > "$DEPLOY_PATH/.env"
-
-          cd "$DEPLOY_PATH"
-          docker network inspect common >/dev/null 2>&1 || docker network create common
-          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          "${COMPOSE_CMD[@]}" --env-file .env -f docker-compose.deploy.yml up -d postgres redis
-          docker pull "${IMAGE}"
-          docker volume create backend-uploads >/dev/null
-
-          TARGET_DOMAIN="${PROXY_HOST_DOMAIN:-${APP_1_DOMAIN:-}}"
-          NPM_PASSWORD_EFFECTIVE="${NPM_ADMIN_PASSWORD:-${PASSWORD_1:-}}"
-          if [[ -z "${TARGET_DOMAIN}" ]]; then
-            echo "TARGET_DOMAIN is required (set API_PROXY_DOMAIN or APP_1_DOMAIN)." >&2
-            exit 1
-          fi
-
-          [[ -n "${NPM_PASSWORD_EFFECTIVE:-}" ]] || {
-            echo "NPM password is required (set NPM_ADMIN_PASSWORD or PASSWORD_1)." >&2
-            exit 1
-          }
-
-          COOKIE_JAR="/tmp/npm_cookies.txt"
-          LOGIN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -c "${COOKIE_JAR}" \
-            -X POST "${NPM_BASE_URL}/api/tokens" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_PASSWORD_EFFECTIVE}" '{identity:$id, secret:$pw}')")
-          [[ "${LOGIN_CODE}" == "200" ]] || {
-            echo "NPM login failed (HTTP ${LOGIN_CODE})" >&2
-            exit 1
-          }
-
-          PROXY_ID=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts" \
-            | jq -r --arg domain "${TARGET_DOMAIN}" '.[] | select((.domain_names // []) | index($domain)) | .id' \
-            | head -n 1)
-          [[ -n "${PROXY_ID}" && "${PROXY_ID}" != "null" ]] || {
-            echo "NPM proxy host not found for ${TARGET_DOMAIN}" >&2
-            exit 1
-          }
-
-          CURRENT_CFG=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}")
-          CURRENT_HOST=$(echo "${CURRENT_CFG}" | jq -r '.forward_host // ""')
-
-          if [[ "${CURRENT_HOST}" == "${SLOT_A}" ]]; then
-            BLUE="${SLOT_A}"
-            GREEN="${SLOT_B}"
-          elif [[ "${CURRENT_HOST}" == "${SLOT_B}" ]]; then
-            BLUE="${SLOT_B}"
-            GREEN="${SLOT_A}"
-          elif [[ "${CURRENT_HOST}" == "maum-on-backend-prod" || "${CURRENT_HOST}" == "maum_on_1_1" || "${CURRENT_HOST}" == "maum_on_1_2" ]]; then
-            BLUE="${CURRENT_HOST}"
-            GREEN="${SLOT_A}"
-          else
-            BLUE="none"
-            GREEN="${SLOT_A}"
-          fi
-
-          docker rm -f "${GREEN}" >/dev/null 2>&1 || true
-          docker run -d --name "${GREEN}" \
-            --restart unless-stopped \
-            --network maum-on-prod \
-            -e TZ=Asia/Seoul \
-            --env-file "${DEPLOY_PATH}/.env" \
-            -v backend-uploads:/app/uploads \
-            "${IMAGE}" >/dev/null
-
-          docker network connect common "${GREEN}" >/dev/null 2>&1 || true
-
-          TIMEOUT=180
-          INTERVAL=3
-          ELAPSED=0
-          CODE=000
-          CONTAINER_IP=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{if eq $name "maum-on-prod"}}{{$network.IPAddress}}{{end}}{{end}}' "${GREEN}")
-          [[ -n "${CONTAINER_IP}" ]] || {
-            echo "Failed to resolve container IP for ${GREEN}" >&2
-            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
-            exit 1
-          }
-          while (( ELAPSED < TIMEOUT )); do
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://${CONTAINER_IP}:${CONTAINER_PORT}/actuator/health" || echo 000)
-            [[ "${CODE}" == "200" ]] && break
-            sleep "${INTERVAL}"
-            ELAPSED=$(( ELAPSED + INTERVAL ))
-          done
-          [[ "${CODE}" == "200" ]] || {
-            echo "Health check failed for ${GREEN}" >&2
-            docker logs --tail=200 "${GREEN}" >&2 || true
-            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
-            exit 1
-          }
-
-          UPDATED_CFG=$(echo "${CURRENT_CFG}" | jq \
-            --arg host "${GREEN}" \
-            --argjson port "${CONTAINER_PORT}" \
-            '.forward_scheme = "http"
-            | .forward_host = $host
-            | .forward_port = $port
-            | .allow_websocket_upgrade = true
-            | .locations = ((.locations // []) | map(
-                if ((.path // "") == "/sse/")
-                then .forward_scheme = "http"
-                  | .forward_host = $host
-                  | .forward_port = $port
-                  | .allow_websocket_upgrade = true
-                else .
-                end
-              ))')
-          SWITCH_CODE=$(curl -sk -o /tmp/npm_switch_resp.json -w "%{http_code}" \
-            -b "${COOKIE_JAR}" \
-            -X PUT "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" \
-            -H "Content-Type: application/json" \
-            --data-raw "${UPDATED_CFG}")
-          [[ "${SWITCH_CODE}" == "200" ]] || {
-            echo "NPM switch failed (HTTP ${SWITCH_CODE})" >&2
-            cat /tmp/npm_switch_resp.json >&2 || true
-            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
-            exit 1
-          }
-
-          MONITORING_ENV="/opt/maum-on/monitoring/.env"
-          if [[ -f "${MONITORING_ENV}" ]]; then
-            if grep -q '^BACKEND_SCRAPE_TARGET=' "${MONITORING_ENV}"; then
-              sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${GREEN}:${CONTAINER_PORT}#" "${MONITORING_ENV}"
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD=(docker compose)
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE_CMD=(docker-compose)
             else
-              printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${GREEN}" "${CONTAINER_PORT}" >> "${MONITORING_ENV}"
+              COMPOSE_CMD=(
+                docker run --rm
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v "$PWD:$PWD"
+                -w "$PWD"
+                --entrypoint /docker-compose
+                docker/compose-bin:v2.40.3
+              )
             fi
-          fi
 
-          if [[ "${BLUE}" != "none" && "${BLUE}" != "${GREEN}" ]]; then
-            docker rm -f "${BLUE}" >/dev/null 2>&1 || true
-          fi
+            if [[ -f /etc/environment ]]; then
+              set -a
+              while IFS='=' read -r key value; do
+                [[ -z "$key" || "$key" =~ ^# ]] && continue
+                printf -v "$key" '%s' "$value"
+              done < /etc/environment
+              set +a
+            fi
 
-          {
-            docker images --format '{{.Repository}}:{{.Tag}}' \
-              | grep -F "${GHCR_IMAGE}:" \
-              | grep -v -F ":${COMMIT_SHA}" \
-              | grep -v -F ":latest" \
-              | grep -v -F ":<none>" \
-              | xargs -r docker rmi
-          } || true
-          EOF
+            GITHUB_TOKEN="$(printf '%s' "${GITHUB_TOKEN_B64}" | base64 -d)"
+            NPM_ADMIN_PASSWORD_REMOTE="$(printf '%s' "${NPM_ADMIN_PASSWORD_B64}" | base64 -d)"
+            OWNER_LC="${REPO_OWNER}"
+            OWNER_LC="${OWNER_LC,,}"
+            IMAGE_TAG="${IMAGE_TAG}"
+            IMAGE="ghcr.io/${OWNER_LC}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+            SLOT1="${CONTAINER_1_NAME}"
+            SLOT2="${CONTAINER_2_NAME}"
+            PORT_IN="${CONTAINER_PORT}"
+            NET="${DOCKER_NETWORK}"
+            APP_NET="${APP_NETWORK}"
+            TARGET_DOMAIN="${PROXY_HOST_DOMAIN:-${APP_1_DOMAIN:-}}"
+            NPM_PASSWORD_EFFECTIVE="${NPM_ADMIN_PASSWORD_REMOTE:-${PASSWORD_1:-}}"
+
+            [[ -n "${TARGET_DOMAIN}" ]] || { echo "APP_1_DOMAIN / API_PROXY_DOMAIN is empty"; exit 1; }
+            [[ -n "${NPM_PASSWORD_EFFECTIVE}" ]] || { echo "PASSWORD_1 / NPM_ADMIN_PASSWORD is empty"; exit 1; }
+
+            echo "Use image: ${IMAGE}"
+            docker pull "${IMAGE}"
+
+            mkdir -p "${DEPLOY_PATH}"
+            printf '%s' "${DOT_ENV_B64}" | base64 -d > /tmp/.env
+            cp /tmp/.env "/tmp/.env.$(date +%Y_%m_%d__%H%M%S)"
+            chmod 600 /tmp/.env
+
+            rm -rf /tmp/backend-deploy-src
+            mkdir -p /tmp/backend-deploy-src
+            curl -fsSL \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${REPO}/tarball/${COMMIT_SHA}" \
+              | tar -xz --strip-components=1 -C /tmp/backend-deploy-src
+
+            cp /tmp/backend-deploy-src/docker-compose.deploy.yml "${DEPLOY_PATH}/docker-compose.deploy.yml"
+
+            cd "${DEPLOY_PATH}"
+            docker network inspect "${NET}" >/dev/null 2>&1 || docker network create "${NET}"
+            "${COMPOSE_CMD[@]}" --env-file /tmp/.env -f docker-compose.deploy.yml up -d postgres redis
+            docker volume create backend-uploads >/dev/null 2>&1 || true
+
+            COOKIE_JAR="/tmp/npm_cookies.txt"
+            LOGIN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -c "${COOKIE_JAR}" \
+              -X POST "${NPM_BASE_URL}/api/tokens" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_PASSWORD_EFFECTIVE}" '{identity:$id, secret:$pw}')")
+            [[ "${LOGIN_CODE}" == "200" ]] || { echo "NPM login failed (HTTP ${LOGIN_CODE})"; exit 1; }
+
+            PROXY_ID=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts" \
+              | jq -r --arg domain "${TARGET_DOMAIN}" '.[] | select((.domain_names // []) | index($domain)) | .id' \
+              | head -n 1)
+
+            if [[ -z "${PROXY_ID}" || "${PROXY_ID}" == "null" ]]; then
+              echo "Proxy host not found for ${TARGET_DOMAIN}, creating..."
+              PROXY_ID=$(curl -sk -b "${COOKIE_JAR}" -X POST "${NPM_BASE_URL}/api/nginx/proxy-hosts" \
+                -H "Content-Type: application/json" \
+                -d "$(jq -nc \
+                  --arg domain "${TARGET_DOMAIN}" \
+                  --arg host "${SLOT1}" \
+                  --argjson port ${PORT_IN} \
+                  '{
+                    domain_names: [$domain],
+                    forward_scheme: "http",
+                    forward_host: $host,
+                    forward_port: $port,
+                    access_list_id: 0,
+                    certificate_id: 0,
+                    ssl_forced: false,
+                    http2_support: true,
+                    hsts_enabled: false,
+                    hsts_subdomains: false,
+                    block_exploits: false,
+                    caching_enabled: false,
+                    allow_websocket_upgrade: true,
+                    advanced_config: "",
+                    locations: [
+                      {
+                        path: "/sse/",
+                        forward_scheme: "http",
+                        forward_host: $host,
+                        forward_port: $port,
+                        npmplus_proxy_response_buffering: true
+                      }
+                    ],
+                    meta: {letsencrypt_agree: false, dns_challenge: false}
+                  }')" | jq -r '.id')
+              [[ -n "${PROXY_ID}" && "${PROXY_ID}" != "null" ]] || { echo "Failed to create proxy host"; exit 1; }
+            fi
+
+            CURRENT_HOST=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" \
+              | jq -r '.forward_host')
+            echo "CURRENT_HOST=${CURRENT_HOST:-none}"
+
+            if [[ "${CURRENT_HOST:-}" == "${SLOT1}" ]]; then
+              BLUE="${SLOT1}"
+              GREEN="${SLOT2}"
+            elif [[ "${CURRENT_HOST:-}" == "${SLOT2}" ]]; then
+              BLUE="${SLOT2}"
+              GREEN="${SLOT1}"
+            else
+              BLUE="none"
+              GREEN="${SLOT1}"
+            fi
+
+            echo "role -> blue(now): ${BLUE}, green(next): ${GREEN}"
+
+            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
+            docker run -d --name "${GREEN}" \
+              --restart unless-stopped \
+              --network "${APP_NET}" \
+              -e TZ=Asia/Seoul \
+              --env-file /tmp/.env \
+              -v backend-uploads:/app/uploads \
+              "${IMAGE}"
+            docker network connect "${NET}" "${GREEN}" >/dev/null 2>&1 || true
+
+            echo "health-check: ${GREEN}"
+            TIMEOUT=120
+            INTERVAL=3
+            ELAPSED=8
+            sleep 8
+
+            CONTAINER_IP=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{if eq $name "'"${APP_NETWORK}"'"}}{{$network.IPAddress}}{{end}}{{end}}' "${GREEN}")
+            [[ -n "${CONTAINER_IP}" ]] || { echo "Failed to resolve IP for ${GREEN}"; exit 1; }
+
+            while (( ELAPSED < TIMEOUT )); do
+              CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://${CONTAINER_IP}:${PORT_IN}/actuator/health" || echo 000)
+              [[ "${CODE}" == "200" ]] && { echo "${GREEN} healthy"; break; }
+              sleep "${INTERVAL}"
+              ELAPSED=$((ELAPSED + INTERVAL))
+            done
+            [[ "${CODE:-000}" == "200" ]] || { echo "${GREEN} health failed"; docker logs --tail=200 "${GREEN}" || true; docker rm -f "${GREEN}" || true; exit 1; }
+
+            CURRENT_CFG=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}")
+            NEW_CFG=$(echo "${CURRENT_CFG}" | jq \
+              --arg host "${GREEN}" \
+              --argjson port ${PORT_IN} \
+              '{
+                access_list_id,
+                advanced_config,
+                allow_websocket_upgrade,
+                block_exploits,
+                caching_enabled,
+                certificate_id,
+                domain_names,
+                forward_host: $host,
+                forward_port: $port,
+                forward_scheme,
+                hsts_enabled,
+                hsts_subdomains,
+                http2_support,
+                locations: [
+                  {
+                    path: "/sse/",
+                    forward_scheme: "http",
+                    forward_host: $host,
+                    forward_port: $port,
+                    npmplus_proxy_response_buffering: true
+                  }
+                ],
+                meta,
+                npmplus_auth_request,
+                npmplus_crowdsec_appsec,
+                npmplus_fancyindex,
+                npmplus_http3_support,
+                npmplus_noindex,
+                npmplus_proxy_request_buffering,
+                npmplus_proxy_response_buffering,
+                npmplus_upstream_compression,
+                npmplus_x_frame_options,
+                ssl_forced,
+                trust_forwarded_proto
+              }')
+            SWITCH_CODE=$(curl -sk -b "${COOKIE_JAR}" -o /dev/null -w "%{http_code}" \
+              -X PUT "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" \
+              -H "Content-Type: application/json" \
+              -d "${NEW_CFG}")
+            [[ "${SWITCH_CODE}" == "200" ]] || { echo "NPM switch failed (HTTP ${SWITCH_CODE})"; exit 1; }
+
+            if [[ "${BLUE}" != "none" ]]; then
+              docker stop "${BLUE}" >/dev/null 2>&1 || true
+              docker rm "${BLUE}" >/dev/null 2>&1 || true
+            fi
+
+            {
+              docker images --format '{{.Repository}}:{{.Tag}}' \
+                | grep -F "ghcr.io/${OWNER_LC}/${IMAGE_REPOSITORY}:" \
+                | grep -v -F ":${IMAGE_TAG}" \
+                | grep -v -F ":latest" \
+                | grep -v -F ":<none>" \
+                | xargs -r docker rmi
+            } || true
+
+            echo "Blue/Green switch complete. now blue = ${GREEN}"
+          SCRIPT_EOF
           )
 
-          EXPORTS_CMD="export DEPLOY_PATH='${DEPLOY_PATH}' APP_PORT='${APP_PORT}' REPO='${{ github.repository }}' COMMIT_SHA='${{ github.sha }}' GITHUB_ACTOR='${{ github.actor }}' GHCR_IMAGE='${GHCR_IMAGE}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}' BACKEND_SLOT_A='${BACKEND_SLOT_A}' BACKEND_SLOT_B='${BACKEND_SLOT_B}' CONTAINER_PORT='${CONTAINER_PORT}'"
-          PARAMS=$(jq -nc --arg c1 "$EXPORTS_CMD" --arg c2 "$DEPLOY_SCRIPT" '{"commands":[$c1,$c2]}')
+          GITHUB_TOKEN_B64="$(printf '%s' "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)"
+          NPM_ADMIN_PASSWORD_B64="$(printf '%s' "${NPM_ADMIN_PASSWORD}" | base64 -w0)"
+
+          PARAMS=$(jq -nc \
+            --arg script "$DEPLOY_SCRIPT" \
+            --arg export_cmd "export REPO='${{ github.repository }}' REPO_OWNER='${{ github.repository_owner }}' COMMIT_SHA='${{ github.sha }}' IMAGE_REPOSITORY='${IMAGE_REPOSITORY}' IMAGE_TAG='${{ needs.calculateTag.outputs.tag_name }}' CONTAINER_1_NAME='${CONTAINER_1_NAME}' CONTAINER_2_NAME='${CONTAINER_2_NAME}' CONTAINER_PORT='${CONTAINER_PORT}' DOCKER_NETWORK='${DOCKER_NETWORK}' APP_NETWORK='${APP_NETWORK}' DEPLOY_PATH='${DEPLOY_PATH}' BACKEND_APP_PORT='${BACKEND_APP_PORT}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}'" \
+            '{"commands":[$export_cmd,$script]}')
 
           COMMAND_ID=$(aws ssm send-command \
             --region "${{ secrets.AWS_REGION }}" \
-            --instance-ids "${{ steps.resolve_instance.outputs.INSTANCE_ID }}" \
+            --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --parameters "$PARAMS" \
             --query "Command.CommandId" \
             --output text)
+          echo "SSM Command ID: ${COMMAND_ID}"
 
           WAIT_MAX=900
           WAIT_INTERVAL=10
@@ -343,17 +402,44 @@ jobs:
           while (( WAIT_ELAPSED < WAIT_MAX )); do
             CMD_STATUS=$(aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" \
-              --instance-id "${{ steps.resolve_instance.outputs.INSTANCE_ID }}" \
+              --instance-id "${{ env.INSTANCE_ID }}" \
               --query 'Status' --output text 2>/dev/null || echo "Unknown")
             [[ "${CMD_STATUS}" == "InProgress" || "${CMD_STATUS}" == "Pending" ]] || break
-            sleep "${WAIT_INTERVAL}"
+            sleep ${WAIT_INTERVAL}
             WAIT_ELAPSED=$(( WAIT_ELAPSED + WAIT_INTERVAL ))
           done
 
           INVOCATION=$(aws ssm get-command-invocation \
             --command-id "${COMMAND_ID}" \
-            --instance-id "${{ steps.resolve_instance.outputs.INSTANCE_ID }}")
+            --instance-id "${{ env.INSTANCE_ID }}")
           STATUS=$(echo "$INVOCATION" | jq -r '.Status')
+
+          echo "===== stdout ====="
           echo "$INVOCATION" | jq -r '.StandardOutputContent'
-          echo "$INVOCATION" | jq -r '.StandardErrorContent' >&2
+          echo "===== stderr ====="
+          echo "$INVOCATION" | jq -r '.StandardErrorContent'
+          echo "=================="
+          echo "Status: ${STATUS}"
+
           [[ "$STATUS" == "Success" ]] || exit 1
+
+  makeTagAndRelease:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Tag
+        id: create_tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.create_tag.outputs.new_tag }}
+          name: Release ${{ steps.create_tag.outputs.new_tag }}
+          body: ${{ steps.create_tag.outputs.changelog }}
+          draft: false
+          prerelease: false
