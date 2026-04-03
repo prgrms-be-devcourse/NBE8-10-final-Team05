@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - develop
-      - main
     paths:
+      - ".github/workflows/deploy-monitoring.yml"
+      - "docker-compose.monitoring.deploy.yml"
       - "infra/grafana/dashboards/**"
-      - "infra/grafana/provisioning/dashboards/**"
+      - "infra/grafana/provisioning/**"
   workflow_dispatch:
 
 permissions:
