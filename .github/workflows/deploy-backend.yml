@@ -209,7 +209,7 @@ jobs:
           LOGIN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -c "${COOKIE_JAR}" \
             -X POST "${NPM_BASE_URL}/api/tokens" \
             -H "Content-Type: application/json" \
-            -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_ADMIN_PASSWORD}" '{identity:$id, secret:$pw}')")
+            -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_PASSWORD_EFFECTIVE}" '{identity:$id, secret:$pw}')")
           [[ "${LOGIN_CODE}" == "200" ]] || {
             echo "NPM login failed (HTTP ${LOGIN_CODE})" >&2
             exit 1
