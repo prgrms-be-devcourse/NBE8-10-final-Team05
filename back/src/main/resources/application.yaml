@@ -67,7 +67,14 @@ custom:
     refresh-token-cookie-secure: ${JWT_REFRESH_TOKEN_COOKIE_SECURE:false}
     refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
   file:
-    upload-dir: C:/javadev/diary_image
+    upload-dir: ${CUSTOM_FILE_UPLOAD_DIR:./uploads}
+    storage:
+      provider: ${FILE_STORAGE_PROVIDER:local}
+      s3:
+        bucket: ${S3_BUCKET:}
+        region: ${S3_REGION:ap-northeast-2}
+        prefix: ${S3_PREFIX:maum-on}
+        public-base-url: ${S3_PUBLIC_BASE_URL:}
 gemini:
   api:
     key: ${GOOGLE_API_KEY}

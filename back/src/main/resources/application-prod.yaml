@@ -17,3 +17,12 @@ custom:
     secret-key: ${JWT_SECRET_KEY}
     refresh-token-cookie-secure: ${JWT_REFRESH_TOKEN_COOKIE_SECURE:true}
     refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:None}
+  file:
+    upload-dir: ${CUSTOM_FILE_UPLOAD_DIR:/app/uploads}
+    storage:
+      provider: s3
+      s3:
+        bucket: ${S3_BUCKET}
+        region: ${S3_REGION:ap-northeast-2}
+        prefix: ${S3_PREFIX:maum-on}
+        public-base-url: ${S3_PUBLIC_BASE_URL:}

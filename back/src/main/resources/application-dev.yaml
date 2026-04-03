@@ -58,6 +58,10 @@ custom:
     secret-key: ${JWT_SECRET_KEY:replace-with-at-least-32-characters-secret}
     refresh-token-cookie-secure: ${JWT_REFRESH_TOKEN_COOKIE_SECURE:false}
     refresh-token-cookie-same-site: ${JWT_REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+  file:
+    upload-dir: ${CUSTOM_FILE_UPLOAD_DIR:./uploads}
+    storage:
+      provider: local
 
 management:
   endpoints:

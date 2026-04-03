@@ -7,7 +7,7 @@ import com.back.image.application.service.ImageService;
 import com.back.image.domain.Image;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@Primary
+@Profile("!prod")
 @RequiredArgsConstructor
 public class LocalImageService implements ImageService {
 

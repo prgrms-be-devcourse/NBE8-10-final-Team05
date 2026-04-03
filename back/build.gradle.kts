@@ -74,6 +74,9 @@ dependencies {
 
     //Redis
     implementation ("org.springframework.boot:spring-boot-starter-data-redis")
+
+    // AWS S3 (prod 이미지 스토리지)
+    implementation("software.amazon.awssdk:s3:2.33.5")
 }
 
 tasks.withType<Test> {
