@@ -66,6 +66,15 @@ jobs:
           DEPLOY_SCRIPT=$(cat <<'EOF'
           set -euo pipefail
 
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD=(docker compose)
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE_CMD=(docker-compose)
+          else
+            echo "docker compose command is unavailable on target host" >&2
+            exit 1
+          fi
+
           GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN_B64" | base64 -d)"
           WORKDIR="/tmp/maum-on-deploy-${COMMIT_SHA}"
 
@@ -86,7 +95,7 @@ jobs:
           printf '%s' "$DOT_ENV_B64" | base64 -d > "$DEPLOY_PATH/.env"
 
           cd "$DEPLOY_PATH"
-          docker compose -f docker-compose.monitoring.deploy.yml up -d --remove-orphans
+          "${COMPOSE_CMD[@]}" -f docker-compose.monitoring.deploy.yml up -d --remove-orphans
 
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null && \
