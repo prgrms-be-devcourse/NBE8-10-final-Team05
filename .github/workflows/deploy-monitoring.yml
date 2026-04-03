@@ -39,7 +39,16 @@ jobs:
           printf '%s' "$DOT_ENV" > "$RUNNER_TEMP/monitoring-deploy/.env"
 
       - name: Validate monitoring compose
-        run: docker compose --env-file "$RUNNER_TEMP/monitoring-deploy/.env" -f docker-compose.monitoring.deploy.yml config >/dev/null
+        run: |
+          set -euo pipefail
+          cp docker-compose.monitoring.deploy.yml "$RUNNER_TEMP/monitoring-deploy/docker-compose.monitoring.deploy.yml"
+          mkdir -p "$RUNNER_TEMP/monitoring-deploy/infra"
+          cp -R infra/prometheus "$RUNNER_TEMP/monitoring-deploy/infra/prometheus"
+          cp -R infra/grafana "$RUNNER_TEMP/monitoring-deploy/infra/grafana"
+          docker compose \
+            --env-file "$RUNNER_TEMP/monitoring-deploy/.env" \
+            -f "$RUNNER_TEMP/monitoring-deploy/docker-compose.monitoring.deploy.yml" \
+            config >/dev/null
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
