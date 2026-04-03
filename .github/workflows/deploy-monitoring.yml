@@ -27,6 +27,9 @@ jobs:
     env:
       DEPLOY_PATH: ${{ vars.MONITORING_DEPLOY_PATH || '/opt/maum-on/monitoring' }}
       EC2_INSTANCE_TAG_NAME: ${{ vars.EC2_INSTANCE_TAG_NAME || 'devcos-team05-ec2-1' }}
+      NPM_BASE_URL: ${{ secrets.NPM_BASE_URL || 'https://127.0.0.1:81' }}
+      PROXY_HOST_DOMAIN: ${{ secrets.API_PROXY_DOMAIN || '' }}
+      NPM_ADMIN_PASSWORD: ${{ secrets.NPM_ADMIN_PASSWORD || '' }}
       DOT_ENV: ${{ secrets.DOT_ENV }}
     steps:
       - name: Checkout
@@ -73,6 +76,7 @@ jobs:
 
           DOT_ENV_B64="$(base64 -w0 "$RUNNER_TEMP/monitoring-deploy/.env")"
           GITHUB_TOKEN_B64="$(printf '%s' "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)"
+          NPM_ADMIN_PASSWORD_B64="$(printf '%s' "$NPM_ADMIN_PASSWORD" | base64 -w0)"
 
           DEPLOY_SCRIPT=$(cat <<'EOF'
           set -euo pipefail
@@ -93,11 +97,53 @@ jobs:
           fi
 
           GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN_B64" | base64 -d)"
+          NPM_ADMIN_PASSWORD="$(printf '%s' "$NPM_ADMIN_PASSWORD_B64" | base64 -d)"
           WORKDIR="/tmp/maum-on-deploy-${COMMIT_SHA}"
+          ROLLBACK_TS="$(date +%Y%m%d_%H%M%S)"
+          ROLLBACK_DIR="${DEPLOY_PATH}/.rollback-${ROLLBACK_TS}"
+
+          rollback() {
+            echo "monitoring deploy failed, starting rollback..."
+            [[ -d "${ROLLBACK_DIR}" ]] || { echo "rollback skipped: no backup"; return 0; }
+
+            if [[ -f "${ROLLBACK_DIR}/docker-compose.monitoring.deploy.yml" ]]; then
+              cp "${ROLLBACK_DIR}/docker-compose.monitoring.deploy.yml" "${DEPLOY_PATH}/docker-compose.monitoring.deploy.yml"
+            fi
+            if [[ -f "${ROLLBACK_DIR}/.env" ]]; then
+              cp "${ROLLBACK_DIR}/.env" "${DEPLOY_PATH}/.env"
+            fi
+            if [[ -d "${ROLLBACK_DIR}/prometheus" ]]; then
+              rm -rf "${DEPLOY_PATH}/infra/prometheus"
+              cp -R "${ROLLBACK_DIR}/prometheus" "${DEPLOY_PATH}/infra/prometheus"
+            fi
+            if [[ -d "${ROLLBACK_DIR}/grafana" ]]; then
+              rm -rf "${DEPLOY_PATH}/infra/grafana"
+              cp -R "${ROLLBACK_DIR}/grafana" "${DEPLOY_PATH}/infra/grafana"
+            fi
+
+            cd "${DEPLOY_PATH}"
+            "${COMPOSE_CMD[@]}" -f docker-compose.monitoring.deploy.yml up -d --remove-orphans || true
+          }
+
+          trap rollback ERR
 
           mkdir -p "$DEPLOY_PATH/infra"
           rm -rf "$WORKDIR"
           mkdir -p "$WORKDIR"
+
+          mkdir -p "${ROLLBACK_DIR}"
+          if [[ -f "${DEPLOY_PATH}/docker-compose.monitoring.deploy.yml" ]]; then
+            cp "${DEPLOY_PATH}/docker-compose.monitoring.deploy.yml" "${ROLLBACK_DIR}/docker-compose.monitoring.deploy.yml"
+          fi
+          if [[ -f "${DEPLOY_PATH}/.env" ]]; then
+            cp "${DEPLOY_PATH}/.env" "${ROLLBACK_DIR}/.env"
+          fi
+          if [[ -d "${DEPLOY_PATH}/infra/prometheus" ]]; then
+            cp -R "${DEPLOY_PATH}/infra/prometheus" "${ROLLBACK_DIR}/prometheus"
+          fi
+          if [[ -d "${DEPLOY_PATH}/infra/grafana" ]]; then
+            cp -R "${DEPLOY_PATH}/infra/grafana" "${ROLLBACK_DIR}/grafana"
+          fi
 
           curl -fsSL \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -112,11 +158,38 @@ jobs:
           printf '%s' "$DOT_ENV_B64" | base64 -d > "$DEPLOY_PATH/.env"
 
           cd "$DEPLOY_PATH"
+          TARGET_DOMAIN="${PROXY_HOST_DOMAIN:-${APP_1_DOMAIN:-}}"
+          if [[ -n "${TARGET_DOMAIN}" && -n "${NPM_ADMIN_PASSWORD}" ]]; then
+            COOKIE_JAR="/tmp/npm_cookies_monitoring.txt"
+            LOGIN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -c "${COOKIE_JAR}" \
+              -X POST "${NPM_BASE_URL}/api/tokens" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${NPM_ADMIN_PASSWORD}" '{identity:$id, secret:$pw}')")
+            if [[ "${LOGIN_CODE}" == "200" ]]; then
+              PROXY_ID=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts" \
+                | jq -r --arg domain "${TARGET_DOMAIN}" '.[] | select((.domain_names // []) | index($domain)) | .id' \
+                | head -n 1)
+              if [[ -n "${PROXY_ID}" && "${PROXY_ID}" != "null" ]]; then
+                ACTIVE_HOST=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" | jq -r '.forward_host // empty')
+                ACTIVE_PORT=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" | jq -r '.forward_port // 8080')
+                if [[ -n "${ACTIVE_HOST}" ]]; then
+                  if grep -q '^BACKEND_SCRAPE_TARGET=' .env; then
+                    sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${ACTIVE_HOST}:${ACTIVE_PORT}#" .env
+                  else
+                    printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${ACTIVE_HOST}" "${ACTIVE_PORT}" >> .env
+                  fi
+                fi
+              fi
+            fi
+          fi
+
           "${COMPOSE_CMD[@]}" -f docker-compose.monitoring.deploy.yml up -d --remove-orphans
 
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null && \
                curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+              trap - ERR
+              ls -1dt "${DEPLOY_PATH}"/.rollback-* 2>/dev/null | tail -n +6 | xargs -r rm -rf
               exit 0
             fi
             sleep 5
@@ -127,7 +200,7 @@ jobs:
           EOF
           )
 
-          EXPORTS_CMD="export DEPLOY_PATH='${DEPLOY_PATH}' REPO='${{ github.repository }}' COMMIT_SHA='${{ github.sha }}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}'"
+          EXPORTS_CMD="export DEPLOY_PATH='${DEPLOY_PATH}' REPO='${{ github.repository }}' COMMIT_SHA='${{ github.sha }}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}'"
           PARAMS=$(jq -nc --arg c1 "$EXPORTS_CMD" --arg c2 "$DEPLOY_SCRIPT" '{"commands":[$c1,$c2]}')
 
           COMMAND_ID=$(aws ssm send-command \

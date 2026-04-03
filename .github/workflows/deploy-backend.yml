@@ -33,6 +33,9 @@ jobs:
       GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/maum_on-backend
       DEPLOY_PATH: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/maum-on/backend' }}
       APP_PORT: ${{ vars.APP_PORT || 8080 }}
+      CONTAINER_PORT: ${{ vars.BACKEND_CONTAINER_PORT || 8080 }}
+      BACKEND_SLOT_A: ${{ vars.BACKEND_SLOT_A || 'maum-on-backend-slot-a' }}
+      BACKEND_SLOT_B: ${{ vars.BACKEND_SLOT_B || 'maum-on-backend-slot-b' }}
       EC2_INSTANCE_TAG_NAME: ${{ vars.EC2_INSTANCE_TAG_NAME || 'devcos-team05-ec2-1' }}
       NPM_BASE_URL: ${{ secrets.NPM_BASE_URL || 'https://127.0.0.1:81' }}
       PROXY_HOST_DOMAIN: ${{ secrets.API_PROXY_DOMAIN || '' }}
@@ -155,6 +158,10 @@ jobs:
           GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN_B64" | base64 -d)"
           NPM_ADMIN_PASSWORD="$(printf '%s' "$NPM_ADMIN_PASSWORD_B64" | base64 -d)"
           WORKDIR="/tmp/maum-on-deploy-${COMMIT_SHA}"
+          IMAGE="${GHCR_IMAGE}:${COMMIT_SHA}"
+          SLOT_A="${BACKEND_SLOT_A}"
+          SLOT_B="${BACKEND_SLOT_B}"
+          CONTAINER_PORT="${CONTAINER_PORT}"
 
           mkdir -p "$DEPLOY_PATH"
           rm -rf "$WORKDIR"
@@ -172,25 +179,14 @@ jobs:
           cd "$DEPLOY_PATH"
           docker network inspect common >/dev/null 2>&1 || docker network create common
           printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          "${COMPOSE_CMD[@]}" -f docker-compose.deploy.yml pull
-          "${COMPOSE_CMD[@]}" -f docker-compose.deploy.yml up -d --remove-orphans
-
-          for _ in $(seq 1 30); do
-            if curl -fsS "http://127.0.0.1:${APP_PORT}/actuator/health" >/dev/null; then
-              break
-            fi
-            sleep 5
-          done
-
-          curl -fsS "http://127.0.0.1:${APP_PORT}/actuator/health" >/dev/null || {
-            echo "backend health check timed out" >&2
-            exit 1
-          }
+          "${COMPOSE_CMD[@]}" --env-file .env -f docker-compose.deploy.yml up -d postgres redis
+          docker pull "${IMAGE}"
+          docker volume create backend-uploads >/dev/null
 
           TARGET_DOMAIN="${PROXY_HOST_DOMAIN:-${APP_1_DOMAIN:-}}"
           if [[ -z "${TARGET_DOMAIN}" ]]; then
-            echo "NPM sync skipped: TARGET_DOMAIN not provided (PROXY_HOST_DOMAIN or APP_1_DOMAIN)"
-            exit 0
+            echo "TARGET_DOMAIN is required (set API_PROXY_DOMAIN or APP_1_DOMAIN)." >&2
+            exit 1
           fi
 
           [[ -n "${NPM_ADMIN_PASSWORD:-}" ]] || {
@@ -217,9 +213,59 @@ jobs:
           }
 
           CURRENT_CFG=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}")
+          CURRENT_HOST=$(echo "${CURRENT_CFG}" | jq -r '.forward_host // ""')
+
+          if [[ "${CURRENT_HOST}" == "${SLOT_A}" ]]; then
+            BLUE="${SLOT_A}"
+            GREEN="${SLOT_B}"
+          elif [[ "${CURRENT_HOST}" == "${SLOT_B}" ]]; then
+            BLUE="${SLOT_B}"
+            GREEN="${SLOT_A}"
+          elif [[ "${CURRENT_HOST}" == "maum-on-backend-prod" || "${CURRENT_HOST}" == "maum_on_1_1" || "${CURRENT_HOST}" == "maum_on_1_2" ]]; then
+            BLUE="${CURRENT_HOST}"
+            GREEN="${SLOT_A}"
+          else
+            BLUE="none"
+            GREEN="${SLOT_A}"
+          fi
+
+          docker rm -f "${GREEN}" >/dev/null 2>&1 || true
+          docker run -d --name "${GREEN}" \
+            --restart unless-stopped \
+            --network maum-on-prod \
+            -e TZ=Asia/Seoul \
+            --env-file "${DEPLOY_PATH}/.env" \
+            -v backend-uploads:/app/uploads \
+            "${IMAGE}" >/dev/null
+
+          docker network connect common "${GREEN}" >/dev/null 2>&1 || true
+
+          TIMEOUT=180
+          INTERVAL=3
+          ELAPSED=0
+          CODE=000
+          CONTAINER_IP=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{if eq $name "maum-on-prod"}}{{$network.IPAddress}}{{end}}{{end}}' "${GREEN}")
+          [[ -n "${CONTAINER_IP}" ]] || {
+            echo "Failed to resolve container IP for ${GREEN}" >&2
+            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
+            exit 1
+          }
+          while (( ELAPSED < TIMEOUT )); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://${CONTAINER_IP}:${CONTAINER_PORT}/actuator/health" || echo 000)
+            [[ "${CODE}" == "200" ]] && break
+            sleep "${INTERVAL}"
+            ELAPSED=$(( ELAPSED + INTERVAL ))
+          done
+          [[ "${CODE}" == "200" ]] || {
+            echo "Health check failed for ${GREEN}" >&2
+            docker logs --tail=200 "${GREEN}" >&2 || true
+            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
+            exit 1
+          }
+
           UPDATED_CFG=$(echo "${CURRENT_CFG}" | jq \
-            --arg host "maum-on-backend-prod" \
-            --argjson port "${APP_PORT}" \
+            --arg host "${GREEN}" \
+            --argjson port "${CONTAINER_PORT}" \
             '.forward_scheme = "http"
             | .forward_host = $host
             | .forward_port = $port
@@ -241,12 +287,35 @@ jobs:
           [[ "${SWITCH_CODE}" == "200" ]] || {
             echo "NPM switch failed (HTTP ${SWITCH_CODE})" >&2
             cat /tmp/npm_switch_resp.json >&2 || true
+            docker rm -f "${GREEN}" >/dev/null 2>&1 || true
             exit 1
           }
+
+          MONITORING_ENV="/opt/maum-on/monitoring/.env"
+          if [[ -f "${MONITORING_ENV}" ]]; then
+            if grep -q '^BACKEND_SCRAPE_TARGET=' "${MONITORING_ENV}"; then
+              sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${GREEN}:${CONTAINER_PORT}#" "${MONITORING_ENV}"
+            else
+              printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${GREEN}" "${CONTAINER_PORT}" >> "${MONITORING_ENV}"
+            fi
+          fi
+
+          if [[ "${BLUE}" != "none" && "${BLUE}" != "${GREEN}" ]]; then
+            docker rm -f "${BLUE}" >/dev/null 2>&1 || true
+          fi
+
+          {
+            docker images --format '{{.Repository}}:{{.Tag}}' \
+              | grep -F "${GHCR_IMAGE}:" \
+              | grep -v -F ":${COMMIT_SHA}" \
+              | grep -v -F ":latest" \
+              | grep -v -F ":<none>" \
+              | xargs -r docker rmi
+          } || true
           EOF
           )
 
-          EXPORTS_CMD="export DEPLOY_PATH='${DEPLOY_PATH}' APP_PORT='${APP_PORT}' REPO='${{ github.repository }}' COMMIT_SHA='${{ github.sha }}' GITHUB_ACTOR='${{ github.actor }}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}'"
+          EXPORTS_CMD="export DEPLOY_PATH='${DEPLOY_PATH}' APP_PORT='${APP_PORT}' REPO='${{ github.repository }}' COMMIT_SHA='${{ github.sha }}' GITHUB_ACTOR='${{ github.actor }}' GHCR_IMAGE='${GHCR_IMAGE}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}' BACKEND_SLOT_A='${BACKEND_SLOT_A}' BACKEND_SLOT_B='${BACKEND_SLOT_B}' CONTAINER_PORT='${CONTAINER_PORT}'"
           PARAMS=$(jq -nc --arg c1 "$EXPORTS_CMD" --arg c2 "$DEPLOY_SCRIPT" '{"commands":[$c1,$c2]}')
 
           COMMAND_ID=$(aws ssm send-command \
