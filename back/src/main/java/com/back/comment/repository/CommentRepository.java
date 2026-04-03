@@ -14,4 +14,6 @@ public  interface CommentRepository extends JpaRepository<Comment, Long> {
     boolean existsByParent(Comment parent);
 
     void deleteByPostId(Long postId);
+
+    void deleteByPostTitleStartingWith(String prefix);
 }

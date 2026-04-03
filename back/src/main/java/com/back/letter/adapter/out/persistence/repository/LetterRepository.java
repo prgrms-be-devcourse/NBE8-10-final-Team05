@@ -34,6 +34,8 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     long countByCreateDateGreaterThanEqualAndCreateDateLessThan(
             LocalDateTime startInclusive, LocalDateTime endExclusive);
     boolean existsByTitle(String title);
+    long countByTitleStartingWith(String prefix);
+    void deleteByTitleStartingWith(String prefix);
     @Query("SELECT l FROM Letter l WHERE l.status = 'SENT' AND l.createDate <= :expirationTime")
     List<Letter> findUnreadLettersExceeding(@Param("expirationTime") LocalDateTime expirationTime);
 

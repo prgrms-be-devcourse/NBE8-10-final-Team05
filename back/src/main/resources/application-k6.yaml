@@ -1,0 +1,25 @@
+k6:
+  seed:
+    user-count: ${K6_SEED_USER_COUNT:500}
+    admin-count: ${K6_SEED_ADMIN_COUNT:3}
+    user-prefix: ${K6_SEED_USER_PREFIX:k6-user}
+    user-domain: ${K6_SEED_USER_DOMAIN:k6.maumon.local}
+    admin-prefix: ${K6_SEED_ADMIN_PREFIX:k6-admin}
+    admin-domain: ${K6_SEED_ADMIN_DOMAIN:admin.maumon.local}
+    post-count: ${K6_SEED_POST_COUNT:3000}
+    diary-count: ${K6_SEED_DIARY_COUNT:1000}
+    letter-count: ${K6_SEED_LETTER_COUNT:1000}
+
+management:
+  endpoints:
+    access:
+      default: none
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      access: read_only
+      show-details: never
+    prometheus:
+      access: read_only

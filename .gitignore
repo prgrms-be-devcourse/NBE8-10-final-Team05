@@ -14,6 +14,7 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+perf/env/cloud.env
 
 # Terraform
 .terraform/
@@ -24,5 +25,6 @@ Thumbs.db
 # Docker / Persistence Data
 **/data/
 **/logs/
+perf/k6/**/result/*.json
 docs
 AGENTS.md

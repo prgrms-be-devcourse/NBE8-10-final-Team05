@@ -24,4 +24,8 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             LocalDateTime endExclusive
     );
 
+    long countByTitleStartingWith(String prefix);
+
+    void deleteByTitleStartingWith(String prefix);
+
 }

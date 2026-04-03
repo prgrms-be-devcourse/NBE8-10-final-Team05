@@ -18,4 +18,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Slice<Post> findByTitleContainingAndCategory(String title, PostCategory category, Pageable pageable);
 
     boolean existsByTitle(String title);
+
+    long countByTitleStartingWith(String prefix);
+
+    void deleteByTitleStartingWith(String prefix);
 }
