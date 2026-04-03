@@ -6,9 +6,11 @@ import com.back.diary.adapter.application.port.in.dto.DiaryRes;
 import com.back.diary.adapter.application.port.out.DiaryPort;
 import com.back.diary.domain.Diary;
 import com.back.global.exception.ServiceException;
+import com.back.image.application.event.ImageDeleteEvent;
 import com.back.image.application.service.ImageService;
 import com.back.image.domain.Image;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,58 +31,101 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
 
     private final DiaryPort diaryRepositoryPort;
     private final ImageService imageService;
+    private final ApplicationEventPublisher eventPublisher;
 
-   @Override
+    @Override
     @Transactional
     public Long write(DiaryCreateReq req, MultipartFile image, Long memberId) {
-        LocalDate today = LocalDate.now();
-        LocalDateTime startOfToday = today.atStartOfDay();
-        LocalDateTime startOfTomorrow = today.plusDays(1).atStartOfDay();
+        validateDuplicateTodayDiary(memberId);
+        String uploadedUrl = uploadImageIfPresent(image);
+        List<String> extractedUrls = extractImageUrls(req.content());
 
-        boolean hasTodayDiary = diaryRepositoryPort.existsByMemberIdAndCreateDateBetween(
-                memberId,
-                startOfToday,
-                startOfTomorrow
-        );
+        Diary diary = Diary.create(memberId, "익명", req.title(), req.content(),
+                req.categoryName(), null, req.isPrivate());
+        diary.updateRepresentativeImage(uploadedUrl, req.imageUrl(), extractedUrls);
 
-        if (hasTodayDiary) {
-            throw new ServiceException("409-1", "오늘은 이미 일기를 작성했습니다. 기존 기록을 수정해주세요.");
+        Diary savedDiary = diaryRepositoryPort.save(diary);
+
+        List<String> allUsedImages = new ArrayList<>(extractedUrls);
+        if (diary.getImageUrl() != null && !allUsedImages.contains(diary.getImageUrl())) {
+            allUsedImages.add(diary.getImageUrl());
         }
-        List<String> imageUrls = extractImageUrls(req.content());
 
-       String representativeUrl = null;
-       if (image != null && !image.isEmpty()) {
-           representativeUrl = imageService.upload(image, "DIARY").getAccessUrl();
-       } else if (req.imageUrl() != null && !req.imageUrl().isBlank()) {
-           representativeUrl = req.imageUrl();
-       } else if (!imageUrls.isEmpty()) {
-           representativeUrl = imageUrls.get(0);
-       }
+        imageService.confirmUsage(allUsedImages, "DIARY", savedDiary.getId());
 
-        // 일기 생성 및 저장
-        Diary diary = Diary.builder()
-                .memberId(memberId)
-                .nickname("익명")
-                .title(req.title())
-                .content(req.content())
-                .imageUrl(representativeUrl)
-                .categoryName(req.categoryName())
-                .isPrivate(req.isPrivate())
-                .build();
-
-        return diaryRepositoryPort.save(diary).getId();
+        return savedDiary.getId();
     }
 
     @Override
+    @Transactional
+    public void modify(Long diaryId, DiaryCreateReq req, MultipartFile image, Long currentMemberId) {
+        Diary diary = findById(diaryId);
+        diary.validateOwner(currentMemberId);
+
+        String newImageUrl = diary.getImageUrl();
+
+        if (image != null && !image.isEmpty()) {
+            deleteImageIfExist(diary.getImageUrl());
+            newImageUrl = imageService.upload(image, "DIARY").getAccessUrl();
+        }
+        else if (diary.isImageChanged(req.imageUrl())) {
+            deleteImageIfExist(diary.getImageUrl());
+            newImageUrl = req.imageUrl();
+        }
+
+        diary.modify(req, newImageUrl);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long diaryId, Long currentMemberId) {
+        Diary diary = findById(diaryId);
+        diary.validateOwner(currentMemberId);
+
+        List<String> imagesToDelete = extractImageUrls(diary.getContent());
+        if (diary.getImageUrl() != null && !imagesToDelete.contains(diary.getImageUrl())) {
+            imagesToDelete.add(diary.getImageUrl());
+        }
+
+        // 1. DB에서 일기 먼저 삭제
+        diaryRepositoryPort.delete(diary);
+
+        // 2. 이미지 삭제는 이벤트를 발행하여 비동기로 처리
+        if (!imagesToDelete.isEmpty()) {
+            eventPublisher.publishEvent(new ImageDeleteEvent(imagesToDelete));
+        }
+    }
+
+    private Diary findById(Long id) {
+        return diaryRepositoryPort.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 일기입니다."));
+    }
+
+    private String uploadImageIfPresent(MultipartFile image) {
+        return (image != null && !image.isEmpty())
+                ? imageService.upload(image, "DIARY").getAccessUrl()
+                : null;
+    }
+
+    private void deleteImageIfExist(String url) {
+        if (url != null && !url.isBlank()) {
+            imageService.delete(url);
+        }
+    }
+
+    private void validateDuplicateTodayDiary(Long memberId) {
+        LocalDate today = LocalDate.now();
+        if (diaryRepositoryPort.existsByMemberIdAndCreateDateBetween(
+                memberId, today.atStartOfDay(), today.plusDays(1).atStartOfDay())) {
+            throw new ServiceException("409-1", "오늘은 이미 일기를 작성했습니다.");
+        }
+    }
+
     public DiaryRes getDiary(Long diaryId, Long currentMemberId) {
         Diary diary = diaryRepositoryPort.findById(diaryId)
                 .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 일기입니다."));
 
-        if (diary.isPrivate()) {
-            if (currentMemberId == null || !diary.getMemberId().equals(currentMemberId)) {
-                throw new ServiceException("403-1", "비공개 일기입니다. 접근 권한이 없습니다.");
-            }
-        }
+        diary.validateAccess(currentMemberId);
 
         return DiaryRes.from(diary);
     }
@@ -97,45 +142,7 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
                 .map(DiaryRes::from);
     }
 
-    @Override
-    @Transactional
-    public void modify(Long diaryId, DiaryCreateReq req, MultipartFile image, Long currentMemberId) {
-        Diary diary = diaryRepositoryPort.findById(diaryId)
-                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 일기입니다."));
 
-        if (!diary.getMemberId().equals(currentMemberId)) {
-            throw new ServiceException("403-1", "수정 권한이 없습니다.");
-        }
-
-        String newImageUrl = diary.getImageUrl();
-
-        if (image != null && !image.isEmpty()) {
-            if (diary.getImageUrl() != null) {
-                imageService.delete(diary.getImageUrl());
-            }
-            newImageUrl = imageService.upload(image, "DIARY").getAccessUrl();
-
-        } else if (req.imageUrl() != null && !req.imageUrl().isBlank()) {
-            if (diary.getImageUrl() != null && !diary.getImageUrl().equals(req.imageUrl())) {
-                imageService.delete(diary.getImageUrl());
-            }
-            newImageUrl = req.imageUrl();
-
-        } else {
-            if (diary.getImageUrl() != null) {
-                imageService.delete(diary.getImageUrl());
-            }
-            newImageUrl = null;
-        }
-
-        diary.modify(
-                req.title(),
-                req.content(),
-                newImageUrl,
-                req.categoryName(),
-                req.isPrivate()
-        );
-    }
 
     private List<String> extractImageUrls(String content) {
         List<String> urls = new ArrayList<>();
@@ -150,26 +157,5 @@ public class DiaryService implements DiaryUseCase { // 1. Inbound Port 구현
         return urls;
     }
 
-    @Override
-    @Transactional
-    public void delete(Long diaryId, Long currentMemberId) {
-        Diary diary = diaryRepositoryPort.findById(diaryId)
-                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 일기입니다."));
 
-        if (!diary.getMemberId().equals(currentMemberId)) {
-            throw new ServiceException("403-1", "삭제 권한이 없습니다.");
-        }
-
-        List<String> allImages = extractImageUrls(diary.getContent());
-
-        if (diary.getImageUrl() != null && !allImages.contains(diary.getImageUrl())) {
-            allImages.add(diary.getImageUrl());
-        }
-
-        for (String url : allImages) {
-            imageService.delete(url);
-        }
-
-        diaryRepositoryPort.delete(diary);
-    }
 }
