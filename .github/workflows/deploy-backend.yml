@@ -185,6 +185,7 @@ jobs:
 
             GITHUB_TOKEN="$(printf '%s' "${GITHUB_TOKEN_B64}" | base64 -d)"
             NPM_ADMIN_PASSWORD_REMOTE="$(printf '%s' "${NPM_ADMIN_PASSWORD_B64}" | base64 -d)"
+            GITHUB_ACTOR_NAME="${GITHUB_ACTOR_NAME}"
             OWNER_LC="${REPO_OWNER}"
             OWNER_LC="${OWNER_LC,,}"
             IMAGE_TAG="${IMAGE_TAG}"
@@ -201,6 +202,7 @@ jobs:
             [[ -n "${NPM_PASSWORD_EFFECTIVE}" ]] || { echo "PASSWORD_1 / NPM_ADMIN_PASSWORD is empty"; exit 1; }
 
             echo "Use image: ${IMAGE}"
+            printf '%s' "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR_NAME}" --password-stdin >/dev/null
             docker pull "${IMAGE}"
 
             mkdir -p "${DEPLOY_PATH}"
@@ -384,7 +386,7 @@ jobs:
 
           PARAMS=$(jq -nc \
             --arg script "$DEPLOY_SCRIPT" \
-            --arg export_cmd "export REPO='${{ github.repository }}' REPO_OWNER='${{ github.repository_owner }}' COMMIT_SHA='${{ github.sha }}' IMAGE_REPOSITORY='${IMAGE_REPOSITORY}' IMAGE_TAG='${{ needs.calculateTag.outputs.tag_name }}' CONTAINER_1_NAME='${CONTAINER_1_NAME}' CONTAINER_2_NAME='${CONTAINER_2_NAME}' CONTAINER_PORT='${CONTAINER_PORT}' DOCKER_NETWORK='${DOCKER_NETWORK}' APP_NETWORK='${APP_NETWORK}' DEPLOY_PATH='${DEPLOY_PATH}' BACKEND_APP_PORT='${BACKEND_APP_PORT}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}'" \
+            --arg export_cmd "export REPO='${{ github.repository }}' REPO_OWNER='${{ github.repository_owner }}' GITHUB_ACTOR_NAME='${{ github.actor }}' COMMIT_SHA='${{ github.sha }}' IMAGE_REPOSITORY='${IMAGE_REPOSITORY}' IMAGE_TAG='${{ needs.calculateTag.outputs.tag_name }}' CONTAINER_1_NAME='${CONTAINER_1_NAME}' CONTAINER_2_NAME='${CONTAINER_2_NAME}' CONTAINER_PORT='${CONTAINER_PORT}' DOCKER_NETWORK='${DOCKER_NETWORK}' APP_NETWORK='${APP_NETWORK}' DEPLOY_PATH='${DEPLOY_PATH}' BACKEND_APP_PORT='${BACKEND_APP_PORT}' NPM_BASE_URL='${NPM_BASE_URL}' PROXY_HOST_DOMAIN='${PROXY_HOST_DOMAIN}' DOT_ENV_B64='${DOT_ENV_B64}' GITHUB_TOKEN_B64='${GITHUB_TOKEN_B64}' NPM_ADMIN_PASSWORD_B64='${NPM_ADMIN_PASSWORD_B64}'" \
             '{"commands":[$export_cmd,$script]}')
 
           COMMAND_ID=$(aws ssm send-command \
