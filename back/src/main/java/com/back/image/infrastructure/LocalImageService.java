@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -70,9 +71,6 @@ public class LocalImageService implements ImageService {
             return;
         }
 
-        // 1. 저장된 파일명(storedName)만 안전하게 추출
-        // URL이 "http://localhost:8080/gen/abc.png" 이든 "/gen/abc.png" 이든
-        // 마지막 '/' 뒤의 문자열만 가져오도록 개선합니다.
         String storedName = fileUrl.contains("/")
                 ? fileUrl.substring(fileUrl.lastIndexOf("/") + 1)
                 : fileUrl;
@@ -114,5 +112,27 @@ public class LocalImageService implements ImageService {
         if (!StringUtils.hasText(fileName)) return "";
         int pos = fileName.lastIndexOf(".");
         return fileName.substring(pos + 1);
+    }
+
+    @Override
+    @Transactional
+    public void confirmUsage(List<String> imageUrls, String refType, Long refId) {
+        if (imageUrls == null || imageUrls.isEmpty()) return;
+
+
+        List<String> storedNames = imageUrls.stream()
+                .map(this::extractStoredName)
+                .toList();
+
+
+        imageRepository.findAllByStoredNameIn(storedNames)
+                .forEach(image -> image.connectTo(refType, refId));
+    }
+
+    private String extractStoredName(String fileUrl) {
+        if (fileUrl == null) return "";
+        return fileUrl.contains("/")
+                ? fileUrl.substring(fileUrl.lastIndexOf("/") + 1)
+                : fileUrl;
     }
 }
