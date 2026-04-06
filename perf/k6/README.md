@@ -29,20 +29,15 @@ cp perf/env/cloud.env.example perf/env/cloud.env
 ## 3) `perf/env/cloud.env` 필수값 입력
 최소 아래 값은 반드시 채우세요.
 
-- `LOADTEST_BASE_URL = http://127.0.0.1:18080` 또는 `http://127.0.0.1:18081`
-- `BASE_URL = https://<백엔드-도메인>` (공개 smoke/reset 기준 주소)
+- `BASE_URL = https://<백엔드-도메인>` 또는 `http://<EC2_PUBLIC_IP>:18080`
 
 참고:
-- `LOADTEST_BASE_URL`이 있으면 `node perf/k6/run.mjs ...`는 이 값을 우선 사용합니다.
+- `BASE_URL` 하나만 사용합니다.
 - 실무 권장 분리:
   - `smoke`: `BASE_URL=https://api...`
-  - `load/stress`: `LOADTEST_BASE_URL=http://127.0.0.1:18080` 같은 직접 앱 경로
-- 현재 배포 워크플로는 활성 blue/green 슬롯의 직접 대상 정보를 서버의 `/opt/maum-on/runtime/k6-target.env`에 기록합니다.
-- 로컬 PC에서 실행할 때는 SSH 터널로 직접 포트를 붙이는 방식을 권장합니다.
-```bash
-ssh -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 <ec2-user>@<ec2-host>
-ssh <ec2-user>@<ec2-host> 'cat /opt/maum-on/runtime/k6-target.env'
-```
+  - `load/stress`: `BASE_URL=http://<EC2_PUBLIC_IP>:18080` 또는 `http://<EC2_PUBLIC_IP>:18081`
+- 현재 배포 워크플로는 blue/green 슬롯을 직접 접근 가능한 호스트 포트 `18080/18081`로 노출합니다.
+- 현재 활성 슬롯은 배포 로그의 `green(next)` 값이나 프록시 업스트림 값으로 판단합니다.
 - 기본 계정 선택 규칙:
   - 일반: `AUTH_USER_PREFIX-0001@AUTH_USER_DOMAIN`부터 `AUTH_USER_COUNT`개
   - 관리자: `ADMIN_USER_PREFIX-0001@ADMIN_USER_DOMAIN`부터 `ADMIN_USER_COUNT`개
@@ -78,8 +73,7 @@ node perf/k6/run.mjs <도메인> <모드>
 실행 예시:
 ```bash
 # posts 도메인 load (직접 앱 포트 권장)
-LOADTEST_BASE_URL=http://127.0.0.1:18080 \
-BASE_URL=https://<백엔드-도메인> \
+BASE_URL=http://<EC2_PUBLIC_IP>:18080 \
 node perf/k6/run.mjs posts load
 
 # posts 도메인 smoke
@@ -87,18 +81,15 @@ BASE_URL=https://<백엔드-도메인> \
 node perf/k6/run.mjs posts smoke
 
 # letters 도메인 load
-LOADTEST_BASE_URL=http://127.0.0.1:18080 \
-BASE_URL=https://<백엔드-도메인> \
+BASE_URL=http://<EC2_PUBLIC_IP>:18080 \
 node perf/k6/run.mjs letters load
 
 # reports 도메인 stress
-LOADTEST_BASE_URL=http://127.0.0.1:18080 \
-BASE_URL=https://<백엔드-도메인> \
+BASE_URL=http://<EC2_PUBLIC_IP>:18080 \
 node perf/k6/run.mjs reports stress
 
 # notifications 도메인 load
-LOADTEST_BASE_URL=http://127.0.0.1:18080 \
-BASE_URL=https://<백엔드-도메인> \
+BASE_URL=http://<EC2_PUBLIC_IP>:18080 \
 node perf/k6/run.mjs notifications load
 ```
 
@@ -156,8 +147,7 @@ Grafana 대시보드:
 
 Prometheus remote-write 사용 예시:
 ```bash
-LOADTEST_BASE_URL=http://127.0.0.1:18080 \
-BASE_URL=https://<백엔드-도메인> \
+BASE_URL=http://<EC2_PUBLIC_IP>:18080 \
 K6_PROMETHEUS_RW_SERVER_URL=https://<모니터링-도메인>/prometheus/api/v1/write \
 K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),avg,min,max \
 node perf/k6/run.mjs posts load -- -o experimental-prometheus-rw --tag testid=posts-load-$(date +%Y%m%d%H%M%S)
@@ -165,7 +155,7 @@ node perf/k6/run.mjs posts load -- -o experimental-prometheus-rw --tag testid=po
 
 주의:
 - `K6_PROMETHEUS_RW_SERVER_URL`은 메트릭 저장 대상입니다.
-- 실제 부하 대상 API는 `LOADTEST_BASE_URL` 우선, 없으면 `BASE_URL` 순서로 결정됩니다.
+- 실제 부하 대상 API는 `BASE_URL`이 결정합니다.
 - 운영 HTTPS 프록시 검증은 `smoke`, 장시간 본 부하는 직접 앱 포트 기준으로 분리하세요.
 
 ## 7) 운영 안전 수칙
