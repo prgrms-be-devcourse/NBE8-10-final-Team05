@@ -84,7 +84,8 @@ export default function HomePage() {
   const lettersMailboxHref = isAuthenticated
     ? "/letters/mailbox"
     : "/login?next=%2Fletters%2Fmailbox";
-  const [activeStoryCategory, setActiveStoryCategory] = useState<HomeStoryCategory>("전체");
+  const [activeStoryCategory, setActiveStoryCategory] =
+    useState<HomeStoryCategory>("전체");
   const [stories, setStories] = useState<StoryCardItem[]>([]);
   const [isStoriesLoading, setIsStoriesLoading] = useState(true);
   const [storiesError, setStoriesError] = useState<string | null>(null);
