@@ -374,12 +374,12 @@ jobs:
             echo "🔁 switch upstream → ${GREEN}:${PORT_IN}"
 
             mkdir -p "$(dirname "${K6_TARGET_ENV_PATH}")"
-            cat > "${K6_TARGET_ENV_PATH}" <<EOF
-            ACTIVE_CONTAINER=${GREEN}
-            ACTIVE_DIRECT_PORT=${GREEN_PORT_OUT}
-            LOADTEST_BASE_URL=http://127.0.0.1:${GREEN_PORT_OUT}
-            PUBLIC_BASE_URL=https://${APP_1_DOMAIN}
-            EOF
+            printf '%s\n' \
+              "ACTIVE_CONTAINER=${GREEN}" \
+              "ACTIVE_DIRECT_PORT=${GREEN_PORT_OUT}" \
+              "LOADTEST_BASE_URL=http://127.0.0.1:${GREEN_PORT_OUT}" \
+              "PUBLIC_BASE_URL=https://${APP_1_DOMAIN}" \
+              > "${K6_TARGET_ENV_PATH}"
             chmod 600 "${K6_TARGET_ENV_PATH}"
             echo "🧪 wrote k6 target env → ${K6_TARGET_ENV_PATH}"
 
