@@ -8,10 +8,13 @@ env:
   CONTAINER_1_NAME: maum_on_1_1 # 슬롯1(고정 이름)
   CONTAINER_2_NAME: maum_on_1_2 # 슬롯2(고정 이름)
   CONTAINER_PORT: 8080 # 컨테이너 내부 포트(스프링부트)
+  CONTAINER_1_HOST_PORT: 18080 # 슬롯1 직접 접근용 로컬 포트(k6/SSH 터널)
+  CONTAINER_2_HOST_PORT: 18081 # 슬롯2 직접 접근용 로컬 포트(k6/SSH 터널)
   EC2_INSTANCE_TAG_NAME: devcos-team05-ec2-1 # 배포 대상 EC2 Name 태그
   DOCKER_NETWORK: common # 프록시용 도커 네트워크
   APP_NETWORK: maum-on-prod # 앱/DB/Redis 도커 네트워크
   MONITORING_DEPLOY_PATH: /opt/maum-on/monitoring # monitoring .env 동기화 경로
+  K6_TARGET_ENV_PATH: /opt/maum-on/runtime/k6-target.env # 활성 슬롯의 직접 대상 기록
   BACK_DIR: back # Dockerfile 위치
   NPM_BASE_URL: ${{ secrets.NPM_BASE_URL || 'https://127.0.0.1:81' }} # NPMplus 관리 API 베이스 URL
 
@@ -178,8 +181,11 @@ jobs:
             SLOT1="${{ env.CONTAINER_1_NAME }}"
             SLOT2="${{ env.CONTAINER_2_NAME }}"
             PORT_IN="${{ env.CONTAINER_PORT }}"
+            SLOT1_PORT_OUT="${{ env.CONTAINER_1_HOST_PORT }}"
+            SLOT2_PORT_OUT="${{ env.CONTAINER_2_HOST_PORT }}"
             NET="${{ env.DOCKER_NETWORK }}"
             APP_NET="${{ env.APP_NETWORK }}"
+            K6_TARGET_ENV_PATH="${{ env.K6_TARGET_ENV_PATH }}"
             NPM_BASE_URL="${{ env.NPM_BASE_URL }}"
 
             [[ -n "${APP_1_DOMAIN:-}" ]] || APP_1_DOMAIN="${API_PROXY_DOMAIN:-}"
@@ -275,17 +281,24 @@ jobs:
               BLUE="none"   # 초기 배포
               GREEN="${SLOT1}"
             fi
+            if [[ "${GREEN}" == "${SLOT1}" ]]; then
+              GREEN_PORT_OUT="${SLOT1_PORT_OUT}"
+            else
+              GREEN_PORT_OUT="${SLOT2_PORT_OUT}"
+            fi
             echo "🎨 role -> blue(now): ${BLUE}, green(next): ${GREEN}"
+            echo "🔌 direct loadtest target -> 127.0.0.1:${GREEN_PORT_OUT}"
 
             # ---------------------------------------------------------
             # 4) green 역할 컨테이너 재기동
-            #    - 같은 네트워크 상에서 NPMplus가 컨테이너명:PORT로 프록시하므로 -p 불필요
+            #    - NPMplus는 컨테이너명:PORT로 프록시하고, k6 직접 경로는 로컬 전용 host port로 함께 노출한다.
             # ---------------------------------------------------------
             docker rm -f "${GREEN}" >/dev/null 2>&1 || true
             echo "🚀 run new container → ${GREEN}"
             docker run -d --name "${GREEN}" \
               --restart unless-stopped \
               --network "${APP_NET}" \
+              -p "127.0.0.1:${GREEN_PORT_OUT}:${PORT_IN}" \
               -e TZ=Asia/Seoul \
               --env-file /tmp/.env \
               "${IMAGE}"
@@ -300,9 +313,8 @@ jobs:
             ELAPSED=8
             sleep 8  # 초기 부팅 여유
 
-            CONTAINER_IP=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{if eq $name "'"${{ env.APP_NETWORK }}"'"}}{{$network.IPAddress}}{{end}}{{end}}' "${GREEN}")
             while (( ELAPSED < TIMEOUT )); do
-              CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://${CONTAINER_IP}:${PORT_IN}/actuator/health" || echo 000)
+              CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${GREEN_PORT_OUT}/actuator/health" || echo 000)
               [[ "${CODE}" == "200" ]] && { echo "✅ ${GREEN} healthy"; break; }
               sleep "${INTERVAL}"
               ELAPSED=$((ELAPSED + INTERVAL))
@@ -360,6 +372,16 @@ jobs:
               -d "${NEW_CFG}")
             [[ "${SWITCH_CODE}" == "200" ]] || { echo "❌ NPM switch failed (HTTP ${SWITCH_CODE})"; exit 1; }
             echo "🔁 switch upstream → ${GREEN}:${PORT_IN}"
+
+            mkdir -p "$(dirname "${K6_TARGET_ENV_PATH}")"
+            cat > "${K6_TARGET_ENV_PATH}" <<EOF
+            ACTIVE_CONTAINER=${GREEN}
+            ACTIVE_DIRECT_PORT=${GREEN_PORT_OUT}
+            LOADTEST_BASE_URL=http://127.0.0.1:${GREEN_PORT_OUT}
+            PUBLIC_BASE_URL=https://${APP_1_DOMAIN}
+            EOF
+            chmod 600 "${K6_TARGET_ENV_PATH}"
+            echo "🧪 wrote k6 target env → ${K6_TARGET_ENV_PATH}"
 
             # ---------------------------------------------------------
             # 6-1) monitoring scrape target 동기화

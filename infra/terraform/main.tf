@@ -265,6 +265,30 @@ source /etc/environment
 # 도커 네트워크 생성
 docker network create common
 
+# npm_1 -> maum-on-prod 자동 연결 스크립트
+cat >/usr/local/bin/ensure-npm-prod-network.sh <<'EOS'
+#!/bin/bash
+set -euo pipefail
+
+CONTAINER_NAME="npm_1"
+TARGET_NETWORK="maum-on-prod"
+
+if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+  exit 0
+fi
+
+if ! docker network ls --format '{{.Name}}' | grep -qx "$TARGET_NETWORK"; then
+  exit 0
+fi
+
+if docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$CONTAINER_NAME" | grep -qx "$TARGET_NETWORK"; then
+  exit 0
+fi
+
+docker network connect "$TARGET_NETWORK" "$CONTAINER_NAME" || true
+EOS
+chmod +x /usr/local/bin/ensure-npm-prod-network.sh
+
 # npmplus 설치
 docker run -d \
   --name npm_1 \
@@ -279,6 +303,35 @@ docker run -d \
   -e 'INITIAL_ADMIN_PASSWORD=${var.password_1}' \
   -v /dockerProjects/npm_1/volumes/data:/data \
   zoeyvid/npmplus:latest
+
+# 부팅/재생성 이후에도 npm_1이 maum-on-prod 네트워크에 자동 연결되도록 timer 등록
+cat >/etc/systemd/system/npm-prod-network-attach.service <<'EOS'
+[Unit]
+Description=Attach npm_1 container to maum-on-prod docker network when available
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ensure-npm-prod-network.sh
+EOS
+
+cat >/etc/systemd/system/npm-prod-network-attach.timer <<'EOS'
+[Unit]
+Description=Periodically ensure npm_1 is attached to maum-on-prod network
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOS
+
+systemctl daemon-reload
+systemctl enable --now npm-prod-network-attach.timer
+/usr/local/bin/ensure-npm-prod-network.sh
 
 # redis 설치
 docker run -d \

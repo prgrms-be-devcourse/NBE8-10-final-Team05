@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -68,6 +69,94 @@ function buildAutoTestId(domain, mode) {
   return `aws-${ts}-${domain}-${mode}`;
 }
 
+function trimEnvValue(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function normalizeBaseUrlValue(value) {
+  return trimEnvValue(value).replace(/\/+$/, "");
+}
+
+function resolveBaseUrl(env) {
+  const loadtestBaseUrl = normalizeBaseUrlValue(env.LOADTEST_BASE_URL);
+  if (loadtestBaseUrl) {
+    return { value: loadtestBaseUrl, source: "LOADTEST_BASE_URL" };
+  }
+
+  const baseUrl = normalizeBaseUrlValue(env.BASE_URL);
+  if (baseUrl) {
+    return { value: baseUrl, source: "BASE_URL" };
+  }
+
+  return { value: "http://localhost:8080", source: "default" };
+}
+
+function isLocalhostBaseUrl(baseUrl) {
+  try {
+    const parsed = new URL(baseUrl);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function getSocketTarget(baseUrl) {
+  const parsed = new URL(baseUrl);
+  const port =
+    parsed.port || (parsed.protocol === "https:" ? "443" : parsed.protocol === "http:" ? "80" : "");
+
+  return {
+    host: parsed.hostname,
+    port: Number(port),
+  };
+}
+
+function checkLocalTcpReachability(baseUrl, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    let target;
+    try {
+      target = getSocketTarget(baseUrl);
+      if (!Number.isFinite(target.port) || target.port <= 0) {
+        finish({ ok: false, reason: "invalid_port" });
+        return;
+      }
+    } catch {
+      finish({ ok: false, reason: "invalid_url" });
+      return;
+    }
+
+    const socket = net.connect(target.port, target.host);
+    const closeSocket = () => {
+      if (!socket.destroyed) {
+        socket.destroy();
+      }
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => {
+      closeSocket();
+      finish({ ok: true });
+    });
+    socket.once("timeout", () => {
+      closeSocket();
+      finish({ ok: false, reason: "timeout" });
+    });
+    socket.once("error", (error) => {
+      closeSocket();
+      finish({ ok: false, reason: error.code || "error" });
+    });
+  });
+}
+
 function printUsage() {
   const domains = Object.keys(DOMAIN_ENTRY).join(", ");
   console.log(
@@ -104,38 +193,105 @@ const scriptPath = path.resolve(__dirname, scriptRelative);
 
 const requestedEnvFile = path.resolve(repoRoot, "perf/env/cloud.env");
 const fallbackEnvFile = path.resolve(repoRoot, "perf/env/cloud.env.example");
-const envFile = fs.existsSync(requestedEnvFile) ? requestedEnvFile : fallbackEnvFile;
+const requestedEnvExists = fs.existsSync(requestedEnvFile);
+const envFile = requestedEnvExists ? requestedEnvFile : fallbackEnvFile;
 
 const fileEnv = loadEnvMap(envFile);
 const mergedEnv = {
-  ...process.env,
   ...fileEnv,
+  ...process.env,
   MODE: mode,
 };
+const fileLoadtestBaseUrl = normalizeBaseUrlValue(fileEnv.LOADTEST_BASE_URL);
+const fileBaseUrl = normalizeBaseUrlValue(fileEnv.BASE_URL);
+const processLoadtestBaseUrl = normalizeBaseUrlValue(process.env.LOADTEST_BASE_URL);
+const processBaseUrl = normalizeBaseUrlValue(process.env.BASE_URL);
+const resolvedBaseUrlConfig = resolveBaseUrl(mergedEnv);
+const resolvedBaseUrl = resolvedBaseUrlConfig.value;
+const resolvedBaseUrlSource = resolvedBaseUrlConfig.source;
+mergedEnv.BASE_URL = resolvedBaseUrl;
 const existingTestId = String(mergedEnv.TEST_ID || "").trim();
 if (!existingTestId) {
   mergedEnv.TEST_ID = buildAutoTestId(domain, mode);
 }
 
-console.log(
-  [
-    `[k6-runner] domain=${domain}`,
-    `[k6-runner] mode=${mode}`,
-    `[k6-runner] test_id=${mergedEnv.TEST_ID}`,
-    `[k6-runner] env_file=${envFile}`,
-    `[k6-runner] script=${scriptPath}`,
-  ].join("\n"),
-);
+async function main() {
+  console.log(
+    [
+      `[k6-runner] domain=${domain}`,
+      `[k6-runner] mode=${mode}`,
+      `[k6-runner] test_id=${mergedEnv.TEST_ID}`,
+      `[k6-runner] env_file=${envFile}`,
+      `[k6-runner] base_url=${resolvedBaseUrl}`,
+      `[k6-runner] base_url_source=${resolvedBaseUrlSource}`,
+      `[k6-runner] script=${scriptPath}`,
+    ].join("\n"),
+  );
 
-const result = spawnSync("k6", ["run", scriptPath, ...k6Args], {
-  cwd: repoRoot,
-  stdio: "inherit",
-  env: mergedEnv,
-});
+  if (
+    !requestedEnvExists &&
+    !fileLoadtestBaseUrl &&
+    !fileBaseUrl &&
+    !processLoadtestBaseUrl &&
+    !processBaseUrl
+  ) {
+    console.warn(
+      [
+        "[k6-runner] 경고: perf/env/cloud.env가 없어 예제 파일(perf/env/cloud.env.example)로 실행 중입니다.",
+        "[k6-runner] 경고: BASE_URL이 비어 있어 대상 API가 기본값 http://localhost:8080 으로 설정됩니다.",
+        "[k6-runner] 경고: K6_PROMETHEUS_RW_SERVER_URL은 메트릭 저장 위치일 뿐, 부하 대상 API URL을 바꾸지 않습니다.",
+        "[k6-runner] 경고: 원격 환경 테스트는 `LOADTEST_BASE_URL=http://127.0.0.1:18080 BASE_URL=https://<api-domain> node perf/k6/run.mjs ...` 또는 perf/env/cloud.env 생성 후 재실행하세요.",
+      ].join("\n"),
+    );
+  }
 
-if (result.error) {
-  console.error("[k6-runner] k6 실행 실패:", result.error.message);
-  process.exit(1);
+  if (resolvedBaseUrlSource !== "LOADTEST_BASE_URL" && mode !== "smoke") {
+    try {
+      const parsed = new URL(resolvedBaseUrl);
+      if (parsed.protocol === "https:") {
+        console.warn(
+          [
+            `[k6-runner] 경고: ${mode} 모드가 공개 TLS 프록시(${resolvedBaseUrl})를 직접 대상으로 사용 중입니다.`,
+            "[k6-runner] 실무 권장값은 프록시와 분리된 직접 앱 경로입니다. `LOADTEST_BASE_URL=http://127.0.0.1:18080` 형태로 지정하세요.",
+            "[k6-runner] smoke는 공개 HTTPS로, load/stress는 직접 앱 포트로 분리하면 인증서/프록시 이슈가 본 부하 측정을 오염시키지 않습니다.",
+          ].join("\n"),
+        );
+      }
+    } catch {
+      // ignore invalid URLs here; spawnSync will surface downstream failures
+    }
+  }
+
+  if (isLocalhostBaseUrl(resolvedBaseUrl)) {
+    const reachable = await checkLocalTcpReachability(resolvedBaseUrl);
+    if (!reachable.ok) {
+      const target = getSocketTarget(resolvedBaseUrl);
+      const hint =
+        processLoadtestBaseUrl || fileLoadtestBaseUrl || processBaseUrl || fileBaseUrl
+          ? "직접 앱 포트/SSH 터널이 열려 있는지 확인하거나 LOADTEST_BASE_URL 또는 BASE_URL을 올바른 주소로 바꿔주세요."
+          : "로컬 백엔드를 먼저 띄우거나 LOADTEST_BASE_URL 또는 BASE_URL을 원격 API 주소로 지정하세요.";
+      console.error(
+        [
+          `[k6-runner] 대상 API(${target.host}:${target.port})에 연결할 수 없습니다. reason=${reachable.reason}`,
+          `[k6-runner] ${hint}`,
+        ].join("\n"),
+      );
+      process.exit(1);
+    }
+  }
+
+  const result = spawnSync("k6", ["run", scriptPath, ...k6Args], {
+    cwd: repoRoot,
+    stdio: "inherit",
+    env: mergedEnv,
+  });
+
+  if (result.error) {
+    console.error("[k6-runner] k6 실행 실패:", result.error.message);
+    process.exit(1);
+  }
+
+  process.exit(result.status ?? 1);
 }
 
-process.exit(result.status ?? 1);
+await main();
