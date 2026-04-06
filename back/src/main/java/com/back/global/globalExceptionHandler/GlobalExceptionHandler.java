@@ -7,7 +7,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,6 +18,20 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+  private ResponseEntity<RsData<Void>> buildResponse(RsData<Void> rsData, org.springframework.http.HttpStatus status, HttpServletRequest request) {
+    String acceptHeader = request.getHeader("Accept");
+
+    // SSE 요청(text/event-stream) 중 에러가 발생한 경우 타입을 JSON으로 변경
+    if (acceptHeader != null && acceptHeader.contains(MediaType.TEXT_EVENT_STREAM_VALUE)) {
+      return ResponseEntity
+              .status(status)
+              .contentType(MediaType.APPLICATION_JSON)
+              .body(rsData);
+    }
+
+    return new ResponseEntity<>(rsData, status);
+  }
 
   @ExceptionHandler(ServiceException.class)
   public RsData<Void> handle(ServiceException exception, HttpServletResponse response) {
@@ -40,8 +56,8 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<RsData<Void>> handle(Exception exception) {
-    return new ResponseEntity<>(
-        new RsData<>("500-1", "Unexpected server error."), INTERNAL_SERVER_ERROR);
+  public ResponseEntity<RsData<Void>> handle(Exception exception, HttpServletRequest request) {
+    // SSE 연결 끊김(ClientAbortException 등)은 실질적인 서버 장애가 아니므로 로깅 레벨을 낮추거나 별도 처리 가능
+    return buildResponse(new RsData<>("500-1", "Unexpected server error."), INTERNAL_SERVER_ERROR, request);
   }
 }
