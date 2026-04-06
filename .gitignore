@@ -15,7 +15,6 @@ Thumbs.db
 .env.test.local
 .env.production.local
 perf/env/cloud.env
-.env.monitoring
 
 # Terraform
 .terraform/
@@ -29,5 +28,3 @@ perf/env/cloud.env
 perf/k6/**/result/*.json
 docs
 AGENTS.md
-
-
