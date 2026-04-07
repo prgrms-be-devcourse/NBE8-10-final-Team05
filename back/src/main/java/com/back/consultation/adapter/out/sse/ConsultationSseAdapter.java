@@ -10,6 +10,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -18,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ConsultationSseAdapter implements ConsultationSsePort {
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final RedisTemplate<String, Object> redisTemplate;
+    private final String serverId = UUID.randomUUID().toString();
+    private static final String SESSION_KEY = "sse:sessions:consultation";
     private static final String CHANNEL_NAME = "sse-topic";
     private static final Long TIMEOUT = 60L * 1000 * 30;
 
@@ -25,10 +28,22 @@ public class ConsultationSseAdapter implements ConsultationSsePort {
     public SseEmitter subscribe(Long userId) {
         SseEmitter emitter = new SseEmitter(TIMEOUT);
         emitters.put(userId, emitter);
-        emitter.onCompletion(() -> emitters.remove(userId));
-        emitter.onTimeout(() -> emitters.remove(userId));
+        // Redis 전역 레지스트리에 유저 접속 정보 기록
+        redisTemplate.opsForHash().put(SESSION_KEY, userId.toString(), serverId);
+        emitter.onCompletion(() -> removeSession(userId));
+        emitter.onTimeout(() -> {
+            emitter.complete();
+            removeSession(userId);
+        });
+        emitter.onError((e) -> removeSession(userId));
         sendToLocal(userId, "connect", "connected");
         return emitter;
+    }
+
+    private void removeSession(Long userId) {
+        emitters.remove(userId);
+        redisTemplate.opsForHash().delete(SESSION_KEY, userId.toString());
+        log.info("상담 세션 종료 및 Redis 주소록 제거 - 유저: {}", userId);
     }
 
     @Override
@@ -57,7 +72,7 @@ public class ConsultationSseAdapter implements ConsultationSsePort {
                 emitter.send(SseEmitter.event().name(eventName).data(data));
             } catch (IOException e) {
                 log.error("상담 스트리밍 전송 중 오류 발생 - 사용자ID: {}, 에러: {}", userId, e.getMessage());
-                emitters.remove(userId);
+                removeSession(userId);
             }
         }
     }
