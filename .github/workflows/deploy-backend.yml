@@ -203,6 +203,11 @@ jobs:
             APP_PROFILES=$(sed -n 's/^SPRING_PROFILES_ACTIVE=//p' /tmp/.env | tail -n1 | tr -d '\r' | xargs)
             APP_PROFILES="${APP_PROFILES:-prod}"
             echo "⚙️ SPRING_PROFILES_ACTIVE=${APP_PROFILES}"
+            if grep -q '^SPRING_PROFILES_ACTIVE=' /tmp/.env; then
+              sed -i -E "s#^SPRING_PROFILES_ACTIVE=.*#SPRING_PROFILES_ACTIVE=${APP_PROFILES}#" /tmp/.env
+            else
+              printf '\nSPRING_PROFILES_ACTIVE=%s\n' "${APP_PROFILES}" >> /tmp/.env
+            fi
 
             # ---------------------------------------------------------
             # 2) NPMplus API 로그인 (쿠키 기반 인증)
@@ -303,7 +308,6 @@ jobs:
               -p "${GREEN_PORT_OUT}:${PORT_IN}" \
               --env-file /tmp/.env \
               -e TZ=Asia/Seoul \
-              -e SPRING_PROFILES_ACTIVE="${APP_PROFILES}" \
               "${IMAGE}"
             docker network connect "${NET}" "${GREEN}" >/dev/null 2>&1 || true
 
