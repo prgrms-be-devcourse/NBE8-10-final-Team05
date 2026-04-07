@@ -1,5 +1,8 @@
 server:
   forward-headers-strategy: native
+  tomcat:
+    mbeanregistry:
+      enabled: true
 management:
   endpoints:
     web:

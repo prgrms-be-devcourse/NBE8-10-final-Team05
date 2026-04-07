@@ -391,6 +391,7 @@ jobs:
                 printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${GREEN}" "${PORT_IN}" >> "${MONITORING_ENV}"
               fi
               echo "📡 synced monitoring target → ${GREEN}:${PORT_IN}"
+              ( cd "${MONITORING_ENV%/*}" && docker compose up -d prometheus ) >/dev/null 2>&1 || true
             else
               echo "ℹ️ monitoring env not found: ${MONITORING_ENV}"
             fi
