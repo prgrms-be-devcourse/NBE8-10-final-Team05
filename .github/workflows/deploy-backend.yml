@@ -5,8 +5,8 @@ name: deploy
 # =========================
 env:
   IMAGE_REPOSITORY: maum_on-backend # GHCR 이미지 리포지토리명(소유자 포함 X)
-  CONTAINER_1_NAME: maum_on_1_1 # 슬롯1(고정 이름)
-  CONTAINER_2_NAME: maum_on_1_2 # 슬롯2(고정 이름)
+  CONTAINER_1_NAME: maum-on-1-1 # 슬롯1(고정 이름)
+  CONTAINER_2_NAME: maum-on-1-2 # 슬롯2(고정 이름)
   CONTAINER_PORT: 8080 # 컨테이너 내부 포트(스프링부트)
   CONTAINER_1_HOST_PORT: 18080 # 슬롯1 직접 접근용 호스트 포트
   CONTAINER_2_HOST_PORT: 18081 # 슬롯2 직접 접근용 호스트 포트
