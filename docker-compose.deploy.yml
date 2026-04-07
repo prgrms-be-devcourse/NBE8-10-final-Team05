@@ -50,7 +50,7 @@ services:
     env_file:
       - .env
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       PROD_REDIS_URL: ${PROD_REDIS_URL:-redis}
       PROD_REDIS_PASSWORD: ${PROD_REDIS_PASSWORD:-}
       JAVA_OPTS: ${JAVA_OPTS:-}
