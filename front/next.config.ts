@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import {
+  getMonitoringProxyBaseUrl,
+  getPublicApiBaseUrl,
+  getServerApiBaseUrl,
+  toUrlOrigin,
+  toWebSocketOrigin,
+} from "./src/lib/runtime/deployment-env";
 
 function remotePatternFromApiBaseUrl(baseUrl: string | undefined) {
   if (!baseUrl) {
@@ -15,23 +22,53 @@ function remotePatternFromApiBaseUrl(baseUrl: string | undefined) {
       protocol: parsed.protocol.replace(":", "") as "http" | "https",
       hostname: parsed.hostname,
       port: parsed.port,
-      pathname: "/gen/**",
+      pathname:
+        parsed.pathname && parsed.pathname !== "/"
+          ? `${parsed.pathname.replace(/\/+$/, "")}/gen/**`
+          : "/gen/**",
     };
   } catch {
     return null;
   }
 }
 
-const apiBasePattern = remotePatternFromApiBaseUrl(
-  process.env.NEXT_PUBLIC_API_BASE_URL,
-);
+function addIfPresent(values: Set<string>, value: string | null): void {
+  if (value) {
+    values.add(value);
+  }
+}
+
+const publicApiBaseUrl = getPublicApiBaseUrl();
+const serverApiBaseUrl = getServerApiBaseUrl();
+const monitoringProxyBaseUrl = getMonitoringProxyBaseUrl();
+const apiBasePattern = remotePatternFromApiBaseUrl(publicApiBaseUrl);
+const connectSrcValues = new Set<string>(["'self'"]);
+const imageSrcValues = new Set<string>(["'self'", "blob:", "data:"]);
+const frameSrcValues = new Set<string>(["'self'"]);
+
+addIfPresent(connectSrcValues, toUrlOrigin(publicApiBaseUrl));
+addIfPresent(connectSrcValues, toWebSocketOrigin(publicApiBaseUrl));
+addIfPresent(connectSrcValues, toUrlOrigin(monitoringProxyBaseUrl));
+addIfPresent(connectSrcValues, toWebSocketOrigin(monitoringProxyBaseUrl));
+addIfPresent(imageSrcValues, toUrlOrigin(publicApiBaseUrl));
+addIfPresent(frameSrcValues, toUrlOrigin(monitoringProxyBaseUrl));
+
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+  `connect-src ${Array.from(connectSrcValues).join(" ")}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src ${Array.from(imageSrcValues).join(" ")}`,
+  `frame-src ${Array.from(frameSrcValues).join(" ")}`,
+].join("; ");
+
 const nextConfig: NextConfig = {
-  // [추가] 프록시 설정: 브라우저의 /api/v1 요청을 백엔드(8080)로 전달합니다.
+  // 브라우저의 /api/v1 요청을 현재 런타임에 맞는 백엔드로 전달한다.
   async rewrites() {
     return [
       {
         source: "/api/v1/:path*",
-        destination: "http://localhost:8080/api/v1/:path*",
+        destination: `${serverApiBaseUrl}/api/v1/:path*`,
       },
     ];
   },
@@ -43,13 +80,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            // connect-src에 self와 localhost:8080을 추가하여 API 및 SSE 통신 허용
-            value:
-              "default-src 'self'; " +
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' localhost:8080; " +
-              "connect-src 'self' http://localhost:8080 ws://localhost:3000; " +
-              "style-src 'self' 'unsafe-inline'; " +
-              "img-src 'self' blob: data: localhost:8080;",
+            value: contentSecurityPolicy,
           },
         ],
       },

@@ -3,10 +3,9 @@ import {
   AUTH_HINT_COOKIE_NAME,
   parseAuthHintCookieValue,
 } from "@/lib/auth/auth-hint-cookie";
+import { getMonitoringProxyInternalUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
-const MONITORING_PROXY_INTERNAL_URL = (
-  process.env.MONITORING_PROXY_INTERNAL_URL ?? "http://localhost:3400"
-).replace(/\/+$/, "");
+const MONITORING_PROXY_INTERNAL_URL = getMonitoringProxyInternalUrl();
 const GRAFANA_AUTH_PROXY_USER = "maum-on-admin";
 
 export async function proxyMonitoringRequest(
@@ -36,7 +35,7 @@ export async function proxyMonitoringRequest(
   }
 
   const targetUrl = new URL(
-    `${MONITORING_PROXY_INTERNAL_URL}${request.nextUrl.pathname}${request.nextUrl.search}`,
+    `${joinUrl(MONITORING_PROXY_INTERNAL_URL, request.nextUrl.pathname)}${request.nextUrl.search}`,
   );
   const headers = new Headers(request.headers);
   headers.delete("host");

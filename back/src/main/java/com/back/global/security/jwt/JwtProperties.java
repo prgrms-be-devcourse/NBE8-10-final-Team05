@@ -10,6 +10,7 @@ public record JwtProperties(
     long accessTokenExpireSeconds,
     long refreshTokenExpireSeconds,
     String refreshTokenCookieName,
+    String refreshTokenCookieDomain,
     boolean refreshTokenCookieSecure,
     String refreshTokenCookieSameSite) {
 
@@ -39,6 +40,11 @@ public record JwtProperties(
 
     if (refreshTokenCookieName == null || refreshTokenCookieName.isBlank()) {
       refreshTokenCookieName = "refreshToken";
+    }
+
+    if (refreshTokenCookieDomain != null) {
+      String normalizedDomain = refreshTokenCookieDomain.trim();
+      refreshTokenCookieDomain = normalizedDomain.isEmpty() ? null : normalizedDomain;
     }
 
     if (refreshTokenCookieSameSite == null || refreshTokenCookieSameSite.isBlank()) {

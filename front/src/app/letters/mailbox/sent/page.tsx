@@ -5,7 +5,6 @@ import React, {
   useState,
   useCallback,
   useRef,
-  useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -22,6 +21,9 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
+
+const API_BASE_URL = getPublicApiBaseUrl();
 
 // 1. 타입 정의
 interface SentLetter {
@@ -42,12 +44,6 @@ interface SentLettersResponse {
 export default function SentLettersPage() {
   const router = useRouter();
   const { isAuthenticated, sessionRevision } = useAuthStore();
-
-  // 0. baseUrl 정의 (환경 변수 처리 및 에러 방지)
-  const baseUrl = useMemo(() => {
-    const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    return raw.endsWith("/") ? raw.slice(0, -1) : raw;
-  }, []);
 
   // 상태 관리
   const [letters, setLetters] = useState<SentLetter[]>([]);
@@ -134,7 +130,7 @@ export default function SentLettersPage() {
     if (eventSourceRef.current) return;
 
     // 절대 경로를 사용하여 SSE 연결
-    const es = new EventSource(`${baseUrl}/api/v1/notifications/subscribe`, {
+    const es = new EventSource(joinUrl(API_BASE_URL, "/api/v1/notifications/subscribe"), {
       withCredentials: true,
     });
     eventSourceRef.current = es;
@@ -155,7 +151,7 @@ export default function SentLettersPage() {
               : letter,
           ),
         );
-      } catch (error) {
+      } catch {
         console.warn("SSE 데이터 파싱 실패, 전체 갱신으로 폴백합니다.");
         setPage(0);
         void fetchSentLetters(0, true);
@@ -185,7 +181,7 @@ export default function SentLettersPage() {
         eventSourceRef.current = null;
       }
     };
-  }, [isAuthenticated, fetchSentLetters, baseUrl]);
+  }, [isAuthenticated, fetchSentLetters]);
 
   const handleGoBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {

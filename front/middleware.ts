@@ -1,11 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { AUTH_HINT_COOKIE_NAME } from "@/lib/auth/auth-hint-cookie";
+import { getServerApiBaseUrl } from "@/lib/runtime/deployment-env";
 
-const BACKEND_BASE_URL =
-  process.env.BACKEND_INTERNAL_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:8080";
+const BACKEND_BASE_URL = getServerApiBaseUrl();
 const REFRESH_PATH = "/api/v1/auth/refresh";
 const REFRESH_COOKIE_NAME = "refreshToken";
 const AUTH_HINT_MEMBER = "member";

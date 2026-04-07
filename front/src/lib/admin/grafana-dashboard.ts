@@ -1,3 +1,8 @@
+import {
+  getMonitoringProxyBaseUrl as resolveMonitoringProxyBaseUrl,
+  joinBasePath,
+} from "@/lib/runtime/deployment-env";
+
 export interface GrafanaPanelDefinition {
   panelId: number;
   title: string;
@@ -5,7 +10,6 @@ export interface GrafanaPanelDefinition {
   height: number;
 }
 
-const DEFAULT_MONITORING_PROXY_URL = "";
 const GRAFANA_BASE_PATH = "/grafana";
 const PROMETHEUS_BASE_PATH = "/prometheus";
 const LOCAL_OBSERVABILITY_DASHBOARD = {
@@ -44,20 +48,12 @@ export const GRAFANA_PANEL_DEFINITIONS: GrafanaPanelDefinition[] = [
   },
 ];
 
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
 export function getMonitoringProxyBaseUrl(): string {
-  const rawBaseUrl =
-    process.env.NEXT_PUBLIC_MONITORING_PROXY_URL ?? DEFAULT_MONITORING_PROXY_URL;
-
-  const trimmed = trimTrailingSlash(rawBaseUrl);
-  return trimmed === "/" ? "" : trimmed;
+  return resolveMonitoringProxyBaseUrl();
 }
 
 function withBasePath(path: string): string {
-  return `${getMonitoringProxyBaseUrl()}${path}`;
+  return joinBasePath(getMonitoringProxyBaseUrl(), path);
 }
 
 function buildGrafanaDashboardUrl(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox,
@@ -49,12 +49,6 @@ interface LetterListRes {
 export default function ReceivedLettersPage() {
   const router = useRouter();
   const { isAuthenticated, sessionRevision } = useAuthStore();
-
-  // 0. baseUrl 정의 (에러 방지 및 환경 변수 처리)
-  const baseUrl = useMemo(() => {
-    const raw = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    return raw.endsWith("/") ? raw.slice(0, -1) : raw;
-  }, []);
 
   const [letters, setLetters] = useState<LetterItem[]>([]);
   const [stats, setStats] = useState<MailboxStats | null>(null);

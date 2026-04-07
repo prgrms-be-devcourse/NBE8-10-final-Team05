@@ -19,6 +19,7 @@ import {
 import { requestData } from "@/lib/api/http-client";
 
 import { restoreSession } from "@/lib/auth/auth-service";
+import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
 type ImageUploadResponse =
   | string
@@ -42,8 +43,7 @@ export default function DiaryWritePage() {
 
   const [isUploading, setIsUploading] = useState(false);
 
-  const BACKEND_URL =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+  const BACKEND_URL = getPublicApiBaseUrl();
 
   // 드래그 가이드 상태
 
@@ -192,7 +192,7 @@ export default function DiaryWritePage() {
 
         const fullUrl = relativeUrl.startsWith("http")
           ? relativeUrl
-          : `${BACKEND_URL}${relativeUrl}`;
+          : joinUrl(BACKEND_URL, relativeUrl);
 
         const fileId = `img-${Date.now()}`;
 

@@ -22,6 +22,7 @@ import {
   configureHttpClient,
 } from "@/lib/api/http-client";
 import { toErrorMessage } from "@/lib/api/rs-data";
+import { getPublicApiBaseUrl } from "@/lib/runtime/deployment-env";
 
 const AUTH_ME_PATH = "/api/v1/auth/me";
 const AUTH_SIGNUP_PATH = "/api/v1/auth/signup";
@@ -32,8 +33,7 @@ const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
 const FORBIDDEN_PAGE_PATH = "/forbidden";
 const OIDC_CALLBACK_PATH = "/login/callback";
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const API_BASE_URL = getPublicApiBaseUrl();
 
 let restorePromise: Promise<void> | null = null;
 let handlersBound = false;

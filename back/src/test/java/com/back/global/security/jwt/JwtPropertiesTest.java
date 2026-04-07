@@ -14,7 +14,8 @@ class JwtPropertiesTest {
   void throwsWhenSecretKeyIsBlank() {
     assertThatThrownBy(
             () ->
-                new JwtProperties("maum-on", " ", 3600L, 1_209_600L, "refreshToken", false, "Lax"))
+                new JwtProperties(
+                    "maum-on", " ", 3600L, 1_209_600L, "refreshToken", null, false, "Lax"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("custom.jwt.secret-key must not be blank.");
   }
@@ -29,6 +30,7 @@ class JwtPropertiesTest {
             3600L,
             1_209_600L,
             "refreshToken",
+            null,
             true,
             "none");
 
@@ -46,9 +48,27 @@ class JwtPropertiesTest {
                     3600L,
                     1_209_600L,
                     "refreshToken",
+                    null,
                     true,
                     "invalid"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("custom.jwt.refresh-token-cookie-same-site must be one of");
+  }
+
+  @Test
+  @DisplayName("cookie domain 공백값은 null로 정규화된다")
+  void normalizesBlankCookieDomainToNull() {
+    JwtProperties properties =
+        new JwtProperties(
+            "maum-on",
+            "maum-on-test-secret-key-at-least-32-characters-long-123456",
+            3600L,
+            1_209_600L,
+            "refreshToken",
+            "   ",
+            true,
+            "None");
+
+    assertThat(properties.refreshTokenCookieDomain()).isNull();
   }
 }

@@ -27,15 +27,15 @@ import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
 import { toErrorMessage } from "@/lib/api/rs-data";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
 // --- 상수 및 설정 ---
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const API_BASE_URL = getPublicApiBaseUrl();
 const CALENDAR_PAGE_SIZE = 30;
 const getFullImageUrl = (url: string | null) => {
   if (!url) return null;
   if (url.startsWith("http") || url.startsWith("blob:")) return url;
-  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  return joinUrl(API_BASE_URL, url);
 };
 const DIARY_CATEGORIES = [
   "연애",
