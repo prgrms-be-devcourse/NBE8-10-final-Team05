@@ -62,8 +62,6 @@ FROM eclipse-temurin:21-jre-alpine
 ENV LANG=ko_KR.UTF-8
 ENV LC_ALL=ko_KR.UTF-8
 ENV JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8"
-ENV SPRING_PROFILES_ACTIVE=prod
-
 WORKDIR /app
 
 # Spring Boot layers (변경 빈도 낮은 순 → 높은 순으로 배치해 캐시 효율 극대화)
