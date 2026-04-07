@@ -39,14 +39,19 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Override
+    @Transactional
     public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId) {
         checkSendRateLimit(senderId);
-        auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
-
+        try {
+            auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
+        } catch (ServiceException e) {
+            redisTemplate.delete("user:send:limit:" + senderId);
+            throw e;
+        }
         return saveAndDispatch(req, senderId);
     }
 
-    @Transactional
+
     public long saveAndDispatch(CreateLetterReq req, long senderId) {
         Member sender = memberRepository.findById(senderId)
                 .orElseThrow(() -> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
