@@ -62,6 +62,7 @@ FROM eclipse-temurin:21-jre-alpine
 ENV LANG=ko_KR.UTF-8
 ENV LC_ALL=ko_KR.UTF-8
 ENV JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8"
+ENV SPRING_PROFILES_ACTIVE=prod
 
 WORKDIR /app
 
@@ -78,5 +79,4 @@ ENTRYPOINT ["java", \
   "-XX:InitialRAMPercentage=25", \
   "-XX:+ExitOnOutOfMemoryError", \
   "-XX:+AlwaysPreTouch", \
-  "-Dspring.profiles.active=prod", \
   "org.springframework.boot.loader.launch.JarLauncher"]
