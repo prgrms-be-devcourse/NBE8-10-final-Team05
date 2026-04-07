@@ -49,13 +49,19 @@ public class RefreshTokenCookieService {
   }
 
   private ResponseCookie buildRefreshCookie(String value, Duration maxAge) {
-    return ResponseCookie.from(jwtProperties.refreshTokenCookieName(), value)
-        .httpOnly(true)
-        .secure(jwtProperties.refreshTokenCookieSecure())
-        .path("/")
-        .sameSite(jwtProperties.refreshTokenCookieSameSite())
-        .maxAge(maxAge)
-        .build();
+    ResponseCookie.ResponseCookieBuilder builder =
+        ResponseCookie.from(jwtProperties.refreshTokenCookieName(), value)
+            .httpOnly(true)
+            .secure(jwtProperties.refreshTokenCookieSecure())
+            .path("/")
+            .sameSite(jwtProperties.refreshTokenCookieSameSite())
+            .maxAge(maxAge);
+
+    if (StringUtils.hasText(jwtProperties.refreshTokenCookieDomain())) {
+      builder.domain(jwtProperties.refreshTokenCookieDomain());
+    }
+
+    return builder.build();
   }
 
   private void addSetCookieHeader(HttpServletResponse response, ResponseCookie cookie) {

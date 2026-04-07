@@ -6,18 +6,15 @@ import {
   ChevronLeft,
   Calendar,
   MailOpen,
-  Waves,
   Heart,
   Send,
   MessageSquareText,
-  Flag,
   Check,
   X,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
 import ReportCreateDialog from "@/components/report/ReportCreateDialog";
-import { useAuthStore } from "@/lib/auth/auth-store";
 import { toErrorMessage } from "@/lib/api/rs-data";
 import { createReport } from "@/lib/report/report-service";
 import type { ReportReasonCode } from "@/lib/report/report-types";
@@ -36,7 +33,6 @@ interface ReceivedLetterDetail {
 export default function ReceivedLetterDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const { isAuthenticated } = useAuthStore();
 
   const isNotifiedRef = useRef(false);
   const writingTimeoutRef = useRef<number | null>(null);
@@ -53,10 +49,6 @@ export default function ReceivedLetterDetailPage() {
   const [reportErrorMessage, setReportErrorMessage] = useState<string | null>(
     null,
   );
-  const [reportNoticeMessage, setReportNoticeMessage] = useState<string | null>(
-    null,
-  );
-
   const letterId = typeof params.id === "string" ? params.id : "";
 
   const handleGoBack = useCallback(() => {
@@ -77,7 +69,7 @@ export default function ReceivedLetterDetailPage() {
         );
         console.log("편지 상태 확인:", data.status);
         setLetter(data);
-      } catch (error) {
+      } catch {
         alert("편지를 불러올 수 없습니다.");
         handleGoBack();
       } finally {
@@ -141,7 +133,6 @@ export default function ReceivedLetterDetailPage() {
 
       // 성공 시 처리
       setIsReportDialogOpen(false);
-      setReportNoticeMessage("신고가 정상적으로 접수되었습니다.");
       alert("신고가 접수되었습니다.");
 
       // 다이얼로그 초기화를 위해 키 값 변경

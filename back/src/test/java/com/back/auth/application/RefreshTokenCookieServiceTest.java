@@ -23,6 +23,7 @@ class RefreshTokenCookieServiceTest {
             3600L,
             1_209_600L,
             "refreshToken",
+            null,
             true,
             "None");
     RefreshTokenCookieService service = new RefreshTokenCookieService(properties);
@@ -47,6 +48,7 @@ class RefreshTokenCookieServiceTest {
             3600L,
             1_209_600L,
             "refreshToken",
+            null,
             false,
             "Lax");
     RefreshTokenCookieService service = new RefreshTokenCookieService(properties);
@@ -71,6 +73,7 @@ class RefreshTokenCookieServiceTest {
             3600L,
             1_209_600L,
             "refreshToken",
+            null,
             false,
             "Lax");
     RefreshTokenCookieService service = new RefreshTokenCookieService(properties);
@@ -92,6 +95,7 @@ class RefreshTokenCookieServiceTest {
             3600L,
             1_209_600L,
             "refreshToken",
+            null,
             false,
             "Lax");
     RefreshTokenCookieService service = new RefreshTokenCookieService(properties);
@@ -102,5 +106,26 @@ class RefreshTokenCookieServiceTest {
     String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
     assertThat(setCookie).contains("refreshToken=");
     assertThat(setCookie).contains("Max-Age=0");
+  }
+  @Test
+  @DisplayName("공유 서브도메인 배포에서는 Domain 속성으로 refresh 쿠키를 발급한다")
+  void issueCookieIncludesConfiguredDomain() {
+    JwtProperties properties =
+        new JwtProperties(
+            "maum-on-test",
+            "maum-on-test-secret-key-at-least-32-characters-long-123456",
+            3600L,
+            1_209_600L,
+            "refreshToken",
+            ".example.com",
+            true,
+            "None");
+    RefreshTokenCookieService service = new RefreshTokenCookieService(properties);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    service.issueRefreshTokenCookie(response, "raw-refresh-token");
+
+    String setCookie = response.getHeader(HttpHeaders.SET_COOKIE);
+    assertThat(setCookie).contains("Domain=.example.com");
   }
 }

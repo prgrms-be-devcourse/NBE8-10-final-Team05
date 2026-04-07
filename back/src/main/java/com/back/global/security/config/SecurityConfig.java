@@ -7,15 +7,16 @@ import com.back.global.security.handler.SecurityAccessDeniedHandler;
 import com.back.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.back.global.security.jwt.JwtProperties;
 import jakarta.servlet.DispatcherType;
-import java.util.Arrays;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,6 +27,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.CorsUtils;
@@ -47,6 +49,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 @EnableConfigurationProperties({JwtProperties.class, OidcAuthorizeProperties.class})
 public class SecurityConfig {
+  private static final List<String> DEFAULT_ALLOWED_ORIGIN_PATTERNS =
+      List.of("http://localhost:*", "http://127.0.0.1:*");
 
   private final Environment environment;
 
@@ -164,10 +168,8 @@ public class SecurityConfig {
 
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
-    // 로컬 개발용 CORS 정책.
-    // 운영 도메인이 생기면 허용 Origin을 명시적으로 추가한다.
     CorsConfiguration configuration = new CorsConfiguration();
-    configuration.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+    configuration.setAllowedOriginPatterns(resolveAllowedOriginPatterns());
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     configuration.setAllowedHeaders(List.of("*"));
     configuration.setAllowCredentials(true);
@@ -176,5 +178,30 @@ public class SecurityConfig {
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);
     return source;
+  }
+
+  private List<String> resolveAllowedOriginPatterns() {
+    String rawPatterns = environment.getProperty("FRONTEND_ALLOWED_ORIGIN_PATTERNS");
+    if (!StringUtils.hasText(rawPatterns)) {
+      return DEFAULT_ALLOWED_ORIGIN_PATTERNS;
+    }
+
+    List<String> configuredPatterns =
+        Arrays.stream(rawPatterns.split(","))
+            .map(String::trim)
+            .filter(StringUtils::hasText)
+            .toList();
+    if (configuredPatterns.isEmpty()) {
+      return DEFAULT_ALLOWED_ORIGIN_PATTERNS;
+    }
+
+    List<String> mergedPatterns = new ArrayList<>(DEFAULT_ALLOWED_ORIGIN_PATTERNS);
+    configuredPatterns.forEach(
+        pattern -> {
+          if (!mergedPatterns.contains(pattern)) {
+            mergedPatterns.add(pattern);
+          }
+        });
+    return mergedPatterns;
   }
 }

@@ -23,7 +23,7 @@ class JwtTokenServiceTest {
   void generateAndParseAccessToken() {
     JwtProperties jwtProperties =
         new JwtProperties(
-            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", false, "Lax");
+            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", null, false, "Lax");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
     String token =
@@ -41,7 +41,7 @@ class JwtTokenServiceTest {
   void validateReturnsFalseForInvalidToken() {
     JwtProperties jwtProperties =
         new JwtProperties(
-            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", false, "Lax");
+            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", null, false, "Lax");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
     assertThat(jwtTokenService.validate("invalid-token")).isFalse();
@@ -52,7 +52,7 @@ class JwtTokenServiceTest {
   void generateAndParseRefreshToken() {
     JwtProperties jwtProperties =
         new JwtProperties(
-            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", false, "Lax");
+            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", null, false, "Lax");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
 
     String token = jwtTokenService.generateRefreshToken(11L, "jti-11", "family-11");
@@ -69,7 +69,7 @@ class JwtTokenServiceTest {
   void expiredAccessTokenReturnsFalseOnValidate() {
     JwtProperties jwtProperties =
         new JwtProperties(
-            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", false, "Lax");
+            "maum-on-test", SECRET_KEY, 3600L, 1_209_600L, "refreshToken", null, false, "Lax");
     JwtTokenService jwtTokenService = new JwtTokenService(jwtProperties);
     Instant now = Instant.now();
 

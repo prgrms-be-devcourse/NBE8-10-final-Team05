@@ -1,7 +1,7 @@
 import { requestVoid } from "@/lib/api/http-client";
+import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const API_BASE_URL = getPublicApiBaseUrl();
 const CONSULTATION_CONNECT_PATH = "/api/v1/consultations/connect";
 const CONSULTATION_CHAT_PATH = "/api/v1/consultations/chat";
 
@@ -11,7 +11,7 @@ interface ConsultationChatRequest {
 
 /** 상담 SSE 연결을 연다. */
 export function openConsultationStream(): EventSource {
-  return new EventSource(`${API_BASE_URL}${CONSULTATION_CONNECT_PATH}`, {
+  return new EventSource(joinUrl(API_BASE_URL, CONSULTATION_CONNECT_PATH), {
     withCredentials: true,
   });
 }

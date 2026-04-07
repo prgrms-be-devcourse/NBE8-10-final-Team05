@@ -3,6 +3,9 @@
 import React, { useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 import { useAuthStore } from "@/lib/auth/auth-store";
+import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
+
+const API_BASE_URL = getPublicApiBaseUrl();
 
 export const NotificationProvider = ({
   children,
@@ -23,15 +26,10 @@ export const NotificationProvider = ({
 
     if (eventSourceRef.current) return;
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-    const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-
     console.log("📡 통합 알림 시스템 SSE 연결 시작...");
 
-    //백엔드 리팩토링된 공통 알림 경로 사용
     const es = new EventSource(
-      `${cleanBaseUrl}/api/v1/notifications/subscribe`,
+      joinUrl(API_BASE_URL, "/api/v1/notifications/subscribe"),
       {
         withCredentials: true,
       },
@@ -51,7 +49,7 @@ export const NotificationProvider = ({
           icon: "✉️",
           duration: 5000,
         });
-      } catch (err) {
+      } catch {
         // 만약 기존처럼 단순 문자열이 올 경우를 대비한 예외 처리
         toast.success(e.data, { icon: "✉️", duration: 5000 });
       }
@@ -66,7 +64,7 @@ export const NotificationProvider = ({
           icon: "📖",
           duration: 5000,
         });
-      } catch (err) {
+      } catch {
         toast.success(e.data, { icon: "📖", duration: 5000 });
       }
       window.dispatchEvent(new CustomEvent("notification_received"));
@@ -85,7 +83,7 @@ export const NotificationProvider = ({
           icon: "✍️",
           duration: 5000,
         });
-      } catch (err) {
+      } catch {
         toast.success(e.data, { icon: "✍️", duration: 5000 });
       }
       window.dispatchEvent(new CustomEvent("notification_received"));
