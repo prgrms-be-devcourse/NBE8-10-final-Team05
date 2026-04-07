@@ -41,8 +41,8 @@ public class LetterPersistenceAdapter implements LetterPort {
     }
 
     @Override
-    public Optional<Member> findRandomMemberExceptMe(long myId) {
-        return letterRepository.findRandomMemberExceptMe(myId);
+    public Optional<Member> findRandomMemberExceptMe(List<Long> excludeIds) {
+        return letterRepository.findRandomMemberExceptMe(excludeIds);
     }
     @Override
     public Optional<Letter> findLatestReceived(Long receiverId) {

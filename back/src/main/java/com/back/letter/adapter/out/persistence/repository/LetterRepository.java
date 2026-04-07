@@ -22,12 +22,12 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
     Page<Letter> findBySenderId(@Param("memberId") Long memberId, Pageable pageable);
 
     @Query(value = "SELECT * FROM members " +
-            "WHERE id != :myId " +
+            "WHERE id NOT IN (:excludeIds) " + // != 대신 NOT IN 사용
             "AND status = 'ACTIVE' " +
             "AND random_receive_allowed = true " +
-            "ORDER BY RANDOM() LIMIT 1", // RAND()를 RANDOM()으로 변경
+            "ORDER BY RANDOM() LIMIT 1",
             nativeQuery = true)
-    Optional<Member> findRandomMemberExceptMe(@Param("myId") long myId);
+    Optional<Member> findRandomMemberExceptMe(@Param("excludeIds") List<Long> excludeIds);
     Optional<Letter> findFirstByReceiverIdOrderByCreateDateDesc(Long receiverId);
     Optional<Letter> findFirstBySenderIdOrderByCreateDateDesc(Long senderId);
     long countByReceiverId(Long receiverId);

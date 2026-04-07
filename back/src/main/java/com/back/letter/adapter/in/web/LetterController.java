@@ -89,6 +89,17 @@ public class LetterController {
         return ResponseEntity.ok(new RsData<>("200-5", "편지 수락 성공", null));
     }
 
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<RsData<Void>> rejectLetter(
+            @PathVariable long id,
+            @AuthenticationPrincipal AuthenticatedMember authMember
+    ) {
+        if (authMember == null) throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+
+        sendLetterUseCase.rejectLetter(id, authMember.memberId());
+        return ResponseEntity.ok(new RsData<>("200-8", "편지를 거절하여 새로운 수신자에게 전달되었습니다."));
+    }
+
     @PostMapping("/{id}/writing")
     public ResponseEntity<RsData<Void>> updateWritingStatus(
             @PathVariable long id,

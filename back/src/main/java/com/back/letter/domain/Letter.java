@@ -64,6 +64,20 @@ public class Letter extends BaseEntity {
     }
 
     /**
+     * 수신자가 편지를 거절
+     */
+    public void reject(long accessorId) {
+        verifyReceiver(accessorId);
+
+        if (this.status != LetterStatus.SENT) {
+            throw new ServiceException("400-3", "대기 중인 편지만 거절할 수 있습니다.");
+        }
+
+        this.receiver = null;
+        this.status = null;
+    }
+
+    /**
      * 답장 작성 완료
      */
     public void reply(String replyContent, long accessorId) {
