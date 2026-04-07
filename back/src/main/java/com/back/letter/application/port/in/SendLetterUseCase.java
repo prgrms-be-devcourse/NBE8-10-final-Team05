@@ -9,4 +9,5 @@ public interface SendLetterUseCase {
     void acceptLetter(long id, long accessorId);
     void updateWritingStatus(long id);
     void reassignUnreadLetters();
+    void rejectLetter(long id, long memberId);
 }

@@ -93,6 +93,28 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
 
     @Override
     @Transactional
+    public void rejectLetter(long id, long accessorId) {
+        Letter letter = letterPort.findById(id)
+                .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
+
+        // 1. 도메인 로직: 수신자 비우고 상태 초기화
+        letter.reject(accessorId);
+
+        // 2. 발송자(sender)와 거절자(accessorId) 둘 다 제외하고 새 수신자 찾기
+        // LetterRepository에 List<Long>을 받는 findRandomMemberExcept 메서드가 있어야 합니다.
+        Member newReceiver = letterPort.findRandomMemberExceptMe(
+                List.of(letter.getSender().getId(), accessorId)
+        ).orElseThrow(() -> new ServiceException("404-2", "편지를 전달할 수 있는 다른 유저가 없습니다."));
+
+        // 3. 재배달
+        letter.dispatch(newReceiver);
+
+        // 알림 이벤트 발행 등
+        eventPublisher.publishEvent(new LetterEvents.LetterSentEvent(letter.getId(), newReceiver.getId()));
+    }
+
+    @Override
+    @Transactional
     public void updateWritingStatus(long id) {
         letterRedisRepository.setWritingStatus(id);
 
@@ -108,7 +130,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         List<Letter> expiredLetters = letterPort.findUnreadLettersExceeding(expirationTime);
 
         for (Letter letter : expiredLetters) {
-            letterPort.findRandomMemberExceptMe(letter.getSender().getId())
+            letterPort.findRandomMemberExceptMe(List.of(letter.getSender().getId()))
                     .ifPresent(newReceiver -> {
                         letter.reassignReceiver(newReceiver);
                         eventPublisher.publishEvent(new LetterEvents.LetterSentEvent(letter.getId(), newReceiver.getId()));
@@ -121,10 +143,6 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     public LetterInfoRes getLetter(long id, long accessorId) {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
-
-        if (!letter.getSender().getId().equals(accessorId) && letter.getStatus() == LetterStatus.SENT) {
-            acceptLetter(id, accessorId);
-        }
 
         return LetterInfoRes.from(letter);
     }
@@ -174,10 +192,10 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Long rId = letterRedisRepository.getRandomReceiver();
         if (rId != null && !rId.equals(senderId)) {
             return memberRepository.findById(rId)
-                    .orElseGet(() -> letterPort.findRandomMemberExceptMe(senderId)
+                    .orElseGet(() -> letterPort.findRandomMemberExceptMe(List.of(senderId))
                             .orElseThrow(() -> new ServiceException("404-1", "수신 가능한 사용자가 없습니다.")));
         }
-        return letterPort.findRandomMemberExceptMe(senderId)
+        return letterPort.findRandomMemberExceptMe(List.of(senderId))
                 .orElseThrow(() -> new ServiceException("404-1", "수신 가능한 사용자가 없습니다."));
     }
 }
