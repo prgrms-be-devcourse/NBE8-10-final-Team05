@@ -121,7 +121,7 @@ class LetterServiceTest {
             given(memberRepository.findById(senderId)).willReturn(Optional.of(createMember(senderId, "S")));
 
             given(letterRedisRepository.getRandomReceiver()).willReturn(null);
-            given(letterPort.findRandomMemberExceptMe(senderId)).willReturn(Optional.empty());
+            given(letterPort.findRandomMemberExceptMe(List.of(senderId))).willReturn(Optional.empty());
 
             // when & then
             assertThatThrownBy(() -> letterService.createLetterAndDirectSendLetter(new CreateLetterReq("T", "C"), senderId))
