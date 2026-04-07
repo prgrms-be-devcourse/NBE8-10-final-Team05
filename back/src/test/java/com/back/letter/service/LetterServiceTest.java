@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -92,7 +93,7 @@ class LetterServiceTest {
 
             given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
             given(aiService.auditContent(any(AuditAiRequest.class)))
-                    .willReturn(new AuditAiResponse(true, "Letter", "Pass"));
+                    .willReturn(new AuditAiResponse(true, "Letter", "Pass", "가짜 요약본 내용"));
             given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
 
             // findMatchingReceiver 로직 대응
@@ -117,7 +118,7 @@ class LetterServiceTest {
             // given
             long senderId = 1L;
             given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
-            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Letter","Pass"));
+            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Letter","Pass", "가짜 요약본 내용"));
             given(memberRepository.findById(senderId)).willReturn(Optional.of(createMember(senderId, "S")));
 
             given(letterRedisRepository.getRandomReceiver()).willReturn(null);
@@ -154,16 +155,90 @@ class LetterServiceTest {
             ReflectionTestUtils.setField(letter, "id", letterId);
 
             given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
-            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Reply","Pass"));
+            given(aiService.auditContent(any())).willReturn(new AuditAiResponse(true,"Reply","Pass", "가짜 답장 요약본"));
 
             // when
             letterService.replyLetter(letterId, req, receiverId);
 
             // then
             assertThat(letter.getStatus()).isEqualTo(LetterStatus.REPLIED);
+            assertThat(letter.getReplySummary()).isEqualTo("가짜 답장 요약본");
             verify(letterRedisRepository).deleteWritingStatus(letterId);
             verify(eventPublisher).publishEvent(any(LetterEvents.LetterRepliedEvent.class));
         }
+    }
+
+    @Test
+    @DisplayName("성공: 편지 발송 시 AI 요약본이 함께 저장된다")
+    void givenValidRequest_whenCreateLetter_thenSaveWithSummary() {
+        // given
+        long senderId = 1L;
+        long receiverId = 2L;
+        CreateLetterReq req = new CreateLetterReq("제목", "내용");
+        String expectedSummary = "AI가 요약한 따뜻한 편지입니다."; // 🚀 가짜 요약본 설정
+
+        Member sender = createMember(senderId, "발신자");
+        Member receiver = createMember(receiverId, "수신자");
+
+        given(valueOperations.setIfAbsent(anyString(), any(), any(Duration.class))).willReturn(true);
+
+        // 🚀 수정: AI 응답에 요약본(summary) 필드를 포함시킵니다.
+        given(aiService.auditContent(any(AuditAiRequest.class)))
+                .willReturn(new AuditAiResponse(true, "NONE", "Pass", expectedSummary));
+
+        given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
+        given(letterRedisRepository.getRandomReceiver()).willReturn(receiverId);
+        given(memberRepository.findById(receiverId)).willReturn(Optional.of(receiver));
+
+        // 저장 시 반환할 가짜 객체 설정
+        Letter mockSavedLetter = Letter.builder().title("제목").build();
+        ReflectionTestUtils.setField(mockSavedLetter, "id", 100L);
+        given(letterPort.save(any(Letter.class))).willReturn(mockSavedLetter);
+
+        // when
+        letterService.createLetterAndDirectSendLetter(req, senderId);
+
+        // then
+        // 🚀 핵심: 실제로 letterPort.save()에 전달된 Letter 객체를 캡처합니다.
+        ArgumentCaptor<Letter> letterCaptor = ArgumentCaptor.forClass(Letter.class);
+        verify(letterPort).save(letterCaptor.capture());
+
+        // 🚀 검증: 캡처된 편지 객체의 요약본이 AI가 준 것과 일치하는지 확인합니다.
+        assertThat(letterCaptor.getValue().getSummary()).isEqualTo(expectedSummary);
+    }
+
+    @Test
+    @DisplayName("성공: 답장 시 AI가 생성한 답장 요약본이 저장된다")
+    void givenValidReply_whenReplyLetter_thenSaveReplySummary() {
+        // given
+        long letterId = 10L;
+        long receiverId = 2L;
+        long senderId = 1L; // 🚀 1. 발신자 ID 추가
+        String expectedReplySummary = "답장에 대한 AI 요약입니다.";
+        ReplyLetterReq req = new ReplyLetterReq("정성스러운 답장");
+
+        Member sender = createMember(senderId, "발신자"); // 🚀 2. 가짜 발신자 객체 생성
+        Member receiver = createMember(receiverId, "수신자");
+
+        Letter letter = Letter.builder()
+                .sender(sender) // 🚀 3. 핵심! 빌더에 sender를 꼭 넣어주세요.
+                .receiver(receiver)
+                .build();
+
+        letter.dispatch(receiver);
+        ReflectionTestUtils.setField(letter, "id", letterId);
+
+        given(letterPort.findById(letterId)).willReturn(Optional.of(letter));
+
+        given(aiService.auditContent(any()))
+                .willReturn(new AuditAiResponse(true, "NONE", "Pass", expectedReplySummary));
+
+        // when
+        letterService.replyLetter(letterId, req, receiverId);
+
+        // then
+        assertThat(letter.getReplySummary()).isEqualTo(expectedReplySummary);
+        assertThat(letter.getStatus()).isEqualTo(LetterStatus.REPLIED);
     }
 
     @Nested

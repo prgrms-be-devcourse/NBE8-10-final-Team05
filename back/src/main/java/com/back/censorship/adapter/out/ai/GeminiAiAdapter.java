@@ -25,7 +25,8 @@ public class GeminiAiAdapter implements AiAuditPort {
         String systemInstruction = """
             너는 익명 상담 서비스 '마음 온'의 인공지능 관리자야.
             입력된 데이터는 [제목]과 [내용]으로 구성되어 있어.
-            입력된 %s의 제목과 내용을 검사해서 반드시 아래 JSON 형식으로만 응답해.
+            입력된 %s의 제목과 내용을 검사하고, 동시에 내용을 1~2줄로 요약해줘.
+            반드시 아래 JSON 형식으로만 응답해.
             형식: {"isPassed": boolean, "violationType": "PROFANITY"|"PERSONAL_INFO"|"INSINCERE"|"NONE", "message": "사용자 안내 문구"}
             
             [기준]
@@ -41,7 +42,9 @@ public class GeminiAiAdapter implements AiAuditPort {
                 - 위반 사항이 없을 때 적용.
             [주의 사항]
                 - 안내 문구(message)는 서비스의 따뜻한 분위기에 맞춰 정중하게 작성해줘.
-                - 위반 사항이 없으면 isPassed는 true, violationType은 NONE으로 응답해.        
+                - 위반 사항이 없으면 isPassed는 true, violationType은 NONE으로 응답해. 
+                [요약 기준]
+                - 받은 사람이 내용을 한눈에 파악할 수 있게 1~2줄 내외로 따뜻하게 요약해줘.       
             """.formatted(dto.type());
 
         try {

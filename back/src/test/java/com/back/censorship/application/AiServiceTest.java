@@ -26,7 +26,7 @@ class AiServiceTest {
     private AiService aiService;
 
     private void mockAiResponse(boolean isPassed, String violationType) {
-        AuditAiResponse mockResponse = new AuditAiResponse(isPassed, violationType, "테스트 메시지");
+        AuditAiResponse mockResponse = new AuditAiResponse(isPassed, violationType, "테스트 메시지", "AI가 요약한 내용입니다.");
 
         given(aiAuditPort.audit(any(AuditAiRequest.class)))
                 .willReturn(mockResponse);

@@ -3,6 +3,7 @@ package com.back.letter.application.service;
 
 
 import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
+import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
 import com.back.censorship.application.service.AiService;
 import com.back.global.event.LetterEvents;
 import com.back.global.exception.ServiceException;
@@ -42,17 +43,19 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     @Transactional
     public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId) {
         checkSendRateLimit(senderId);
+        AuditAiResponse response;
+
         try {
-            auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
+            response = auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
         } catch (ServiceException e) {
             redisTemplate.delete("user:send:limit:" + senderId);
             throw e;
         }
-        return saveAndDispatch(req, senderId);
+        return saveAndDispatch(req, senderId, response.summary());
     }
 
 
-    public long saveAndDispatch(CreateLetterReq req, long senderId) {
+    public long saveAndDispatch(CreateLetterReq req, long senderId, String summary) {
         Member sender = memberRepository.findById(senderId)
                 .orElseThrow(() -> new ServiceException("404-1", "사용자를 찾을 수 없습니다."));
 
@@ -61,6 +64,7 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Letter letter = Letter.builder()
                 .title(req.title())
                 .content(req.content())
+                .summary(summary)
                 .sender(sender)
                 .build();
 
@@ -77,9 +81,9 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         Letter letter = letterPort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
-        auditContent(req.replyContent(), "Reply");
+        AuditAiResponse response =auditContent(req.replyContent(), "Reply");
 
-        letter.reply(req.replyContent(), accessorId);
+        letter.reply(req.replyContent(), response.summary(), accessorId);
 
         letterRedisRepository.deleteWritingStatus(id);
         eventPublisher.publishEvent(new LetterEvents.LetterRepliedEvent(id, letter.getSender().getId(), accessorId));
@@ -188,9 +192,10 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         }
     }
 
-    private void auditContent(String content, String type) {
+    private AuditAiResponse auditContent(String content, String type) {
         var response = aiService.auditContent(new AuditAiRequest(content, type));
         if (!response.isPassed()) throw new ServiceException("400-AI", response.message());
+        return response;
     }
 
     private Member findMatchingReceiver(long senderId) {

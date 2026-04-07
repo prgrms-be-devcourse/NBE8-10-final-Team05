@@ -22,7 +22,13 @@ public class Letter extends BaseEntity {
     private String content;
 
     @Column(columnDefinition = "TEXT")
+    private String summary;
+
+    @Column(columnDefinition = "TEXT")
     private String replyContent;
+
+    @Column(columnDefinition = "TEXT")
+    private String replySummary;
 
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -80,7 +86,7 @@ public class Letter extends BaseEntity {
     /**
      * 답장 작성 완료
      */
-    public void reply(String replyContent, long accessorId) {
+    public void reply(String replyContent, String replySummary, long accessorId) {
         verifyReceiver(accessorId);
 
         if (this.status == LetterStatus.REPLIED) {
@@ -88,6 +94,7 @@ public class Letter extends BaseEntity {
         }
 
         this.replyContent = replyContent;
+        this.replySummary = replySummary;
         this.status = LetterStatus.REPLIED;
         this.replyCreatedDate = LocalDateTime.now();
     }
