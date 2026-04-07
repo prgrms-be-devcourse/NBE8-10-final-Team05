@@ -200,6 +200,9 @@ jobs:
             printf '%s' "${{ env.DOT_ENV_B64 }}" | base64 -d > /tmp/.env
             cp /tmp/.env "/tmp/.env.$(date +%Y_%m_%d__%H%M%S)"
             chmod 600 /tmp/.env
+            APP_PROFILES=$(sed -n 's/^SPRING_PROFILES_ACTIVE=//p' /tmp/.env | tail -n1 | tr -d '\r' | xargs)
+            APP_PROFILES="${APP_PROFILES:-prod}"
+            echo "⚙️ SPRING_PROFILES_ACTIVE=${APP_PROFILES}"
 
             # ---------------------------------------------------------
             # 2) NPMplus API 로그인 (쿠키 기반 인증)
@@ -298,8 +301,9 @@ jobs:
               --restart unless-stopped \
               --network "${APP_NET}" \
               -p "${GREEN_PORT_OUT}:${PORT_IN}" \
-              -e TZ=Asia/Seoul \
               --env-file /tmp/.env \
+              -e TZ=Asia/Seoul \
+              -e SPRING_PROFILES_ACTIVE="${APP_PROFILES}" \
               "${IMAGE}"
             docker network connect "${NET}" "${GREEN}" >/dev/null 2>&1 || true
 
