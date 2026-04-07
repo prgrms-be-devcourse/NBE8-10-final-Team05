@@ -41,9 +41,13 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     @Override
     @Transactional
     public long createLetterAndDirectSendLetter(CreateLetterReq req, long senderId) {
-        auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
         checkSendRateLimit(senderId);
-
+        try {
+            auditContent(String.format("[제목] %s [내용] %s", req.title(), req.content()), "Letter");
+        } catch (ServiceException e) {
+            redisTemplate.delete("user:send:limit:" + senderId);
+            throw e;
+        }
         return saveAndDispatch(req, senderId);
     }
 
