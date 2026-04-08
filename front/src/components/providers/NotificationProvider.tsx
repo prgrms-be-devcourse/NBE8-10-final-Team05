@@ -22,9 +22,7 @@ export const NotificationProvider = ({
 }) => {
   const { isAuthenticated } = useAuthStore();
   const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(
-    null,
-  );
+  const reconnectTimeoutRef = useRef<number | null>(null);
   const isConnectingRef = useRef(false);
 
   useEffect(() => {
