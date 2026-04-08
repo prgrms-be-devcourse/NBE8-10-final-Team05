@@ -19,11 +19,6 @@ export default function AuthBootstrap() {
       return;
     }
 
-    if (!authHint.isAuthenticated) {
-      markRestoreFinished();
-      return;
-    }
-
     void restoreSession();
   }, [authHint]);
 

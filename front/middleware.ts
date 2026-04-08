@@ -1,5 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import {
+  extractCookieNameFromSetCookie,
+  extractSetCookieHeaders,
+  rewriteSetCookieForFrontend,
+} from "@/lib/auth/auth-proxy";
 import { AUTH_HINT_COOKIE_NAME } from "@/lib/auth/auth-hint-cookie";
 import {
   getServerApiBaseUrl,
@@ -37,6 +42,15 @@ function isObservabilityPath(pathname: string): boolean {
 
 function isObservabilityApiPath(pathname: string): boolean {
   return pathname.startsWith("/grafana/api/") || pathname.startsWith("/prometheus/api/");
+}
+
+function isMemberProtectedPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/letters") ||
+    pathname.startsWith("/stories/write") ||
+    pathname.startsWith("/settings")
+  );
 }
 
 function isValidAuthHint(value: string | undefined): value is "member" | "admin" {
@@ -141,11 +155,28 @@ function buildForbiddenApiResponse(): NextResponse {
   );
 }
 
+function buildPassThroughResponse(
+  request: NextRequest,
+  options: { clearAuthHintCookie?: boolean; clearRefreshCookie?: boolean } = {},
+): NextResponse {
+  const response = NextResponse.next();
+
+  if (options.clearAuthHintCookie) {
+    expireAuthHintCookie(response, request.nextUrl.hostname);
+  }
+
+  if (options.clearRefreshCookie) {
+    expireRefreshCookie(response, request.nextUrl.hostname);
+  }
+
+  return response;
+}
+
 async function fetchRefreshedSession(
   request: NextRequest,
 ): Promise<{
   memberRole: string;
-  refreshSetCookie: string | null;
+  refreshSetCookies: string[];
 } | null> {
   const cookieHeader = request.headers.get("cookie");
   if (!cookieHeader) {
@@ -173,7 +204,9 @@ async function fetchRefreshedSession(
 
     return {
       memberRole: data.member.role,
-      refreshSetCookie: response.headers.get("set-cookie"),
+      refreshSetCookies: extractSetCookieHeaders(response.headers).filter(
+        (value) => extractCookieNameFromSetCookie(value) === REFRESH_COOKIE_NAME,
+      ),
     };
   } catch {
     return null;
@@ -183,12 +216,23 @@ async function fetchRefreshedSession(
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const observabilityApiPath = isObservabilityApiPath(pathname);
+  const memberProtectedPath = isMemberProtectedPath(pathname);
+  const adminProtectedPath = isAdminPath(pathname) || isObservabilityPath(pathname);
   const authHint = request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value;
   if (!isValidAuthHint(authHint)) {
     if (observabilityApiPath) {
       return buildUnauthorizedApiResponse();
     }
-    return buildLoginRedirect(request, { clearRefreshCookie: true });
+
+    if (adminProtectedPath) {
+      return buildLoginRedirect(request, { clearRefreshCookie: true });
+    }
+
+    if (memberProtectedPath) {
+      return buildPassThroughResponse(request, { clearAuthHintCookie: true });
+    }
+
+    return NextResponse.next();
   }
 
   const refreshCookie = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
@@ -196,7 +240,19 @@ export async function middleware(request: NextRequest) {
     if (observabilityApiPath) {
       return buildUnauthorizedApiResponse();
     }
-    return buildLoginRedirect(request);
+
+    if (adminProtectedPath) {
+      return buildLoginRedirect(request);
+    }
+
+    if (memberProtectedPath) {
+      return buildPassThroughResponse(request, {
+        clearAuthHintCookie: true,
+        clearRefreshCookie: true,
+      });
+    }
+
+    return NextResponse.next();
   }
 
   const session = await fetchRefreshedSession(request);
@@ -204,13 +260,22 @@ export async function middleware(request: NextRequest) {
     if (observabilityApiPath) {
       return buildUnauthorizedApiResponse();
     }
-    return buildLoginRedirect(request, { clearRefreshCookie: true });
+
+    if (adminProtectedPath) {
+      return buildLoginRedirect(request, { clearRefreshCookie: true });
+    }
+
+    if (memberProtectedPath) {
+      return buildPassThroughResponse(request, {
+        clearAuthHintCookie: true,
+        clearRefreshCookie: true,
+      });
+    }
+
+    return NextResponse.next();
   }
 
-  if (
-    (isAdminPath(pathname) || isObservabilityPath(pathname)) &&
-    session.memberRole !== "ADMIN"
-  ) {
+  if (adminProtectedPath && session.memberRole !== "ADMIN") {
     if (observabilityApiPath) {
       return buildForbiddenApiResponse();
     }
@@ -227,8 +292,8 @@ export async function middleware(request: NextRequest) {
   });
   setAuthHintCookie(response, hintValue, request.nextUrl.hostname);
 
-  if (session.refreshSetCookie) {
-    response.headers.append("set-cookie", session.refreshSetCookie);
+  for (const cookie of session.refreshSetCookies) {
+    response.headers.append("set-cookie", rewriteSetCookieForFrontend(cookie));
   }
 
   return response;

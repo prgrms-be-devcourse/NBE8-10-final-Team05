@@ -220,6 +220,34 @@ class AuthControllerTest {
   }
 
   @Test
+  @DisplayName("oidc authorize API는 forwarded host/proto를 baseUrl로 사용한다")
+  void oidcAuthorizeUsesForwardedBaseUrl() throws Exception {
+    given(
+            oidcAuthorizationRequestService.startAuthorization(
+                any(String.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcAuthorizationRequestService.OidcAuthorizationStartResult(
+                "https://accounts.example.com/oauth2/v2/auth?client_id=test",
+                "state-token",
+                "nonce-token",
+                "code-verifier",
+                "https://front.example.com/dashboard",
+                java.time.Instant.now().plusSeconds(300)));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/authorize/{provider}", "maum-on-oidc")
+                .param("redirect_uri", "https://front.example.com/dashboard")
+                .header("X-Forwarded-Proto", "https")
+                .header("X-Forwarded-Host", "front.example.com"))
+        .andExpect(status().is3xxRedirection());
+
+    then(oidcAuthorizationRequestService)
+        .should()
+        .startAuthorization("maum-on-oidc", "https://front.example.com/dashboard", "https://front.example.com");
+  }
+
+  @Test
   @DisplayName("oidc callback API는 refresh 쿠키를 발급하고 프론트로 리다이렉트한다")
   void oidcCallbackIssuesRefreshCookieAndRedirectsFront() throws Exception {
     AuthTokenResponse tokenResponse =
@@ -246,6 +274,37 @@ class AuthControllerTest {
 
     then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
     then(authHintCookieService).should().issueAuthenticatedHintCookie(any(), any(String.class));
+  }
+
+  @Test
+  @DisplayName("oidc callback API는 forwarded host/proto를 baseUrl로 사용한다")
+  void oidcCallbackUsesForwardedBaseUrl() throws Exception {
+    AuthTokenResponse tokenResponse =
+        new AuthTokenResponse(
+            "oidc-access-token",
+            "Bearer",
+            3600L,
+            new AuthMemberResponse(5L, "oidc@test.com", "oidc-user", "USER", "ACTIVE"));
+    AuthService.AuthTokenIssueResult issueResult =
+        new AuthService.AuthTokenIssueResult(tokenResponse, "oidc-refresh-token");
+
+    given(oidcCallbackService.handleCallback(any(), any(), any(), any()))
+        .willReturn(
+            new OidcCallbackService.OidcCallbackResult(
+                "https://front.example.com/dashboard", issueResult));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/oidc/callback/{provider}", "maum-on-oidc")
+                .param("code", "auth-code")
+                .param("state", "state-value")
+                .header("X-Forwarded-Proto", "https")
+                .header("X-Forwarded-Host", "front.example.com"))
+        .andExpect(status().is3xxRedirection());
+
+    then(oidcCallbackService)
+        .should()
+        .handleCallback("maum-on-oidc", "auth-code", "state-value", "https://front.example.com");
   }
 
   @Test

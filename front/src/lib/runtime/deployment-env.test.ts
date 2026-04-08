@@ -7,10 +7,15 @@ describe("deployment-env", () => {
   });
 
   it("공개 API 기본값은 로컬 백엔드 주소를 사용한다", async () => {
-    const { getPublicApiBaseUrl, getServerApiBaseUrl } = await import(
+    const {
+      getAuthApiBaseUrl,
+      getPublicApiBaseUrl,
+      getServerApiBaseUrl,
+    } = await import(
       "./deployment-env"
     );
 
+    expect(getAuthApiBaseUrl()).toBe("");
     expect(getPublicApiBaseUrl()).toBe("http://localhost:8080");
     expect(getServerApiBaseUrl()).toBe("http://localhost:8080");
   });
