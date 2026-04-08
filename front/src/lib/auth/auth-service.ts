@@ -39,6 +39,9 @@ let restorePromise: Promise<void> | null = null;
 let handlersBound = false;
 
 export type OidcProvider = "maum-on-oidc" | "kakao";
+interface RestoreSessionOptions {
+  force?: boolean;
+}
 
 /** 인터셉터의 인증 실패/refresh 성공 이벤트를 스토어 정책과 연결한다. */
 function bindHttpClientHandlers(): void {
@@ -62,7 +65,9 @@ function bindHttpClientHandlers(): void {
 }
 
 /** 앱 초기 진입 시 refresh 쿠키를 이용해 세션을 복원한다. */
-export async function restoreSession(): Promise<void> {
+export async function restoreSession(
+  options: RestoreSessionOptions = {},
+): Promise<void> {
   bindHttpClientHandlers();
 
   const current = getAuthState();
@@ -70,7 +75,7 @@ export async function restoreSession(): Promise<void> {
     return restorePromise;
   }
 
-  if (current.hasRestored) {
+  if (current.hasRestored && options.force !== true) {
     return;
   }
 
