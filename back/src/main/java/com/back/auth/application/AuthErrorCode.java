@@ -18,6 +18,7 @@ public enum AuthErrorCode {
   OIDC_NONCE_MISMATCH("401-9", "OIDC nonce does not match."),
   OIDC_TOKEN_EXCHANGE_FAILED("401-10", "OIDC token exchange failed."),
   OIDC_ID_TOKEN_INVALID("401-11", "OIDC id_token is invalid."),
+  SSE_SUBSCRIPTION_TICKET_INVALID("401-12", "SSE subscription ticket is invalid or expired."),
   OIDC_AUTHORIZATION_CODE_REQUIRED("400-4", "OIDC authorization code is required."),
   OIDC_ACCOUNT_LINK_CONFLICT("409-2", "OIDC account link conflict detected."),
   MEMBER_BLOCKED("403-2", "Member is blocked."),
