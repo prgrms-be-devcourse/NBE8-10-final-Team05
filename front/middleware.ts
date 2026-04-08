@@ -4,6 +4,7 @@ import {
   buildSetCookieHeadersForFrontend,
   extractCookieNameFromSetCookie,
   extractSetCookieHeaders,
+  normalizeRefreshTokenCookieHeader,
   resolveRequestHostname,
 } from "@/lib/auth/auth-proxy";
 import {
@@ -186,10 +187,11 @@ async function fetchRefreshedSession(
   }
 
   try {
+    const normalizedCookieHeader = normalizeRefreshTokenCookieHeader(cookieHeader);
     const response = await fetch(new URL(REFRESH_PATH, BACKEND_BASE_URL), {
       method: "POST",
       headers: {
-        cookie: cookieHeader,
+        cookie: normalizedCookieHeader,
       },
       cache: "no-store",
     });
