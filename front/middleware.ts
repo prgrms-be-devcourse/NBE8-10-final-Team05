@@ -240,6 +240,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const isPrefetchRequest = request.headers.get("next-router-prefetch") === "1" || request.headers.get("sec-purpose") === "prefetch";
+  if (isPrefetchRequest) {
+    return NextResponse.next();
+  }
+
   const session = await fetchRefreshedSession(request);
   if (!session) {
     if (observabilityApiPath) {
