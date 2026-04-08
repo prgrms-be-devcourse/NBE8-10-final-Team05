@@ -7,6 +7,10 @@ import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
 import { toErrorMessage } from "@/lib/api/rs-data";
+import {
+  getHomeStats,
+  type HomeStats,
+} from "@/lib/home/home-service";
 
 type HomeStoryCategory = "전체" | "고민" | "일상" | "질문";
 type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
@@ -35,12 +39,6 @@ type PostSlice = {
 };
 
 const STORY_CATEGORIES: HomeStoryCategory[] = ["전체", "고민", "일상", "질문"];
-
-const HERO_SIGNALS = [
-  { label: "오늘 올라온 고민", value: "128" },
-  { label: "전달된 비밀 편지", value: "42" },
-  { label: "오늘의 기록", value: "19" },
-];
 
 const API_CATEGORY_TO_STORY_CATEGORY: Record<
   BackendPostCategory,
@@ -75,6 +73,21 @@ const STORY_CARD_THEMES: Record<
 const LETTER_BOTTLE_OUTLINE_PATH =
   "M56.5 43L59.5 43L65 48.5L68.5 53Q70.3 49.4 75.5 49L80 55.5L77 59.5L94.5 76Q101.2 69.7 116.5 72Q133.5 76 142 88.5L172.5 127L181 131L182 135.5L135.5 182L133.5 182L131 181Q129.3 173.5 123.5 169L87.5 141L78 131.5L72 117.5L72 103.5L76 93.5L58.5 77Q58 80.5 53.5 80L49 75.5L49 73.5L53 68.5L43 59.5L43 56.5L56.5 43ZM58 45L45 58L45 60L53 65L55 67L67 55L61 47L58 45ZM74 51L51 74L51 76L55 78L78 56L76 53Q77 50 74 51ZM75 61L61 76L78 92L86 84L87 85Q76 92 73 108L74 119L81 133L127 170L135 164L128 172L132 179L135 180L180 134L173 129L172 128L164 135L170 128L138 87Q129 76 113 73Q100 73 94 78L90 81L92 78L75 61Z";
 
+function formatHeroSignalValue(
+  value: number | null | undefined,
+  isLoading: boolean,
+): string {
+  if (isLoading) {
+    return "...";
+  }
+
+  if (typeof value !== "number") {
+    return "-";
+  }
+
+  return value.toLocaleString("ko-KR");
+}
+
 export default function HomePage() {
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
@@ -89,6 +102,41 @@ export default function HomePage() {
   const [stories, setStories] = useState<StoryCardItem[]>([]);
   const [isStoriesLoading, setIsStoriesLoading] = useState(true);
   const [storiesError, setStoriesError] = useState<string | null>(null);
+  const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
+  const [isHomeStatsLoading, setIsHomeStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchHomeStats(): Promise<void> {
+      setIsHomeStatsLoading(true);
+
+      try {
+        const nextHomeStats = await getHomeStats();
+        if (cancelled) {
+          return;
+        }
+
+        setHomeStats(nextHomeStats);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setHomeStats(null);
+      } finally {
+        if (!cancelled) {
+          setIsHomeStatsLoading(false);
+        }
+      }
+    }
+
+    void fetchHomeStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +193,21 @@ export default function HomePage() {
     return stories.filter((story) => story.category === activeStoryCategory);
   }, [activeStoryCategory, stories]);
 
+  const heroSignals = [
+    {
+      label: "오늘 올라온 고민",
+      value: formatHeroSignalValue(homeStats?.todayWorryCount, isHomeStatsLoading),
+    },
+    {
+      label: "전달된 비밀 편지",
+      value: formatHeroSignalValue(homeStats?.todayLetterCount, isHomeStatsLoading),
+    },
+    {
+      label: "오늘의 기록",
+      value: formatHeroSignalValue(homeStats?.todayDiaryCount, isHomeStatsLoading),
+    },
+  ];
+
   return (
     <div className="home-atmosphere min-h-screen">
       <div className="mx-auto flex w-full max-w-6xl flex-col px-6 pb-12 pt-7">
@@ -157,7 +220,7 @@ export default function HomePage() {
               오늘 할 코딩을 내일로 미루지 말라 - 프로그래머스
             </p>
             <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
-              {HERO_SIGNALS.map((signal) => (
+              {heroSignals.map((signal) => (
                 <div
                   key={signal.label}
                   className="rounded-[24px] border border-white/25 bg-white/14 px-5 py-4 text-left backdrop-blur-sm"

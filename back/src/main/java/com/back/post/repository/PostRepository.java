@@ -7,6 +7,8 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+
 @Repository
 public interface PostRepository extends JpaRepository<Post, Long> {
     Slice<Post> findAllBy(Pageable pageable);
@@ -16,6 +18,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Slice<Post> findByCategory(PostCategory category, Pageable pageable);
 
     Slice<Post> findByTitleContainingAndCategory(String title, PostCategory category, Pageable pageable);
+
+    long countByCategoryAndCreateDateGreaterThanEqualAndCreateDateLessThan(
+            PostCategory category,
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive
+    );
 
     boolean existsByTitle(String title);
 

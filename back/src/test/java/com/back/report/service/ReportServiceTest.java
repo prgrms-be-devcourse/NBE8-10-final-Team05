@@ -4,6 +4,8 @@ import com.back.comment.entity.Comment;
 import com.back.comment.repository.CommentRepository;
 import com.back.diary.adapter.out.persistence.repository.DiaryRepository;
 import com.back.global.exception.ServiceException;
+import com.back.global.time.DateTimeRange;
+import com.back.global.time.KstDateRanges;
 import com.back.letter.domain.Letter;
 import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
@@ -35,7 +37,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -123,17 +125,21 @@ class ReportServiceTest {
     }
 
     @Test
-    @DisplayName("관리자 대시보드 통계는 신고, 편지, 일기, 수신 허용 회원 수를 함께 반환한다.")
+    @DisplayName("관리자 대시보드 통계는 KST 오늘 기준 신고, 편지, 일기, 수신 허용 회원 수를 함께 반환한다.")
     void getDashboardStats_success() {
-        given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
-        given(clock.instant()).willReturn(Instant.parse("2026-03-30T01:00:00Z"));
-        given(reportPersistencePort.countByCreateDateGreaterThanEqualAndCreateDateLessThan(any(), any()))
+        Instant now = Instant.parse("2026-03-30T15:30:00Z");
+        DateTimeRange todayRange = KstDateRanges.today(Clock.fixed(now, java.time.ZoneOffset.UTC));
+        LocalDateTime startOfDay = todayRange.startInclusive();
+        LocalDateTime endOfDay = todayRange.endExclusive();
+
+        given(clock.instant()).willReturn(now);
+        given(reportPersistencePort.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay))
                 .willReturn(4L);
         given(reportPersistencePort.countByStatus(ReportStatus.RECEIVED)).willReturn(7L);
         given(reportPersistencePort.countByStatus(ReportStatus.PROCESSED)).willReturn(13L);
-        given(letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(any(), any()))
+        given(letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay))
                 .willReturn(5L);
-        given(diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(any(), any()))
+        given(diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay))
                 .willReturn(3L);
         given(memberRepository.countByStatusAndRoleAndRandomReceiveAllowed(
                 MemberStatus.ACTIVE, MemberRole.USER, true))
@@ -141,6 +147,8 @@ class ReportServiceTest {
 
         AdminDashboardStatsResponse result = reportService.getDashboardStats();
 
+        assertThat(startOfDay).isEqualTo(LocalDateTime.of(2026, 3, 31, 0, 0));
+        assertThat(endOfDay).isEqualTo(LocalDateTime.of(2026, 4, 1, 0, 0));
         assertThat(result.todayReportsCount()).isEqualTo(4L);
         assertThat(result.pendingReportsCount()).isEqualTo(7L);
         assertThat(result.processedReportsCount()).isEqualTo(13L);
