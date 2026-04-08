@@ -7,6 +7,7 @@ import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthErrorCode;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.AuthSuccessCode;
+import com.back.auth.application.AuthHintCookieService;
 import com.back.auth.application.OidcAuthorizationRequestService;
 import com.back.auth.application.OidcCallbackService;
 import com.back.auth.application.RefreshTokenCookieService;
@@ -40,6 +41,7 @@ public class AuthController {
 
   private final AuthService authService;
   private final RefreshTokenCookieService refreshTokenCookieService;
+  private final AuthHintCookieService authHintCookieService;
   private final OidcAuthorizationRequestService oidcAuthorizationRequestService;
   private final OidcCallbackService oidcCallbackService;
 
@@ -57,6 +59,8 @@ public class AuthController {
       @RequestBody AuthLoginRequest request, HttpServletResponse response) {
     AuthService.AuthTokenIssueResult issueResult = authService.login(request);
     issueRefreshCookie(response, issueResult.refreshToken());
+    authHintCookieService.issueAuthenticatedHintCookie(
+        response, issueResult.response().member().role());
     return new RsData<>(
         AuthSuccessCode.LOGIN_SUCCESS.code(),
         AuthSuccessCode.LOGIN_SUCCESS.message(),
@@ -70,6 +74,8 @@ public class AuthController {
     String rawRefreshToken = refreshTokenCookieService.resolveRefreshToken(request).orElse(null);
     AuthService.AuthTokenIssueResult issueResult = authService.refresh(rawRefreshToken);
     issueRefreshCookie(response, issueResult.refreshToken());
+    authHintCookieService.issueAuthenticatedHintCookie(
+        response, issueResult.response().member().role());
     return new RsData<>(
         AuthSuccessCode.REFRESH_SUCCESS.code(),
         AuthSuccessCode.REFRESH_SUCCESS.message(),
@@ -82,6 +88,7 @@ public class AuthController {
     String rawRefreshToken = refreshTokenCookieService.resolveRefreshToken(request).orElse(null);
     authService.logout(rawRefreshToken);
     refreshTokenCookieService.expireRefreshTokenCookie(response);
+    authHintCookieService.expireAuthHintCookie(response);
     return new RsData<>(
         AuthSuccessCode.LOGOUT_SUCCESS.code(), AuthSuccessCode.LOGOUT_SUCCESS.message());
   }
@@ -118,6 +125,8 @@ public class AuthController {
     OidcCallbackService.OidcCallbackResult callbackResult =
         oidcCallbackService.handleCallback(provider, code, state, resolveBaseUrl(request));
     issueRefreshCookie(response, callbackResult.issueResult().refreshToken());
+    authHintCookieService.issueAuthenticatedHintCookie(
+        response, callbackResult.issueResult().response().member().role());
     return redirectTo(callbackResult.redirectUri());
   }
 

@@ -1,7 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { AUTH_HINT_COOKIE_NAME } from "@/lib/auth/auth-hint-cookie";
-import { getServerApiBaseUrl } from "@/lib/runtime/deployment-env";
+import {
+  getServerApiBaseUrl,
+  resolveSharedAuthCookieDomain,
+} from "@/lib/runtime/deployment-env";
 
 const BACKEND_BASE_URL = getServerApiBaseUrl();
 const REFRESH_PATH = "/api/v1/auth/refresh";
@@ -50,19 +53,10 @@ function buildLoginRedirect(
   nextUrl.search = `?next=${encodeURIComponent(target)}`;
 
   const response = NextResponse.redirect(nextUrl);
-  response.cookies.set(AUTH_HINT_COOKIE_NAME, "", {
-    maxAge: 0,
-    path: "/",
-    sameSite: "lax",
-  });
+  expireAuthHintCookie(response, request.nextUrl.hostname);
 
   if (options.clearRefreshCookie) {
-    response.cookies.set(REFRESH_COOKIE_NAME, "", {
-      maxAge: 0,
-      path: "/",
-      sameSite: "lax",
-      httpOnly: true,
-    });
+    expireRefreshCookie(response, request.nextUrl.hostname);
   }
 
   return response;
@@ -74,6 +68,55 @@ function buildForbiddenRedirect(request: NextRequest): NextResponse {
   nextUrl.pathname = "/forbidden";
   nextUrl.search = `?from=${encodeURIComponent(from)}`;
   return NextResponse.redirect(nextUrl);
+}
+
+function buildCookieOptions(
+  requestHostname: string,
+  overrides: {
+    httpOnly?: boolean;
+    maxAge?: number;
+  } = {},
+) {
+  const authCookieDomain = resolveSharedAuthCookieDomain(requestHostname);
+  return {
+    path: "/",
+    sameSite: "lax" as const,
+    ...(authCookieDomain ? { domain: authCookieDomain } : {}),
+    ...overrides,
+  };
+}
+
+function expireAuthHintCookie(response: NextResponse, requestHostname: string): void {
+  response.cookies.set(
+    AUTH_HINT_COOKIE_NAME,
+    "",
+    buildCookieOptions(requestHostname, {
+      maxAge: 0,
+    }),
+  );
+}
+
+function setAuthHintCookie(
+  response: NextResponse,
+  value: "member" | "admin",
+  requestHostname: string,
+): void {
+  response.cookies.set(
+    AUTH_HINT_COOKIE_NAME,
+    value,
+    buildCookieOptions(requestHostname),
+  );
+}
+
+function expireRefreshCookie(response: NextResponse, requestHostname: string): void {
+  response.cookies.set(
+    REFRESH_COOKIE_NAME,
+    "",
+    buildCookieOptions(requestHostname, {
+      httpOnly: true,
+      maxAge: 0,
+    }),
+  );
 }
 
 function buildUnauthorizedApiResponse(): NextResponse {
@@ -182,10 +225,7 @@ export async function middleware(request: NextRequest) {
       headers: requestHeaders,
     },
   });
-  response.cookies.set(AUTH_HINT_COOKIE_NAME, hintValue, {
-    path: "/",
-    sameSite: "lax",
-  });
+  setAuthHintCookie(response, hintValue, request.nextUrl.hostname);
 
   if (session.refreshSetCookie) {
     response.headers.append("set-cookie", session.refreshSetCookie);
