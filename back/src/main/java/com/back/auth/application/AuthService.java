@@ -121,8 +121,11 @@ public class AuthService {
     }
 
     if (current.getRevokedAt() != null) {
-      refreshTokenDomainService.revokeFamily(current.getFamilyId(), now);
-      throw AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED.toException();
+      if (now.isAfter(current.getRevokedAt().plusSeconds(15))) {
+        refreshTokenDomainService.revokeFamily(current.getFamilyId(), now);
+        throw AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED.toException();
+      }
+      // If within 15 seconds grace period, proceed with rotation to handle concurrent network requests
     }
 
     if (!current.getExpiresAt().isAfter(now)) {
