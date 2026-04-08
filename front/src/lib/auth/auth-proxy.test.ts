@@ -5,9 +5,14 @@ import {
   extractCookieNameFromSetCookie,
   extractSetCookieHeaders,
   isAuthApiPath,
+  normalizeRefreshTokenCookieHeader,
   resolveRequestHostname,
   rewriteSetCookieForFrontend,
 } from "./auth-proxy";
+
+function createFakeJwt(payload: Record<string, unknown>): string {
+  return `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
+}
 
 describe("auth-proxy", () => {
   it("auth API 경로를 식별한다", () => {
@@ -122,5 +127,18 @@ describe("auth-proxy", () => {
         nextUrl: new URL("http://localhost:3100/api/v1/auth/login"),
       }),
     ).toBe("maum-on.parksuyeon.site");
+  });
+
+  it("중복 refreshToken 쿠키가 있으면 가장 최신 iat 값만 남긴다", () => {
+    const olderRefreshToken = createFakeJwt({ iat: 100, exp: 200 });
+    const newerRefreshToken = createFakeJwt({ iat: 300, exp: 400 });
+
+    expect(
+      normalizeRefreshTokenCookieHeader(
+        `refreshToken=${olderRefreshToken}; JSESSIONID=abc; maumOnAuthHint=member; refreshToken=${newerRefreshToken}`,
+      ),
+    ).toBe(
+      `refreshToken=${newerRefreshToken}; JSESSIONID=abc; maumOnAuthHint=member`,
+    );
   });
 });

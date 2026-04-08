@@ -3,6 +3,7 @@ import {
   applyForwardedHeaders,
   buildSetCookieHeadersForFrontend,
   extractSetCookieHeaders,
+  normalizeRefreshTokenCookieHeader,
   resolveRequestHostname,
 } from "@/lib/auth/auth-proxy";
 import { getServerApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
@@ -78,6 +79,10 @@ async function fetchUpstreamAuthResponse(
   const headers = new Headers(request.headers);
   for (const header of HOP_BY_HOP_REQUEST_HEADERS) {
     headers.delete(header);
+  }
+  const cookieHeader = headers.get("cookie");
+  if (cookieHeader) {
+    headers.set("cookie", normalizeRefreshTokenCookieHeader(cookieHeader));
   }
   applyForwardedHeaders(headers, request.nextUrl);
 
