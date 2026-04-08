@@ -110,4 +110,35 @@ describe("auth-service", () => {
       member,
     });
   });
+
+  it("OIDC 콜백 복원은 hasRestored 이후에도 강제로 refresh를 재시도한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      createJsonResponse({
+        resultCode: "200-2",
+        msg: "세션 복원 성공",
+        data: {
+          accessToken: "restored-token",
+          tokenType: "Bearer",
+          expiresInSeconds: 3600,
+          member,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const authService = await import("./auth-service");
+    const authStore = await import("./auth-store");
+
+    authStore.markRestoreFinished();
+
+    await authService.restoreSession({ force: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(authStore.getAuthState()).toMatchObject({
+      isAuthenticated: true,
+      hasRestored: true,
+      isRestoring: false,
+      member,
+    });
+  });
 });

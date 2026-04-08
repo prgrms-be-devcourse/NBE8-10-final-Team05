@@ -25,7 +25,7 @@ export default function LoginCallbackPage() {
       setAuthError(null);
 
       try {
-        await restoreSession();
+        await restoreSession({ force: true });
       } catch {
         if (!cancelled) {
           setAuthError("로그인 세션 복원에 실패했습니다. 다시 시도해 주세요.");
