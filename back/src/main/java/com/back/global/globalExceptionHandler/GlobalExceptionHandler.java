@@ -9,6 +9,7 @@ import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,10 +35,11 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(ServiceException.class)
-  public RsData<Void> handle(ServiceException exception, HttpServletResponse response) {
+  public ResponseEntity<RsData<Void>> handle(
+      ServiceException exception, HttpServletRequest request, HttpServletResponse response) {
     RsData<Void> rsData = exception.getRsData();
     response.setStatus(rsData.statusCode());
-    return rsData;
+    return buildResponse(rsData, HttpStatus.valueOf(rsData.statusCode()), request);
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
