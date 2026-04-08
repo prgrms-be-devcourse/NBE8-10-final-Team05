@@ -174,6 +174,8 @@ async function fetchRefreshedSession(
 ): Promise<{
   authPayload: AuthTokenPayload;
   refreshSetCookies: string[];
+} | {
+  isTokenReuseDetected: boolean;
 } | null> {
   const cookieHeader = request.headers.get("cookie");
   if (!cookieHeader) {
@@ -190,6 +192,16 @@ async function fetchRefreshedSession(
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        try {
+          const errorPayload = await response.json();
+          if (errorPayload?.resultCode === "401-5") {
+            return { isTokenReuseDetected: true };
+          }
+        } catch {
+          // ignore json parse error
+        }
+      }
       return null;
     }
 
@@ -246,6 +258,12 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = await fetchRefreshedSession(request);
+  
+  if (session && "isTokenReuseDetected" in session) {
+    // 401-5 에러 발생 시 조용히 쿠키 정리 후 로그인 페이지로 유도
+    return buildLoginRedirect(request, { clearRefreshCookie: true });
+  }
+
   if (!session) {
     if (observabilityApiPath) {
       return buildUnauthorizedApiResponse();

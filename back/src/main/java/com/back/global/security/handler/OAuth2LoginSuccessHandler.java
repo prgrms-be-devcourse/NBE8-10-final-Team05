@@ -1,5 +1,6 @@
 package com.back.global.security.handler;
 
+import com.back.auth.application.AccessTokenCookieService;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.AuthSuccessCode;
 import com.back.auth.application.RefreshTokenCookieService;
@@ -28,6 +29,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
   private final AuthService authService;
   private final RefreshTokenCookieService refreshTokenCookieService;
+  private final AccessTokenCookieService accessTokenCookieService;
   private final ObjectMapper objectMapper;
 
   @Override
@@ -42,7 +44,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
       AuthService.AuthTokenIssueResult issueResult =
           authService.oidcLogin(socialProfile.email(), socialProfile.nickname());
+      
       refreshTokenCookieService.issueRefreshTokenCookie(response, issueResult.refreshToken());
+      accessTokenCookieService.issueAccessTokenCookie(response, issueResult.response().accessToken());
+      
+      // auth_hint 쿠키 설정 (미들웨어 가이드용)
+      response.addHeader("Set-Cookie", "auth_hint=member; Path=/; Max-Age=3600; SameSite=Lax");
 
       RsData<?> rsData =
           new RsData<>(

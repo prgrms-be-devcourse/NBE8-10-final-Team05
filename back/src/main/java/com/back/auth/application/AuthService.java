@@ -1,5 +1,6 @@
 package com.back.auth.application;
 
+import lombok.extern.slf4j.Slf4j;
 import com.back.auth.adapter.in.web.dto.AuthLoginRequest;
 import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
@@ -31,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /** 회원 가입/로그인/재발급/로그아웃/내 정보 조회 인증 유스케이스를 담당하는 서비스. */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -122,10 +124,13 @@ public class AuthService {
 
     if (current.getRevokedAt() != null) {
       if (now.isAfter(current.getRevokedAt().plusSeconds(15))) {
+        log.warn("Refresh token reuse detected (after grace period). JTI: {}, RevokedAt: {}, Now: {}",
+            current.getJti(), current.getRevokedAt(), now);
         refreshTokenDomainService.revokeFamily(current.getFamilyId(), now);
         throw AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED.toException();
       }
-      // If within 15 seconds grace period, proceed with rotation to handle concurrent network requests
+      log.info("Refresh token reuse within grace period. JTI: {}, RevokedAt: {}, Now: {}",
+          current.getJti(), current.getRevokedAt(), now);
     }
 
     if (!current.getExpiresAt().isAfter(now)) {
