@@ -31,6 +31,15 @@ export function getAuthApiBaseUrl(): string {
   );
 }
 
+function getAuthCookieBaseUrl(): string {
+  const authApiBaseUrl = getAuthApiBaseUrl();
+  if (authApiBaseUrl) {
+    return authApiBaseUrl;
+  }
+
+  return getPublicApiBaseUrl();
+}
+
 function getConfiguredAuthCookieDomain(): string | null {
   const trimmed = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN?.trim() ?? "";
   return trimmed ? trimmed : null;
@@ -93,7 +102,7 @@ export function resolveSharedAuthCookieDomain(frontendHostname: string): string 
   }
 
   try {
-    const apiHostname = new URL(getPublicApiBaseUrl()).hostname;
+    const apiHostname = new URL(getAuthCookieBaseUrl()).hostname;
     return findSharedCookieDomain(frontendHostname, apiHostname);
   } catch {
     return null;

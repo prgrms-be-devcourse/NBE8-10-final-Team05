@@ -4,7 +4,7 @@ set -eu
 TEMPLATE_PATH="/etc/prometheus/prometheus.yml.tmpl"
 RENDERED_PATH="/tmp/prometheus.yml"
 
-: "${BACKEND_SCRAPE_TARGET:=maum-on-back:8080}"
+: "${BACKEND_SCRAPE_TARGET:=host.docker.internal:8080}"
 : "${PROMETHEUS_EXTERNAL_URL:=http://localhost:3400/prometheus/}"
 
 sed "s#__BACKEND_SCRAPE_TARGET__#${BACKEND_SCRAPE_TARGET}#g" "$TEMPLATE_PATH" > "$RENDERED_PATH"

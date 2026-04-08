@@ -32,6 +32,17 @@ describe("deployment-env", () => {
     expect(getServerApiBaseUrl()).toBe("http://backend.internal:8080");
   });
 
+  it("공유 인증 쿠키 도메인은 auth 전용 API 주소를 우선 사용한다", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8080");
+    vi.stubEnv("NEXT_PUBLIC_AUTH_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
+
+    const { resolveSharedAuthCookieDomain } = await import("./deployment-env");
+
+    expect(resolveSharedAuthCookieDomain("maum-on.parksuyeon.site")).toBe(
+      ".maum-on.parksuyeon.site",
+    );
+  });
+
   it("모니터링 프록시 기본 URL은 same-origin 경로를 사용한다", async () => {
     const { getMonitoringProxyBaseUrl } = await import("./deployment-env");
 

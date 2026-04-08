@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   applyForwardedHeaders,
+  buildSetCookieHeadersForFrontend,
   extractSetCookieHeaders,
-  rewriteSetCookieForFrontend,
+  resolveRequestHostname,
 } from "@/lib/auth/auth-proxy";
 import { getServerApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
@@ -43,6 +44,7 @@ async function handleAuthProxy(
 ): Promise<Response> {
   const { path: pathSegments = [] } = await context.params;
   const authPath = toAuthPath(pathSegments);
+  const requestHostname = resolveRequestHostname(request);
 
   if (!authPath) {
     return NextResponse.json(
@@ -60,10 +62,10 @@ async function handleAuthProxy(
   });
 
   if (shouldHandleRedirectManually(authPath)) {
-    return buildRedirectResponse(request, upstreamResponse);
+    return buildRedirectResponse(request, upstreamResponse, requestHostname);
   }
 
-  return buildProxyResponse(upstreamResponse);
+  return buildProxyResponse(upstreamResponse, requestHostname);
 }
 
 async function fetchUpstreamAuthResponse(
@@ -98,21 +100,29 @@ async function fetchUpstreamAuthResponse(
 function buildRedirectResponse(
   request: NextRequest,
   upstreamResponse: Response,
+  requestHostname?: string,
 ): Response {
   const location = upstreamResponse.headers.get("location");
   if (!location) {
-    return buildProxyResponse(upstreamResponse);
+    return buildProxyResponse(upstreamResponse, requestHostname);
   }
 
   const response = NextResponse.redirect(
     new URL(location, request.url),
     { status: upstreamResponse.status },
   );
-  appendRewrittenSetCookieHeaders(response.headers, upstreamResponse.headers);
+  appendRewrittenSetCookieHeaders(
+    response.headers,
+    upstreamResponse.headers,
+    requestHostname,
+  );
   return response;
 }
 
-function buildProxyResponse(upstreamResponse: Response): Response {
+function buildProxyResponse(
+  upstreamResponse: Response,
+  requestHostname?: string,
+): Response {
   const responseHeaders = new Headers();
 
   for (const [key, value] of upstreamResponse.headers.entries()) {
@@ -122,7 +132,11 @@ function buildProxyResponse(upstreamResponse: Response): Response {
     responseHeaders.append(key, value);
   }
 
-  appendRewrittenSetCookieHeaders(responseHeaders, upstreamResponse.headers);
+  appendRewrittenSetCookieHeaders(
+    responseHeaders,
+    upstreamResponse.headers,
+    requestHostname,
+  );
 
   return new Response(upstreamResponse.body, {
     status: upstreamResponse.status,
@@ -134,9 +148,14 @@ function buildProxyResponse(upstreamResponse: Response): Response {
 function appendRewrittenSetCookieHeaders(
   responseHeaders: Headers,
   upstreamHeaders: Headers,
+  requestHostname?: string,
 ): void {
   for (const cookie of extractSetCookieHeaders(upstreamHeaders)) {
-    responseHeaders.append("set-cookie", rewriteSetCookieForFrontend(cookie));
+    for (const rewrittenCookie of buildSetCookieHeadersForFrontend(cookie, {
+      requestHostname,
+    })) {
+      responseHeaders.append("set-cookie", rewrittenCookie);
+    }
   }
 }
 

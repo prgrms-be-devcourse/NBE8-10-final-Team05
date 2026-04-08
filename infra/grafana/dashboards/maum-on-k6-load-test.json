@@ -110,7 +110,7 @@
       "type": "timeseries",
       "options": { "legend": { "displayMode": "table", "placement": "right" } },
       "targets": [
-        { "expr": "tomcat_threads_active_threads", "legendFormat": "Active Threads", "refId": "A" },
+        { "expr": "tomcat_threads_busy_threads", "legendFormat": "Busy Threads", "refId": "A" },
         { "expr": "tomcat_threads_config_max_threads", "legendFormat": "Max Threads", "refId": "B" },
         { "expr": "tomcat_threads_current_threads", "legendFormat": "Current Threads", "refId": "C" }
       ]

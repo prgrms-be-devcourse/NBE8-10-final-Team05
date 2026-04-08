@@ -43,7 +43,6 @@ export default function LoginCallbackPage() {
         return;
       }
       router.replace(nextPath);
-      router.refresh();
       return;
     }
 
