@@ -39,7 +39,7 @@ class AuthServiceConcurrencyTest {
   @MockitoBean private Client geminiClient;
 
   @Test
-  @DisplayName("같은 refresh 토큰으로 동시에 재발급을 요청해도 최대 한 요청만 성공한다")
+  @DisplayName("같은 refresh 토큰으로 동시에 재발급을 요청하면 유예 기간(15초) 내에는 모두 성공한다")
   void concurrentRefreshAllowsOnlyOneSuccessfulRotation() throws Exception {
     Member member = createMember();
     AuthService.AuthTokenIssueResult issued = authService.issueTokenPairForMember(member);
@@ -62,13 +62,11 @@ class AuthServiceConcurrencyTest {
       List<RefreshAttemptResult> results =
           List.of(firstAttempt.get(10, TimeUnit.SECONDS), secondAttempt.get(10, TimeUnit.SECONDS));
 
-      assertThat(results.stream().filter(RefreshAttemptResult::isSuccess)).hasSize(1);
-      assertThat(results.stream().filter(result -> "401-5".equals(result.errorCode()))).hasSize(1);
+      assertThat(results.stream().filter(RefreshAttemptResult::isSuccess)).hasSize(2);
 
       List<RefreshToken> familyTokens =
           refreshTokenRepository.findAllByFamilyIdOrderByIdAsc(refreshSubject.familyId());
-      assertThat(familyTokens).hasSize(2);
-      assertThat(familyTokens).allSatisfy(token -> assertThat(token.getRevokedAt()).isNotNull());
+      assertThat(familyTokens).hasSize(3); // 원본 토큰(폐기됨) + 정상적으로 분기되어 발급된 2개의 새 토큰
     } finally {
       executorService.shutdownNow();
     }

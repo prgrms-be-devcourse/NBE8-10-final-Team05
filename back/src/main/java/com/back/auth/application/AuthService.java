@@ -143,12 +143,15 @@ public class AuthService {
         jwtTokenService.generateRefreshToken(member.getId(), nextJti, current.getFamilyId());
     String nextRefreshTokenHash = hashRefreshToken(nextRefreshToken);
 
-    refreshTokenDomainService.rotate(
-        current,
-        nextJti,
-        nextRefreshTokenHash,
-        now.plusSeconds(jwtProperties.refreshTokenExpireSeconds()),
-        now);
+    LocalDateTime expiresAt = now.plusSeconds(jwtProperties.refreshTokenExpireSeconds());
+
+    if (current.getRevokedAt() != null) {
+      refreshTokenDomainService.saveIssuedToken(
+          member, nextJti, nextRefreshTokenHash, expiresAt, current.getFamilyId());
+    } else {
+      refreshTokenDomainService.rotate(
+          current, nextJti, nextRefreshTokenHash, expiresAt, now);
+    }
 
     String accessToken = generateAccessToken(member);
     return new AuthTokenIssueResult(toTokenResponse(accessToken, member), nextRefreshToken);
