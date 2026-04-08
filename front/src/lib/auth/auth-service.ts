@@ -30,14 +30,34 @@ const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
 const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
+const LOGIN_CALLBACK_PAGE_PATH = "/login/callback";
 const FORBIDDEN_PAGE_PATH = "/forbidden";
+const DEFAULT_NEXT_PATH = "/dashboard";
+const OIDC_POPUP_MODE = "popup";
+const OIDC_POPUP_MESSAGE_TYPE = "maum-on:oidc-popup-result";
+const OIDC_POPUP_WINDOW_NAME = "maum-on-oidc-popup";
+const OIDC_POPUP_WIDTH = 520;
+const OIDC_POPUP_HEIGHT = 720;
 
 let restorePromise: Promise<void> | null = null;
 let handlersBound = false;
 
 export type OidcProvider = "maum-on-oidc" | "kakao";
+export type OidcPopupStatus = "success" | "error";
+
 interface RestoreSessionOptions {
   force?: boolean;
+}
+
+export interface StartOidcLoginOptions {
+  popup?: boolean;
+}
+
+export interface OidcPopupMessage {
+  type: typeof OIDC_POPUP_MESSAGE_TYPE;
+  status: OidcPopupStatus;
+  nextPath: string;
+  errorMessage?: string;
 }
 
 /** 인터셉터의 인증 실패/refresh 성공 이벤트를 스토어 정책과 연결한다. */
@@ -59,6 +79,11 @@ function bindHttpClientHandlers(): void {
       redirectToForbiddenIfNeeded();
     },
   });
+}
+
+/** 앱 부팅 시 HTTP 클라이언트 인증 이벤트 연결을 보장한다. */
+export function initializeAuthRuntime(): void {
+  bindHttpClientHandlers();
 }
 
 /** 앱 초기 진입 시 refresh 쿠키를 이용해 세션을 복원한다. */
@@ -175,20 +200,31 @@ export async function fetchMe(options?: {
 }
 
 /** 소셜 로그인 authorize 경로로 이동한다. */
-export function startOidcLogin(provider: OidcProvider, nextPath: string): void {
+export function startOidcLogin(
+  provider: OidcProvider,
+  nextPath: string,
+  options: StartOidcLoginOptions = {},
+): Window | null {
   if (typeof window === "undefined") {
-    return;
+    return null;
   }
 
-  const safeNextPath = nextPath.startsWith("/") ? nextPath : "/dashboard";
-  const redirectUrl = new URL(safeNextPath, window.location.origin);
+  if (options.popup === true) {
+    const popupAuthorizeUrl = buildOidcAuthorizeUrl(provider, nextPath, true);
+    const popupWindow = window.open(
+      popupAuthorizeUrl.toString(),
+      OIDC_POPUP_WINDOW_NAME,
+      buildOidcPopupFeatures(),
+    );
+    if (popupWindow) {
+      popupWindow.focus();
+      return popupWindow;
+    }
+  }
 
-  const authorizeUrl = new URL(
-    `${AUTH_OIDC_AUTHORIZE_PATH}/${provider}`,
-    window.location.origin,
-  );
-  authorizeUrl.searchParams.set("redirect_uri", redirectUrl.toString());
+  const authorizeUrl = buildOidcAuthorizeUrl(provider, nextPath, false);
   window.location.assign(authorizeUrl.toString());
+  return null;
 }
 
 /** 인증 실패 시 로그인 페이지로 일관되게 보낸다. */
@@ -228,4 +264,95 @@ function redirectToForbiddenIfNeeded(): void {
 
 function isRestoreResultStillRelevant(startedRevision: number): boolean {
   return getAuthState().sessionRevision === startedRevision;
+}
+
+export function supportsOidcPopup(provider: OidcProvider): boolean {
+  return provider === "maum-on-oidc";
+}
+
+export function isOidcPopupCallback(searchParams: URLSearchParams): boolean {
+  return searchParams.get("mode") === OIDC_POPUP_MODE;
+}
+
+export function createOidcPopupMessage(
+  status: OidcPopupStatus,
+  nextPath: string,
+  errorMessage?: string,
+): OidcPopupMessage {
+  return {
+    type: OIDC_POPUP_MESSAGE_TYPE,
+    status,
+    nextPath: sanitizeNextPath(nextPath),
+    ...(errorMessage ? { errorMessage } : {}),
+  };
+}
+
+export function isOidcPopupMessage(value: unknown): value is OidcPopupMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<OidcPopupMessage>;
+  return (
+    candidate.type === OIDC_POPUP_MESSAGE_TYPE &&
+    (candidate.status === "success" || candidate.status === "error") &&
+    typeof candidate.nextPath === "string"
+  );
+}
+
+export function notifyOidcPopupResult(message: OidcPopupMessage): boolean {
+  if (typeof window === "undefined" || !window.opener) {
+    return false;
+  }
+
+  window.opener.postMessage(message, window.location.origin);
+  return true;
+}
+
+function buildOidcAuthorizeUrl(
+  provider: OidcProvider,
+  nextPath: string,
+  popup: boolean,
+): URL {
+  const redirectUrl = popup
+    ? buildOidcPopupCallbackUrl(nextPath)
+    : new URL(sanitizeNextPath(nextPath), window.location.origin);
+  const authorizeUrl = new URL(
+    `${AUTH_OIDC_AUTHORIZE_PATH}/${provider}`,
+    window.location.origin,
+  );
+  authorizeUrl.searchParams.set("redirect_uri", redirectUrl.toString());
+  return authorizeUrl;
+}
+
+function buildOidcPopupCallbackUrl(nextPath: string): URL {
+  const redirectUrl = new URL(LOGIN_CALLBACK_PAGE_PATH, window.location.origin);
+  redirectUrl.searchParams.set("mode", OIDC_POPUP_MODE);
+  redirectUrl.searchParams.set("next", sanitizeNextPath(nextPath));
+  return redirectUrl;
+}
+
+function sanitizeNextPath(nextPath: string): string {
+  return nextPath.startsWith("/") ? nextPath : DEFAULT_NEXT_PATH;
+}
+
+function buildOidcPopupFeatures(): string {
+  const left = Math.max(
+    0,
+    window.screenX + Math.round((window.outerWidth - OIDC_POPUP_WIDTH) / 2),
+  );
+  const top = Math.max(
+    0,
+    window.screenY + Math.round((window.outerHeight - OIDC_POPUP_HEIGHT) / 2),
+  );
+
+  return [
+    `width=${OIDC_POPUP_WIDTH}`,
+    `height=${OIDC_POPUP_HEIGHT}`,
+    `left=${left}`,
+    `top=${top}`,
+    "popup=yes",
+    "resizable=yes",
+    "scrollbars=yes",
+  ].join(",");
 }

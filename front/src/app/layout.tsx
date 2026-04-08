@@ -10,6 +10,11 @@ import {
   type AuthHintState,
   parseAuthHintCookieValue,
 } from "@/lib/auth/auth-hint-cookie";
+import {
+  deserializeServerAuthPayload,
+  SERVER_AUTH_HINT_HEADER,
+  SERVER_AUTH_PAYLOAD_HEADER,
+} from "@/lib/auth/server-auth-payload";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,7 +44,10 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const requestHeaders = await headers();
-  const serverValidatedHint = requestHeaders.get("x-maum-on-server-auth");
+  const serverValidatedHint = requestHeaders.get(SERVER_AUTH_HINT_HEADER);
+  const initialAuthPayload = deserializeServerAuthPayload(
+    requestHeaders.get(SERVER_AUTH_PAYLOAD_HEADER),
+  );
   const cookieAuthHint = parseAuthHintCookieValue(
     cookieStore.get(AUTH_HINT_COOKIE_NAME)?.value,
   );
@@ -64,7 +72,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthHintProvider initialAuthHint={authHint}>
-          <AuthBootstrap />
+          <AuthBootstrap initialAuthPayload={initialAuthPayload} />
           <ConsultationLauncher />
           <div className="flex min-h-screen flex-col">
             <div className="flex-1">{children}</div>

@@ -2,61 +2,67 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { restoreSession } from "@/lib/auth/auth-service";
-import { getAuthState, setAuthError } from "@/lib/auth/auth-store";
+import {
+  createOidcPopupMessage,
+  isOidcPopupCallback,
+  notifyOidcPopupResult,
+} from "@/lib/auth/auth-service";
+import { setAuthError, useAuthStore } from "@/lib/auth/auth-store";
 
 const DEFAULT_NEXT_PATH = "/dashboard";
+const RESTORE_FAILURE_MESSAGE = "로그인 세션 복원에 실패했습니다. 다시 시도해 주세요.";
 
 /** OIDC 콜백 이후 세션을 복원하고 원래 목적지로 이동한다. */
 export default function LoginCallbackPage() {
   const router = useRouter();
-  const nextPath = useMemo(() => {
+  const { hasRestored, isAuthenticated } = useAuthStore();
+  const callbackParams = useMemo(() => {
     if (typeof window === "undefined") {
-      return DEFAULT_NEXT_PATH;
+      return new URLSearchParams();
     }
-    const next = new URLSearchParams(window.location.search).get("next");
-    return next && next.startsWith("/") ? next : DEFAULT_NEXT_PATH;
+
+    return new URLSearchParams(window.location.search);
   }, []);
+  const nextPath = useMemo(() => {
+    const next = callbackParams.get("next");
+    return next && next.startsWith("/") ? next : DEFAULT_NEXT_PATH;
+  }, [callbackParams]);
+  const popupMode = useMemo(() => isOidcPopupCallback(callbackParams), [callbackParams]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function completeLogin(): Promise<void> {
-      setAuthError(null);
-
-      try {
-        await restoreSession({ force: true });
-      } catch {
-        if (!cancelled) {
-          setAuthError("로그인 세션 복원에 실패했습니다. 다시 시도해 주세요.");
-          router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-        }
-        return;
-      }
-
-      if (cancelled) {
-        return;
-      }
-
-      if (getAuthState().isAuthenticated) {
-        router.replace(nextPath);
-        router.refresh();
-        return;
-      }
-
-      setAuthError("로그인 세션 복원에 실패했습니다. 다시 시도해 주세요.");
-      router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
+    if (!hasRestored) {
+      return;
     }
 
-    void completeLogin();
-    return () => {
-      cancelled = true;
-    };
-  }, [nextPath, router]);
+    setAuthError(null);
+
+    if (isAuthenticated) {
+      if (popupMode) {
+        notifyOidcPopupResult(createOidcPopupMessage("success", nextPath));
+        window.close();
+        return;
+      }
+      router.replace(nextPath);
+      router.refresh();
+      return;
+    }
+
+    setAuthError(RESTORE_FAILURE_MESSAGE);
+    if (popupMode) {
+      notifyOidcPopupResult(
+        createOidcPopupMessage("error", nextPath, RESTORE_FAILURE_MESSAGE),
+      );
+      window.close();
+      return;
+    }
+    router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
+  }, [hasRestored, isAuthenticated, nextPath, popupMode, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 text-sm text-zinc-600">
-      소셜 로그인 세션을 복원하고 있습니다...
+      {popupMode
+        ? "소셜 로그인 확인 중입니다. 잠시만 기다려 주세요..."
+        : "소셜 로그인 세션을 복원하고 있습니다..."}
     </div>
   );
 }
