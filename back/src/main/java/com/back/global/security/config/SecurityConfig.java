@@ -117,6 +117,7 @@ public class SecurityConfig {
               auth.requestMatchers(
                       HttpMethod.GET,
                       "/api/v1/health",
+                      "/api/v1/home/stats",
                       "/api/v1/posts",
                       "/api/v1/posts/*",
                       "/api/v1/auth/oidc/authorize/**",

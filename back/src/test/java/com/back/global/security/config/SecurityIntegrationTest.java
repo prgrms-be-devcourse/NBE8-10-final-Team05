@@ -8,8 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.back.auth.application.AuthService;
+import com.back.diary.adapter.out.persistence.repository.DiaryRepository;
+import com.back.diary.domain.Diary;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.global.security.jwt.JwtProperties;
+import com.back.global.time.KstDateRanges;
+import com.back.letter.adapter.out.persistence.repository.LetterRepository;
+import com.back.letter.domain.Letter;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberRole;
@@ -21,6 +26,8 @@ import com.back.post.repository.PostRepository;
 import com.google.genai.Client;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +58,9 @@ class SecurityIntegrationTest {
   @Autowired private AuthService authService;
   @Autowired private PasswordEncoder passwordEncoder;
   @Autowired private PostRepository postRepository;
+  @Autowired private LetterRepository letterRepository;
+  @Autowired private DiaryRepository diaryRepository;
+  @Autowired private Clock clock;
   @MockitoBean private Client geminiClient;
 
   @Test
@@ -132,6 +142,79 @@ class SecurityIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.resultCode").value("200-2"))
         .andExpect(jsonPath("$.data.id").value(post.getId()));
+  }
+
+  @Test
+  @DisplayName("공개 홈 통계 API는 토큰 없이도 오늘 집계를 반환한다")
+  void homeStatsEndpointRemainsPublic() throws Exception {
+    LocalDateTime todayMorning = KstDateRanges.today(clock).startInclusive().plusHours(9);
+    LocalDateTime yesterdayMorning = KstDateRanges.today(clock).startInclusive().minusDays(1).plusHours(9);
+
+    Member sender = createMember(MemberRole.USER, MemberStatus.ACTIVE);
+    Member receiver = createMember(MemberRole.USER, MemberStatus.ACTIVE);
+
+    Post todayWorryPost =
+        postRepository.saveAndFlush(
+            Post.builder()
+                .title("today-worry")
+                .content("content")
+                .summary("content")
+                .member(sender)
+                .category(PostCategory.WORRY)
+                .status(PostStatus.PUBLISHED)
+                .build());
+    todayWorryPost.setCreateDate(todayMorning);
+    postRepository.saveAndFlush(todayWorryPost);
+
+    Post todayDailyPost =
+        postRepository.saveAndFlush(
+            Post.builder()
+                .title("today-daily")
+                .content("content")
+                .summary("content")
+                .member(sender)
+                .category(PostCategory.DAILY)
+                .status(PostStatus.PUBLISHED)
+                .build());
+    todayDailyPost.setCreateDate(todayMorning);
+    postRepository.saveAndFlush(todayDailyPost);
+
+    Post yesterdayWorryPost =
+        postRepository.saveAndFlush(
+            Post.builder()
+                .title("yesterday-worry")
+                .content("content")
+                .summary("content")
+                .member(sender)
+                .category(PostCategory.WORRY)
+                .status(PostStatus.PUBLISHED)
+                .build());
+    yesterdayWorryPost.setCreateDate(yesterdayMorning);
+    postRepository.saveAndFlush(yesterdayWorryPost);
+
+    Letter todayLetter =
+        letterRepository.saveAndFlush(
+            Letter.builder()
+                .title("today-letter")
+                .content("letter")
+                .summary("letter")
+                .sender(sender)
+                .build());
+    todayLetter.dispatch(receiver);
+    todayLetter.setCreateDate(todayMorning);
+    letterRepository.saveAndFlush(todayLetter);
+
+    Diary todayDiary = Diary.create(sender.getId(), sender.getNickname(), "today-diary", "content", "기록", null, true);
+    todayDiary.setCreateDate(todayMorning);
+    diaryRepository.saveAndFlush(todayDiary);
+
+    mockMvc
+        .perform(get("/api/v1/home/stats"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-1"))
+        .andExpect(jsonPath("$.data.todayWorryCount").value(1))
+        .andExpect(jsonPath("$.data.todayLetterCount").value(1))
+        .andExpect(jsonPath("$.data.todayDiaryCount").value(1));
   }
 
   @Test

@@ -4,6 +4,8 @@ import com.back.comment.entity.Comment;
 import com.back.comment.repository.CommentRepository;
 import com.back.diary.adapter.out.persistence.repository.DiaryRepository;
 import com.back.global.exception.ServiceException;
+import com.back.global.time.DateTimeRange;
+import com.back.global.time.KstDateRanges;
 import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
 import com.back.letter.domain.Letter;
@@ -28,8 +30,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -82,16 +82,23 @@ public class ReportService {
     }
 
     public AdminDashboardStatsResponse getDashboardStats() {
-        LocalDate today = LocalDate.now(clock);
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        DateTimeRange todayRange = KstDateRanges.today(clock);
 
         return new AdminDashboardStatsResponse(
-                reportPersistencePort.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
+                reportPersistencePort.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+                        todayRange.startInclusive(),
+                        todayRange.endExclusive()
+                ),
                 reportPersistencePort.countByStatus(ReportStatus.RECEIVED),
                 reportPersistencePort.countByStatus(ReportStatus.PROCESSED),
-                letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
-                diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(startOfDay, endOfDay),
+                letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+                        todayRange.startInclusive(),
+                        todayRange.endExclusive()
+                ),
+                diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+                        todayRange.startInclusive(),
+                        todayRange.endExclusive()
+                ),
                 memberRepository.countByStatusAndRoleAndRandomReceiveAllowed(
                         MemberStatus.ACTIVE, MemberRole.USER, true)
         );
