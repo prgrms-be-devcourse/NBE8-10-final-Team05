@@ -24,6 +24,75 @@ export function getPublicApiBaseUrl(): string {
   );
 }
 
+function getConfiguredAuthCookieDomain(): string | null {
+  const trimmed = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN?.trim() ?? "";
+  return trimmed ? trimmed : null;
+}
+
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().replace(/^\.+/, "").toLowerCase();
+}
+
+function isLocalOrIpHostname(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized) ||
+    normalized.includes(":")
+  );
+}
+
+function findSharedCookieDomain(hostA: string, hostB: string): string | null {
+  const normalizedA = normalizeHostname(hostA);
+  const normalizedB = normalizeHostname(hostB);
+
+  if (
+    !normalizedA ||
+    !normalizedB ||
+    isLocalOrIpHostname(normalizedA) ||
+    isLocalOrIpHostname(normalizedB)
+  ) {
+    return null;
+  }
+
+  const labelsA = normalizedA.split(".");
+  const labelsB = normalizedB.split(".");
+  const sharedLabels: string[] = [];
+
+  while (labelsA.length > 0 && labelsB.length > 0) {
+    const nextA = labelsA[labelsA.length - 1];
+    const nextB = labelsB[labelsB.length - 1];
+    if (nextA !== nextB) {
+      break;
+    }
+    sharedLabels.unshift(nextA);
+    labelsA.pop();
+    labelsB.pop();
+  }
+
+  if (sharedLabels.length < 2) {
+    return null;
+  }
+
+  return `.${sharedLabels.join(".")}`;
+}
+
+export function resolveSharedAuthCookieDomain(frontendHostname: string): string | null {
+  const configured = getConfiguredAuthCookieDomain();
+  if (configured) {
+    return configured;
+  }
+
+  try {
+    const apiHostname = new URL(getPublicApiBaseUrl()).hostname;
+    return findSharedCookieDomain(frontendHostname, apiHostname);
+  } catch {
+    return null;
+  }
+}
+
 export function getServerApiBaseUrl(): string {
   return normalizeAbsoluteBaseUrl(
     process.env.BACKEND_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL,

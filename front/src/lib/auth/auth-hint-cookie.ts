@@ -29,20 +29,3 @@ export function parseAuthHintCookieValue(value: string | undefined): AuthHintSta
     isServerValidated: false,
   };
 }
-
-export function persistAuthHintCookie(role: string): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  const value = role === "ADMIN" ? "admin" : "member";
-  document.cookie = `${AUTH_HINT_COOKIE_NAME}=${value}; Path=/; SameSite=Lax`;
-}
-
-export function clearAuthHintCookie(): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  document.cookie = `${AUTH_HINT_COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax`;
-}

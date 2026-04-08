@@ -15,6 +15,7 @@ import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
 import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
 import com.back.auth.application.AuthService;
+import com.back.auth.application.AuthHintCookieService;
 import com.back.auth.application.OidcAuthorizationRequestService;
 import com.back.auth.application.OidcCallbackService;
 import com.back.auth.application.RefreshTokenCookieService;
@@ -56,6 +57,7 @@ class AuthControllerTest {
 
   @MockitoBean private AuthService authService;
   @MockitoBean private RefreshTokenCookieService refreshTokenCookieService;
+  @MockitoBean private AuthHintCookieService authHintCookieService;
   @MockitoBean private OidcAuthorizationRequestService oidcAuthorizationRequestService;
   @MockitoBean private OidcCallbackService oidcCallbackService;
   @MockitoBean private JwtTokenService jwtTokenService;
@@ -102,6 +104,7 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.data.accessToken").value("access-token"));
 
     then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
+    then(authHintCookieService).should().issueAuthenticatedHintCookie(any(), any(String.class));
   }
 
   @Test
@@ -142,6 +145,7 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.data.accessToken").value("next-access"));
 
     then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
+    then(authHintCookieService).should().issueAuthenticatedHintCookie(any(), any(String.class));
   }
 
   @Test
@@ -157,6 +161,7 @@ class AuthControllerTest {
 
     then(authService).should().logout("raw-refresh-token");
     then(refreshTokenCookieService).should().expireRefreshTokenCookie(any());
+    then(authHintCookieService).should().expireAuthHintCookie(any());
   }
 
   @Test
@@ -240,6 +245,7 @@ class AuthControllerTest {
                 "http://localhost:3000/login/success"));
 
     then(refreshTokenCookieService).should().issueRefreshTokenCookie(any(), any(String.class));
+    then(authHintCookieService).should().issueAuthenticatedHintCookie(any(), any(String.class));
   }
 
   @Test

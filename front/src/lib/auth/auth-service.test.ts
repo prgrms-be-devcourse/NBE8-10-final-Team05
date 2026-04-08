@@ -32,6 +32,7 @@ describe("auth-service", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("로그인 성공 시 복원 상태를 즉시 종료한다", async () => {
@@ -140,5 +141,51 @@ describe("auth-service", () => {
       isRestoring: false,
       member,
     });
+  });
+
+  it("프론트와 API가 같은 상위 도메인을 공유하면 OIDC는 최종 목적지로 바로 복귀한다", async () => {
+    const assign = vi.fn();
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
+    vi.stubGlobal(
+      "window",
+      {
+        location: {
+          origin: "https://maum-on.parksuyeon.site",
+          assign,
+        },
+      } as unknown as Window,
+    );
+
+    const authService = await import("./auth-service");
+
+    authService.startOidcLogin("maum-on-oidc", "/letters/mailbox");
+
+    const authorizeUrl = new URL(assign.mock.calls[0][0]);
+    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
+      "https://maum-on.parksuyeon.site/letters/mailbox",
+    );
+  });
+
+  it("공유 쿠키 브리지가 없으면 기존 콜백 복원 경로를 유지한다", async () => {
+    const assign = vi.fn();
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
+    vi.stubGlobal(
+      "window",
+      {
+        location: {
+          origin: "https://preview-maum-on.vercel.app",
+          assign,
+        },
+      } as unknown as Window,
+    );
+
+    const authService = await import("./auth-service");
+
+    authService.startOidcLogin("maum-on-oidc", "/dashboard");
+
+    const authorizeUrl = new URL(assign.mock.calls[0][0]);
+    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
+      "https://preview-maum-on.vercel.app/login/callback?next=%2Fdashboard",
+    );
   });
 });
