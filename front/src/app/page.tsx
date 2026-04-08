@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useId, useMemo, useState } from "react";
-import BrandWordmark from "@/components/branding/BrandWordmark";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -11,6 +10,11 @@ import {
   getHomeStats,
   type HomeStats,
 } from "@/lib/home/home-service";
+import {
+  getHourlyHealingQuote,
+  getMillisecondsUntilNextKstHour,
+  type HealingQuote,
+} from "@/lib/home/healing-quotes";
 
 type HomeStoryCategory = "전체" | "고민" | "일상" | "질문";
 type BackendPostCategory = "DAILY" | "WORRY" | "QUESTION";
@@ -88,6 +92,11 @@ function formatHeroSignalValue(
   return value.toLocaleString("ko-KR");
 }
 
+const HEALING_QUOTE_TEXT_STYLE = {
+  fontFamily:
+    '"Iowan Old Style", "Palatino Linotype", "AppleMyungjo", "Nanum Myeongjo", serif',
+} as const;
+
 export default function HomePage() {
   const { isAuthenticated } = useAuthStore();
   const diaryHref = isAuthenticated ? "/dashboard" : "/login";
@@ -104,6 +113,9 @@ export default function HomePage() {
   const [storiesError, setStoriesError] = useState<string | null>(null);
   const [homeStats, setHomeStats] = useState<HomeStats | null>(null);
   const [isHomeStatsLoading, setIsHomeStatsLoading] = useState(true);
+  const [healingQuote, setHealingQuote] = useState<HealingQuote>(() =>
+    getHourlyHealingQuote(),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -185,6 +197,24 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const syncHealingQuote = () => {
+      setHealingQuote(getHourlyHealingQuote());
+
+      timeoutId = setTimeout(syncHealingQuote, getMillisecondsUntilNextKstHour());
+    };
+
+    syncHealingQuote();
+
+    return () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
   const visibleStories = useMemo(() => {
     if (activeStoryCategory === "전체") {
       return stories;
@@ -214,11 +244,21 @@ export default function HomePage() {
         <MainHeader />
 
         <section className="home-hero mt-7 rounded-[36px] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-16 lg:py-14">
-          <div className="flex flex-col items-center gap-6 text-center">
-            <BrandWordmark size="hero" tone="inverse" />
-            <p className="text-base text-white/88 sm:text-lg">
-              오늘 할 코딩을 내일로 미루지 말라 - 프로그래머스
-            </p>
+          <div className="flex flex-col items-center gap-10 text-center">
+            <figure className="flex w-full max-w-[42rem] flex-col items-center pt-6 sm:pt-10">
+              <blockquote
+                className="whitespace-pre-line text-[clamp(1.95rem,3.7vw,3.35rem)] font-normal leading-[1.52] tracking-[-0.05em] text-white/98 [text-shadow:0_10px_30px_rgba(49,81,129,0.26)]"
+                style={HEALING_QUOTE_TEXT_STYLE}
+              >
+                {healingQuote.quote}
+              </blockquote>
+              <figcaption
+                className="mt-6 text-[clamp(0.95rem,1.25vw,1.2rem)] tracking-[0.18em] text-white/82"
+                style={HEALING_QUOTE_TEXT_STYLE}
+              >
+                - {healingQuote.author} -
+              </figcaption>
+            </figure>
             <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
               {heroSignals.map((signal) => (
                 <div
