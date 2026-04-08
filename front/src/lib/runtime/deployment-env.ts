@@ -24,6 +24,13 @@ export function getPublicApiBaseUrl(): string {
   );
 }
 
+export function getAuthApiBaseUrl(): string {
+  return normalizeAbsoluteBaseUrl(
+    process.env.NEXT_PUBLIC_AUTH_API_BASE_URL,
+    "",
+  );
+}
+
 function getConfiguredAuthCookieDomain(): string | null {
   const trimmed = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN?.trim() ?? "";
   return trimmed ? trimmed : null;

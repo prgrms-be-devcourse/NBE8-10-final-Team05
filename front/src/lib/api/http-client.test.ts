@@ -41,6 +41,7 @@ describe("http-client", () => {
   });
 
   it("보호 요청이 401이면 refresh 후 한 번 재시도한다", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.com");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -84,6 +85,7 @@ describe("http-client", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/v1/auth/refresh");
 
     const firstHeaders = new Headers(fetchMock.mock.calls[0][1]?.headers);
     const retriedHeaders = new Headers(fetchMock.mock.calls[2][1]?.headers);

@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,6 +37,9 @@ public class AuthController {
 
   private static final String HTTP_SCHEME = "http";
   private static final String HTTPS_SCHEME = "https";
+  private static final String HEADER_X_FORWARDED_HOST = "X-Forwarded-Host";
+  private static final String HEADER_X_FORWARDED_PORT = "X-Forwarded-Port";
+  private static final String HEADER_X_FORWARDED_PROTO = "X-Forwarded-Proto";
   private static final int HTTP_DEFAULT_PORT = 80;
   private static final int HTTPS_DEFAULT_PORT = 443;
 
@@ -139,6 +143,11 @@ public class AuthController {
   }
 
   private String resolveBaseUrl(HttpServletRequest request) {
+    String forwardedBaseUrl = resolveForwardedBaseUrl(request);
+    if (forwardedBaseUrl != null) {
+      return forwardedBaseUrl;
+    }
+
     String scheme = request.getScheme();
     String serverName = request.getServerName();
     int port = request.getServerPort();
@@ -153,6 +162,31 @@ public class AuthController {
     if (hasContextPath(contextPath)) {
       builder.append(contextPath);
     }
+    return builder.toString();
+  }
+
+  private String resolveForwardedBaseUrl(HttpServletRequest request) {
+    String forwardedProto = firstForwardedHeaderValue(request.getHeader(HEADER_X_FORWARDED_PROTO));
+    String forwardedHost = firstForwardedHeaderValue(request.getHeader(HEADER_X_FORWARDED_HOST));
+    if (!StringUtils.hasText(forwardedProto) || !StringUtils.hasText(forwardedHost)) {
+      return null;
+    }
+
+    String forwardedPort = firstForwardedHeaderValue(request.getHeader(HEADER_X_FORWARDED_PORT));
+    StringBuilder builder = new StringBuilder();
+    builder.append(forwardedProto).append("://").append(forwardedHost);
+
+    Integer parsedForwardedPort = parseForwardedPort(forwardedPort);
+    if (!hostContainsExplicitPort(forwardedHost)
+        && parsedForwardedPort != null
+        && !isDefaultPort(forwardedProto, parsedForwardedPort)) {
+      builder.append(':').append(parsedForwardedPort);
+    }
+
+    if (hasContextPath(request.getContextPath())) {
+      builder.append(request.getContextPath());
+    }
+
     return builder.toString();
   }
 
@@ -171,5 +205,44 @@ public class AuthController {
 
   private boolean hasContextPath(String contextPath) {
     return contextPath != null && !contextPath.isBlank();
+  }
+
+  private String firstForwardedHeaderValue(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+
+    String[] tokens = value.split(",");
+    if (tokens.length == 0) {
+      return null;
+    }
+
+    String normalized = tokens[0].trim();
+    return normalized.isEmpty() ? null : normalized;
+  }
+
+  private Integer parseForwardedPort(String forwardedPort) {
+    if (!StringUtils.hasText(forwardedPort)) {
+      return null;
+    }
+
+    try {
+      return Integer.parseInt(forwardedPort);
+    } catch (NumberFormatException exception) {
+      return null;
+    }
+  }
+
+  private boolean hostContainsExplicitPort(String host) {
+    if (!StringUtils.hasText(host)) {
+      return false;
+    }
+
+    if (host.startsWith("[")) {
+      return host.contains("]:");
+    }
+
+    int firstColon = host.indexOf(':');
+    return firstColon >= 0 && firstColon == host.lastIndexOf(':');
   }
 }

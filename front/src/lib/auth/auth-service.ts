@@ -22,10 +22,6 @@ import {
   configureHttpClient,
 } from "@/lib/api/http-client";
 import { toErrorMessage } from "@/lib/api/rs-data";
-import {
-  getPublicApiBaseUrl,
-  resolveSharedAuthCookieDomain,
-} from "@/lib/runtime/deployment-env";
 
 const AUTH_ME_PATH = "/api/v1/auth/me";
 const AUTH_SIGNUP_PATH = "/api/v1/auth/signup";
@@ -35,8 +31,6 @@ const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
 const FORBIDDEN_PAGE_PATH = "/forbidden";
-const OIDC_CALLBACK_PATH = "/login/callback";
-const API_BASE_URL = getPublicApiBaseUrl();
 
 let restorePromise: Promise<void> | null = null;
 let handlersBound = false;
@@ -187,11 +181,11 @@ export function startOidcLogin(provider: OidcProvider, nextPath: string): void {
   }
 
   const safeNextPath = nextPath.startsWith("/") ? nextPath : "/dashboard";
-  const redirectUrl = resolveOidcRedirectUrl(window.location.origin, safeNextPath);
+  const redirectUrl = new URL(safeNextPath, window.location.origin);
 
   const authorizeUrl = new URL(
     `${AUTH_OIDC_AUTHORIZE_PATH}/${provider}`,
-    API_BASE_URL,
+    window.location.origin,
   );
   authorizeUrl.searchParams.set("redirect_uri", redirectUrl.toString());
   window.location.assign(authorizeUrl.toString());
@@ -234,19 +228,4 @@ function redirectToForbiddenIfNeeded(): void {
 
 function isRestoreResultStillRelevant(startedRevision: number): boolean {
   return getAuthState().sessionRevision === startedRevision;
-}
-
-function resolveOidcRedirectUrl(frontOrigin: string, nextPath: string): URL {
-  if (canUseDirectOidcRedirect(frontOrigin)) {
-    return new URL(nextPath, frontOrigin);
-  }
-
-  const callbackUrl = new URL(OIDC_CALLBACK_PATH, frontOrigin);
-  callbackUrl.searchParams.set("next", nextPath);
-  return callbackUrl;
-}
-
-function canUseDirectOidcRedirect(frontOrigin: string): boolean {
-  const frontUrl = new URL(frontOrigin);
-  return resolveSharedAuthCookieDomain(frontUrl.hostname) !== null;
 }

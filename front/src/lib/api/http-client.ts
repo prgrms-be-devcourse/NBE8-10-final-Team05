@@ -1,9 +1,15 @@
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth/token-store";
+import { isAuthApiPath } from "@/lib/auth/auth-proxy";
 import type { AuthTokenPayload } from "@/lib/auth/types";
 import { ApiError, type RsData } from "@/lib/api/rs-data";
-import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
+import {
+  getAuthApiBaseUrl,
+  getPublicApiBaseUrl,
+  joinUrl,
+} from "@/lib/runtime/deployment-env";
 
 const API_BASE_URL = getPublicApiBaseUrl();
+const AUTH_API_BASE_URL = getAuthApiBaseUrl();
 const REFRESH_PATH = "/api/v1/auth/refresh";
 
 type AuthFailureReason = "refresh_failed" | "unauthorized";
@@ -252,5 +258,9 @@ async function parseResponseBody<T>(response: Response): Promise<RsData<T> | nul
 
 /** API base URL을 기준으로 절대 URL을 만든다. */
 function buildUrl(path: string): string {
+  if (isAuthApiPath(path)) {
+    return joinUrl(AUTH_API_BASE_URL, path);
+  }
+
   return joinUrl(API_BASE_URL, path);
 }
