@@ -1,12 +1,28 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { toErrorMessage } from "@/lib/api/rs-data";
-import { login, startOidcLogin, type OidcProvider } from "@/lib/auth/auth-service";
+import {
+  isOidcPopupMessage,
+  login,
+  startOidcLogin,
+  supportsOidcPopup,
+  type OidcProvider,
+} from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
 /** 로그인 페이지: 성공 시 next 파라미터 또는 대시보드로 이동한다. */
@@ -22,6 +38,8 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoggingIn, errorMessage } = useAuthStore();
+  const oidcPopupWindowRef = useRef<Window | null>(null);
+  const oidcPopupMonitorRef = useRef<number | null>(null);
   const signupEmail = searchParams.get("email") ?? "";
   const [email, setEmail] = useState(signupEmail);
   const [password, setPassword] = useState("");
@@ -52,6 +70,47 @@ function LoginPageContent() {
     }
   }, [isAuthenticated, nextPath, router]);
 
+  useEffect(() => {
+    return () => {
+      clearOidcPopupMonitor(oidcPopupMonitorRef);
+      oidcPopupWindowRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    async function handlePopupMessage(event: MessageEvent): Promise<void> {
+      if (event.origin !== window.location.origin || !isOidcPopupMessage(event.data)) {
+        return;
+      }
+
+      clearOidcPopupMonitor(oidcPopupMonitorRef);
+      oidcPopupWindowRef.current = null;
+      setOidcLoadingProvider(null);
+
+      if (event.data.status === "error") {
+        setSubmitError(event.data.errorMessage ?? "소셜 로그인에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+
+      setSubmitError(null);
+      router.replace(event.data.nextPath);
+      router.refresh();
+    }
+
+    function onMessage(event: MessageEvent): void {
+      void handlePopupMessage(event);
+    }
+
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+    };
+  }, [router]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
@@ -77,6 +136,15 @@ function LoginPageContent() {
   function handleOidcLogin(provider: OidcProvider) {
     setSubmitError(null);
     setOidcLoadingProvider(provider);
+    if (supportsOidcPopup(provider)) {
+      const popupWindow = startOidcLogin(provider, nextPath, { popup: true });
+      if (popupWindow) {
+        oidcPopupWindowRef.current = popupWindow;
+        startOidcPopupMonitor(provider, popupWindow, oidcPopupMonitorRef, setOidcLoadingProvider);
+      }
+      return;
+    }
+
     startOidcLogin(provider, nextPath);
   }
 
@@ -231,4 +299,30 @@ function LoginPageFallback() {
       </div>
     </div>
   );
+}
+
+function startOidcPopupMonitor(
+  provider: OidcProvider,
+  popupWindow: Window,
+  monitorRef: MutableRefObject<number | null>,
+  setOidcLoadingProvider: Dispatch<SetStateAction<OidcProvider | null>>,
+): void {
+  clearOidcPopupMonitor(monitorRef);
+  monitorRef.current = window.setInterval(() => {
+    if (!popupWindow.closed) {
+      return;
+    }
+
+    clearOidcPopupMonitor(monitorRef);
+    setOidcLoadingProvider((current) => (current === provider ? null : current));
+  }, 400);
+}
+
+function clearOidcPopupMonitor(monitorRef: MutableRefObject<number | null>): void {
+  if (monitorRef.current === null) {
+    return;
+  }
+
+  window.clearInterval(monitorRef.current);
+  monitorRef.current = null;
 }

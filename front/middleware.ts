@@ -5,7 +5,13 @@ import {
   extractSetCookieHeaders,
   rewriteSetCookieForFrontend,
 } from "@/lib/auth/auth-proxy";
+import {
+  SERVER_AUTH_HINT_HEADER,
+  SERVER_AUTH_PAYLOAD_HEADER,
+  serializeServerAuthPayload,
+} from "@/lib/auth/server-auth-payload";
 import { AUTH_HINT_COOKIE_NAME } from "@/lib/auth/auth-hint-cookie";
+import type { AuthTokenPayload } from "@/lib/auth/types";
 import {
   getServerApiBaseUrl,
   resolveSharedAuthCookieDomain,
@@ -16,15 +22,7 @@ const REFRESH_PATH = "/api/v1/auth/refresh";
 const REFRESH_COOKIE_NAME = "refreshToken";
 const AUTH_HINT_MEMBER = "member";
 const AUTH_HINT_ADMIN = "admin";
-
-interface AuthMember {
-  role: string;
-}
-
-interface AuthRefreshData {
-  accessToken: string;
-  member: AuthMember;
-}
+const LOGIN_CALLBACK_PATH = "/login/callback";
 
 interface RsData<T> {
   resultCode: string;
@@ -51,6 +49,10 @@ function isMemberProtectedPath(pathname: string): boolean {
     pathname.startsWith("/stories/write") ||
     pathname.startsWith("/settings")
   );
+}
+
+function isLoginCallbackPath(pathname: string): boolean {
+  return pathname === LOGIN_CALLBACK_PATH;
 }
 
 function isValidAuthHint(value: string | undefined): value is "member" | "admin" {
@@ -175,7 +177,7 @@ function buildPassThroughResponse(
 async function fetchRefreshedSession(
   request: NextRequest,
 ): Promise<{
-  memberRole: string;
+  authPayload: AuthTokenPayload;
   refreshSetCookies: string[];
 } | null> {
   const cookieHeader = request.headers.get("cookie");
@@ -196,14 +198,14 @@ async function fetchRefreshedSession(
       return null;
     }
 
-    const payload = (await response.json()) as RsData<AuthRefreshData>;
+    const payload = (await response.json()) as RsData<AuthTokenPayload>;
     const data = payload?.data;
     if (!data?.accessToken || !data.member?.role) {
       return null;
     }
 
     return {
-      memberRole: data.member.role,
+      authPayload: data,
       refreshSetCookies: extractSetCookieHeaders(response.headers).filter(
         (value) => extractCookieNameFromSetCookie(value) === REFRESH_COOKIE_NAME,
       ),
@@ -218,23 +220,8 @@ export async function middleware(request: NextRequest) {
   const observabilityApiPath = isObservabilityApiPath(pathname);
   const memberProtectedPath = isMemberProtectedPath(pathname);
   const adminProtectedPath = isAdminPath(pathname) || isObservabilityPath(pathname);
+  const loginCallbackPath = isLoginCallbackPath(pathname);
   const authHint = request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value;
-  if (!isValidAuthHint(authHint)) {
-    if (observabilityApiPath) {
-      return buildUnauthorizedApiResponse();
-    }
-
-    if (adminProtectedPath) {
-      return buildLoginRedirect(request, { clearRefreshCookie: true });
-    }
-
-    if (memberProtectedPath) {
-      return buildPassThroughResponse(request, { clearAuthHintCookie: true });
-    }
-
-    return NextResponse.next();
-  }
-
   const refreshCookie = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
   if (!refreshCookie) {
     if (observabilityApiPath) {
@@ -245,13 +232,17 @@ export async function middleware(request: NextRequest) {
       return buildLoginRedirect(request);
     }
 
-    if (memberProtectedPath) {
+    if (memberProtectedPath || loginCallbackPath) {
       return buildPassThroughResponse(request, {
-        clearAuthHintCookie: true,
+        clearAuthHintCookie: isValidAuthHint(authHint),
         clearRefreshCookie: true,
       });
     }
 
+    return NextResponse.next();
+  }
+
+  if (!memberProtectedPath && !adminProtectedPath && !observabilityApiPath && !loginCallbackPath) {
     return NextResponse.next();
   }
 
@@ -265,7 +256,7 @@ export async function middleware(request: NextRequest) {
       return buildLoginRedirect(request, { clearRefreshCookie: true });
     }
 
-    if (memberProtectedPath) {
+    if (memberProtectedPath || loginCallbackPath) {
       return buildPassThroughResponse(request, {
         clearAuthHintCookie: true,
         clearRefreshCookie: true,
@@ -275,16 +266,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (adminProtectedPath && session.memberRole !== "ADMIN") {
+  if (adminProtectedPath && session.authPayload.member.role !== "ADMIN") {
     if (observabilityApiPath) {
       return buildForbiddenApiResponse();
     }
     return buildForbiddenRedirect(request);
   }
 
-  const hintValue = session.memberRole === "ADMIN" ? "admin" : "member";
+  const hintValue = session.authPayload.member.role === "ADMIN" ? "admin" : "member";
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-maum-on-server-auth", hintValue);
+  requestHeaders.set(SERVER_AUTH_HINT_HEADER, hintValue);
+  requestHeaders.set(
+    SERVER_AUTH_PAYLOAD_HEADER,
+    serializeServerAuthPayload(session.authPayload),
+  );
   const response = NextResponse.next({
     request: {
       headers: requestHeaders,
@@ -309,5 +304,6 @@ export const config = {
     "/admin/:path*",
     "/grafana/:path*",
     "/prometheus/:path*",
+    "/login/callback",
   ],
 };
