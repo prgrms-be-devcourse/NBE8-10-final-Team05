@@ -13,6 +13,12 @@ import org.springframework.mock.web.MockHttpServletResponse;
 @DisplayName("리프레시 쿠키 서비스 테스트")
 class RefreshTokenCookieServiceTest {
 
+  private static String createFakeJwt(long issuedAt, long expiresAt) {
+    String payload =
+        String.format("{\"iat\":%d,\"exp\":%d}", issuedAt, expiresAt);
+    return "header." + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes()) + ".signature";
+  }
+
   @Test
   @DisplayName("운영 설정에서는 Secure와 SameSite=None 속성으로 쿠키를 발급한다")
   void issueCookieUsesProdPolicy() {
@@ -83,6 +89,35 @@ class RefreshTokenCookieServiceTest {
     var result = service.resolveRefreshToken(request);
 
     assertThat(result).contains("raw-refresh-token");
+  }
+
+  @Test
+  @DisplayName("중복 refreshToken 쿠키가 있으면 최신 iat 값을 우선 사용한다")
+  void resolveMostRecentRefreshTokenFromRawCookieHeader() {
+    JwtProperties properties =
+        new JwtProperties(
+            "maum-on-test",
+            "maum-on-test-secret-key-at-least-32-characters-long-123456",
+            3600L,
+            1_209_600L,
+            "refreshToken",
+            null,
+            false,
+            "Lax");
+    RefreshTokenCookieService service = new RefreshTokenCookieService(properties);
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    String olderRefreshToken = createFakeJwt(100L, 200L);
+    String newerRefreshToken = createFakeJwt(300L, 400L);
+    request.addHeader(
+        HttpHeaders.COOKIE,
+        "refreshToken="
+            + olderRefreshToken
+            + "; JSESSIONID=test-session; refreshToken="
+            + newerRefreshToken);
+
+    var result = service.resolveRefreshToken(request);
+
+    assertThat(result).contains(newerRefreshToken);
   }
 
   @Test
