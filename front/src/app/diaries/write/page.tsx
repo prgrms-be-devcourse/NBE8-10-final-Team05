@@ -18,7 +18,6 @@ import {
 
 import { requestData } from "@/lib/api/http-client";
 
-import { restoreSession } from "@/lib/auth/auth-service";
 import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
 type ImageUploadResponse =
@@ -68,8 +67,6 @@ export default function DiaryWritePage() {
   });
 
   useEffect(() => {
-    restoreSession();
-
     if (editorRef.current && editorRef.current.innerHTML === "") {
       editorRef.current.innerHTML = "<p><br></p>";
     }
