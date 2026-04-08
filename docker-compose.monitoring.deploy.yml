@@ -18,7 +18,7 @@ services:
     env_file:
       - .env
     environment:
-      BACKEND_SCRAPE_TARGET: ${BACKEND_SCRAPE_TARGET:-maum-on-backend-prod:8080}
+      BACKEND_SCRAPE_TARGET: ${BACKEND_SCRAPE_TARGET:-maum-on-1-1:8080}
       PROMETHEUS_EXTERNAL_URL: ${PROMETHEUS_EXTERNAL_URL:-http://127.0.0.1:9090/}
     entrypoint:
       - /bin/sh

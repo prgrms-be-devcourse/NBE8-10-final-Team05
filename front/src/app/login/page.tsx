@@ -98,7 +98,6 @@ function LoginPageContent() {
 
       setSubmitError(null);
       router.replace(event.data.nextPath);
-      router.refresh();
     }
 
     function onMessage(event: MessageEvent): void {

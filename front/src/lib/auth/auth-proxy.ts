@@ -1,3 +1,5 @@
+import { resolveSharedAuthCookieDomain } from "@/lib/runtime/deployment-env";
+
 export const AUTH_API_PREFIX = "/api/v1/auth";
 
 export function isAuthApiPath(path: string): boolean {
@@ -16,6 +18,25 @@ export function applyForwardedHeaders(headers: Headers, requestUrl: URL): void {
   headers.delete("x-forwarded-port");
 }
 
+export function resolveRequestHostname(
+  request: {
+    headers: Headers;
+    nextUrl: URL;
+  },
+): string {
+  const forwardedHost = parseHostname(request.headers.get("x-forwarded-host"));
+  if (forwardedHost) {
+    return forwardedHost;
+  }
+
+  const host = parseHostname(request.headers.get("host"));
+  if (host) {
+    return host;
+  }
+
+  return request.nextUrl.hostname;
+}
+
 export function extractCookieNameFromSetCookie(value: string): string | null {
   const separatorIndex = value.indexOf("=");
   if (separatorIndex <= 0) {
@@ -25,8 +46,41 @@ export function extractCookieNameFromSetCookie(value: string): string | null {
   return value.slice(0, separatorIndex).trim();
 }
 
-export function rewriteSetCookieForFrontend(value: string): string {
-  return value.replace(/;\s*Domain=[^;]+/gi, "");
+export function rewriteSetCookieForFrontend(
+  value: string,
+  options: {
+    requestHostname?: string;
+  } = {},
+): string {
+  const withoutDomain = value.replace(/;\s*Domain=[^;]+/gi, "");
+  const sharedCookieDomain = options.requestHostname
+    ? resolveSharedAuthCookieDomain(options.requestHostname)
+    : null;
+
+  if (!sharedCookieDomain) {
+    return withoutDomain;
+  }
+
+  return `${withoutDomain}; Domain=${sharedCookieDomain}`;
+}
+
+export function buildSetCookieHeadersForFrontend(
+  value: string,
+  options: {
+    requestHostname?: string;
+  } = {},
+): string[] {
+  const rewrittenCookie = rewriteSetCookieForFrontend(value, options);
+  const sharedCookieDomain = options.requestHostname
+    ? resolveSharedAuthCookieDomain(options.requestHostname)
+    : null;
+  const cookieName = extractCookieNameFromSetCookie(value);
+
+  if (!sharedCookieDomain || !cookieName) {
+    return [rewrittenCookie];
+  }
+
+  return [rewrittenCookie, buildHostOnlyCookieExpiration(cookieName, value)];
 }
 
 export function extractSetCookieHeaders(headers: Headers): string[] {
@@ -79,4 +133,41 @@ function splitCombinedSetCookieHeader(value: string): string[] {
   }
 
   return parts;
+}
+
+function buildHostOnlyCookieExpiration(cookieName: string, sourceCookie: string): string {
+  const pathMatch = sourceCookie.match(/;\s*Path=([^;]+)/i);
+  const sameSiteMatch = sourceCookie.match(/;\s*SameSite=([^;]+)/i);
+  const attributes = [
+    `${cookieName}=`,
+    `Path=${pathMatch?.[1] ?? "/"}`,
+    "Max-Age=0",
+  ];
+
+  if (/;\s*HttpOnly/i.test(sourceCookie)) {
+    attributes.push("HttpOnly");
+  }
+
+  if (/;\s*Secure/i.test(sourceCookie)) {
+    attributes.push("Secure");
+  }
+
+  if (sameSiteMatch?.[1]) {
+    attributes.push(`SameSite=${sameSiteMatch[1]}`);
+  }
+
+  return attributes.join("; ");
+}
+
+function parseHostname(value: string | null): string | null {
+  const candidate = value?.split(",")[0]?.trim();
+  if (!candidate) {
+    return null;
+  }
+
+  try {
+    return new URL(candidate.includes("://") ? candidate : `http://${candidate}`).hostname;
+  } catch {
+    return null;
+  }
 }

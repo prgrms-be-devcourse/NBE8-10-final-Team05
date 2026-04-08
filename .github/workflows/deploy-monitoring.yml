@@ -205,8 +205,11 @@ jobs:
           "${COMPOSE_CMD[@]}" -f docker-compose.monitoring.deploy.yml up -d --remove-orphans
 
           for _ in $(seq 1 30); do
+            BACKEND_UP=$(curl -fsS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22maum-on-back%22%7D" \
+              | jq -r '.data.result[0].value[1] // "0"' || echo 0)
             if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null && \
-               curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+               curl -fsS http://127.0.0.1:3000/api/health >/dev/null && \
+               [[ "${BACKEND_UP}" == "1" ]]; then
               trap - ERR
               ls -1dt "${DEPLOY_PATH}"/.rollback-* 2>/dev/null | tail -n +6 | xargs -r rm -rf
               exit 0
@@ -214,7 +217,7 @@ jobs:
             sleep 5
           done
 
-          echo "monitoring health check timed out" >&2
+          echo "monitoring health check timed out (prometheus ready or backend scrape target down)" >&2
           exit 1
           EOF
           )

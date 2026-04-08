@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
+  buildSetCookieHeadersForFrontend,
   extractCookieNameFromSetCookie,
   extractSetCookieHeaders,
-  rewriteSetCookieForFrontend,
+  resolveRequestHostname,
 } from "@/lib/auth/auth-proxy";
 import {
   SERVER_AUTH_HINT_HEADER,
@@ -60,14 +61,15 @@ function buildLoginRedirect(
 ): NextResponse {
   const nextUrl = request.nextUrl.clone();
   const target = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const requestHostname = resolveRequestHostname(request);
   nextUrl.pathname = "/login";
   nextUrl.search = `?next=${encodeURIComponent(target)}`;
 
   const response = NextResponse.redirect(nextUrl);
-  expireAuthHintCookie(response, request.nextUrl.hostname);
+  expireAuthHintCookie(response, requestHostname);
 
   if (options.clearRefreshCookie) {
-    expireRefreshCookie(response, request.nextUrl.hostname);
+    expireRefreshCookie(response, requestHostname);
   }
 
   return response;
@@ -157,13 +159,14 @@ function buildPassThroughResponse(
   options: { clearAuthHintCookie?: boolean; clearRefreshCookie?: boolean } = {},
 ): NextResponse {
   const response = NextResponse.next();
+  const requestHostname = resolveRequestHostname(request);
 
   if (options.clearAuthHintCookie) {
-    expireAuthHintCookie(response, request.nextUrl.hostname);
+    expireAuthHintCookie(response, requestHostname);
   }
 
   if (options.clearRefreshCookie) {
-    expireRefreshCookie(response, request.nextUrl.hostname);
+    expireRefreshCookie(response, requestHostname);
   }
 
   return response;
@@ -224,6 +227,7 @@ async function fetchRefreshedSession(
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const requestHostname = resolveRequestHostname(request);
   const observabilityApiPath = isObservabilityApiPath(pathname);
   const memberProtectedPath = isMemberProtectedPath(pathname);
   const adminProtectedPath = isAdminPath(pathname) || isObservabilityPath(pathname);
@@ -302,10 +306,14 @@ export async function middleware(request: NextRequest) {
       headers: requestHeaders,
     },
   });
-  setAuthHintCookie(response, hintValue, request.nextUrl.hostname);
+  setAuthHintCookie(response, hintValue, requestHostname);
 
   for (const cookie of session.refreshSetCookies) {
-    response.headers.append("set-cookie", rewriteSetCookieForFrontend(cookie));
+    for (const rewrittenCookie of buildSetCookieHeadersForFrontend(cookie, {
+      requestHostname,
+    })) {
+      response.headers.append("set-cookie", rewrittenCookie);
+    }
   }
 
   return response;
