@@ -1,11 +1,17 @@
 package com.back.auth.application;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.back.global.security.jwt.JwtProperties;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -16,6 +22,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class RefreshTokenCookieService {
 
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private final JwtProperties jwtProperties;
 
   public RefreshTokenCookieService(JwtProperties jwtProperties) {
@@ -24,6 +31,24 @@ public class RefreshTokenCookieService {
 
   /** 요청 쿠키에서 refresh 토큰 값을 추출한다. */
   public Optional<String> resolveRefreshToken(HttpServletRequest request) {
+    String rawCookieHeader = request.getHeader(HttpHeaders.COOKIE);
+    if (StringUtils.hasText(rawCookieHeader)) {
+      List<String> refreshTokens =
+          Arrays.stream(rawCookieHeader.split(";"))
+              .map(String::trim)
+              .filter(StringUtils::hasText)
+              .map(this::parseCookieEntry)
+              .flatMap(Optional::stream)
+              .filter(entry -> jwtProperties.refreshTokenCookieName().equals(entry.name()))
+              .map(CookieEntry::value)
+              .filter(StringUtils::hasText)
+              .toList();
+
+      if (!refreshTokens.isEmpty()) {
+        return Optional.of(selectMostRecentRefreshToken(refreshTokens));
+      }
+    }
+
     if (request.getCookies() == null) {
       return Optional.empty();
     }
@@ -67,4 +92,57 @@ public class RefreshTokenCookieService {
   private void addSetCookieHeader(HttpServletResponse response, ResponseCookie cookie) {
     response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
   }
+
+  private Optional<CookieEntry> parseCookieEntry(String cookieEntry) {
+    int separatorIndex = cookieEntry.indexOf('=');
+    if (separatorIndex <= 0) {
+      return Optional.empty();
+    }
+
+    String name = cookieEntry.substring(0, separatorIndex).trim();
+    String value = cookieEntry.substring(separatorIndex + 1).trim();
+    if (!StringUtils.hasText(name) || !StringUtils.hasText(value)) {
+      return Optional.empty();
+    }
+
+    return Optional.of(new CookieEntry(name, value));
+  }
+
+  private String selectMostRecentRefreshToken(List<String> refreshTokens) {
+    return refreshTokens.stream()
+        .map(
+            token ->
+                new RefreshTokenCandidate(
+                    token, readNumericClaim(token, "iat"), readNumericClaim(token, "exp")))
+        .max(
+            Comparator.comparingLong(RefreshTokenCandidate::issuedAt)
+                .thenComparingLong(RefreshTokenCandidate::expiresAt))
+        .map(RefreshTokenCandidate::token)
+        .orElse(refreshTokens.get(refreshTokens.size() - 1));
+  }
+
+  private long readNumericClaim(String token, String claimName) {
+    String[] parts = token.split("\\.");
+    if (parts.length < 2) {
+      return Long.MIN_VALUE;
+    }
+
+    try {
+      byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
+      Map<String, Object> payload =
+          OBJECT_MAPPER.readValue(decoded, new TypeReference<Map<String, Object>>() {});
+      Object claimValue = payload.get(claimName);
+      if (claimValue instanceof Number number) {
+        return number.longValue();
+      }
+    } catch (Exception ignored) {
+      // ignore malformed token payloads and keep fallback ordering
+    }
+
+    return Long.MIN_VALUE;
+  }
+
+  private record CookieEntry(String name, String value) {}
+
+  private record RefreshTokenCandidate(String token, long issuedAt, long expiresAt) {}
 }
