@@ -156,5 +156,5 @@ export function notificationsPollerBurst() {
 export default function () {
   notificationsSmokeJourney();
 }
-  sleep(THINK_SECONDS);
-}
+//  sleep(THINK_SECONDS);
+//}

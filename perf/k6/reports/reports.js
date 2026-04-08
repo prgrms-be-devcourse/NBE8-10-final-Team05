@@ -199,7 +199,9 @@ function readAdminReports(token) {
   check(response, {
     "admin reports list status 200": (res) => res.status === 200,
   });
-  return asArray(dataOf(response));
+  //return asArray(dataOf(response));
+  const data = dataOf(response);
+  return asArray(data?.content || data);
 }
 
 function readAdminReportDetail(token, reportId) {
