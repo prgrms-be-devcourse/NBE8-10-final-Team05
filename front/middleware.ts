@@ -22,7 +22,6 @@ const REFRESH_PATH = "/api/v1/auth/refresh";
 const REFRESH_COOKIE_NAME = "refreshToken";
 const AUTH_HINT_MEMBER = "member";
 const AUTH_HINT_ADMIN = "admin";
-const LOGIN_CALLBACK_PATH = "/login/callback";
 
 interface RsData<T> {
   resultCode: string;
@@ -49,10 +48,6 @@ function isMemberProtectedPath(pathname: string): boolean {
     pathname.startsWith("/stories/write") ||
     pathname.startsWith("/settings")
   );
-}
-
-function isLoginCallbackPath(pathname: string): boolean {
-  return pathname === LOGIN_CALLBACK_PATH;
 }
 
 function isValidAuthHint(value: string | undefined): value is "member" | "admin" {
@@ -220,7 +215,6 @@ export async function middleware(request: NextRequest) {
   const observabilityApiPath = isObservabilityApiPath(pathname);
   const memberProtectedPath = isMemberProtectedPath(pathname);
   const adminProtectedPath = isAdminPath(pathname) || isObservabilityPath(pathname);
-  const loginCallbackPath = isLoginCallbackPath(pathname);
   const authHint = request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value;
   const refreshCookie = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
   if (!refreshCookie) {
@@ -232,7 +226,7 @@ export async function middleware(request: NextRequest) {
       return buildLoginRedirect(request);
     }
 
-    if (memberProtectedPath || loginCallbackPath) {
+    if (memberProtectedPath) {
       return buildPassThroughResponse(request, {
         clearAuthHintCookie: isValidAuthHint(authHint),
         clearRefreshCookie: true,
@@ -242,7 +236,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!memberProtectedPath && !adminProtectedPath && !observabilityApiPath && !loginCallbackPath) {
+  if (!memberProtectedPath && !adminProtectedPath && !observabilityApiPath) {
     return NextResponse.next();
   }
 
@@ -256,7 +250,7 @@ export async function middleware(request: NextRequest) {
       return buildLoginRedirect(request, { clearRefreshCookie: true });
     }
 
-    if (memberProtectedPath || loginCallbackPath) {
+    if (memberProtectedPath) {
       return buildPassThroughResponse(request, {
         clearAuthHintCookie: true,
         clearRefreshCookie: true,
@@ -304,6 +298,5 @@ export const config = {
     "/admin/:path*",
     "/grafana/:path*",
     "/prometheus/:path*",
-    "/login/callback",
   ],
 };
