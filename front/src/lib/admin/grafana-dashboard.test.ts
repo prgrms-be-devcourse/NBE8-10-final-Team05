@@ -42,7 +42,7 @@ describe("grafana-dashboard", () => {
     expect(url).toContain("refresh=60s");
   });
 
-  it("운영에서도 명시 설정이 없으면 Grafana 링크는 same-origin 경로를 유지한다", async () => {
+  it("운영에서 명시 설정이 없어도 Grafana 링크는 monitor 도메인을 추론해 사용한다", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
 
@@ -53,10 +53,10 @@ describe("grafana-dashboard", () => {
       usesCrossOriginMonitoringEmbed: usesCrossOriginEmbed,
     } = await import("./grafana-dashboard");
 
-    expect(getBaseUrl()).toBe("");
-    expect(getHomeUrl()).toBe("/grafana/");
+    expect(getBaseUrl()).toBe("https://monitor.maum-on.parksuyeon.site");
+    expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
     expect(getProbeUrl()).toBe("/grafana/api/user");
-    expect(usesCrossOriginEmbed()).toBe(false);
+    expect(usesCrossOriginEmbed()).toBe(true);
   });
 
   it("명시적인 외부 monitoring URL이 있으면 cross-origin 링크를 사용한다", async () => {

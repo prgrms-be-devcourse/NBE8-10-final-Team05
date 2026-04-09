@@ -204,7 +204,7 @@ export function getMonitoringProxyBaseUrl(): string {
     process.env.NEXT_PUBLIC_MONITORING_PROXY_URL?.trim() ?? "",
   );
 
-  if (!trimmed || trimmed === "/") {
+  if (trimmed === "/") {
     return "";
   }
 
@@ -212,11 +212,22 @@ export function getMonitoringProxyBaseUrl(): string {
     return trimmed;
   }
 
-  if (process.env.NODE_ENV === "development") {
-    return "";
+  if (trimmed) {
+    if (process.env.NODE_ENV === "development") {
+      return "";
+    }
+
+    return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
   }
 
-  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  if (process.env.NODE_ENV === "production") {
+    const inferredMonitoringBaseUrl = inferMonitoringBaseUrlFromPublicApiBaseUrl();
+    if (inferredMonitoringBaseUrl) {
+      return inferredMonitoringBaseUrl;
+    }
+  }
+
+  return "";
 }
 
 export function getMonitoringProxyInternalUrl(): string | null {
