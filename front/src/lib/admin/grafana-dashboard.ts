@@ -52,6 +52,13 @@ export function getMonitoringProxyBaseUrl(): string {
   return resolveMonitoringProxyBaseUrl();
 }
 
+export function usesCrossOriginMonitoringEmbed(): boolean {
+  return (
+    process.env.NODE_ENV === "production" &&
+    /^https?:\/\//i.test(getMonitoringProxyBaseUrl())
+  );
+}
+
 function withBasePath(path: string): string {
   return joinBasePath(getMonitoringProxyBaseUrl(), path);
 }

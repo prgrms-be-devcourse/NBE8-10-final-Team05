@@ -12,7 +12,11 @@ function createJsonResponse(body: unknown, status = 200): Response {
 describe("admin-dashboard-service", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_MONITORING_PROXY_URL", "");
   });
 
   it("관리자 대시보드 통계는 RsData의 data를 반환한다", async () => {
@@ -56,6 +60,18 @@ describe("admin-dashboard-service", () => {
     const { getGrafanaSessionState } = await import("./admin-dashboard-service");
 
     await expect(getGrafanaSessionState()).resolves.toBe("ready");
+  });
+
+  it("cross-origin monitor 임베드 모드에서는 same-origin probe 없이 ready를 반환한다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getGrafanaSessionState } = await import("./admin-dashboard-service");
+
+    await expect(getGrafanaSessionState()).resolves.toBe("ready");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("Grafana 로그인 HTML이 반환되면 login-required를 반환한다", async () => {

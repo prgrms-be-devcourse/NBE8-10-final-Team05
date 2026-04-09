@@ -50,10 +50,12 @@ describe("grafana-dashboard", () => {
       getGrafanaHomeUrl: getHomeUrl,
       getGrafanaSessionProbeUrl: getProbeUrl,
       getMonitoringProxyBaseUrl: getBaseUrl,
+      usesCrossOriginMonitoringEmbed: usesCrossOriginEmbed,
     } = await import("./grafana-dashboard");
 
     expect(getBaseUrl()).toBe("https://monitor.maum-on.parksuyeon.site");
     expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
     expect(getProbeUrl()).toBe("/grafana/api/user");
+    expect(usesCrossOriginEmbed()).toBe(true);
   });
 });
