@@ -22,13 +22,16 @@ public record  PostInfoRes(
 
 ) {
     public static  PostInfoRes from(Post post) {
+      return from(post, post.getViewCount());
+    }
 
+    public static PostInfoRes from(Post post, int viewCount) {
       return new PostInfoRes(
         post.getId(),
         post.getTitle(),
         post.getContent(),
         post.getSummary(),
-        post.getViewCount(),
+        viewCount,
         post.getCreateDate(),
         post.getModifyDate(),
         post.getThumbnail(),

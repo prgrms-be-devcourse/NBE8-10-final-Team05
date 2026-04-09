@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 
 import com.back.comment.dto.CommentCreateReq;
 import com.back.comment.entity.Comment;
+import com.back.comment.repository.CommentCacheRepository;
 import com.back.comment.repository.CommentRepository;
 import com.back.global.exception.ServiceException;
 import com.back.member.domain.Member;
@@ -31,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CommentServiceTest {
 
   @Mock private CommentRepository commentRepository;
+  @Mock private CommentCacheRepository commentCacheRepository;
   @Mock private PostRepository postRepository;
   @Mock private MemberRepository memberRepository;
 
