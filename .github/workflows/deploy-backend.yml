@@ -384,8 +384,11 @@ jobs:
             # 6-1) monitoring scrape target 동기화
             # ---------------------------------------------------------
             MONITORING_ENV="${{ env.MONITORING_DEPLOY_PATH }}/.env"
+            MONITORING_DIR="${MONITORING_ENV%/*}"
+            MONITORING_COMPOSE_FILE="${MONITORING_DIR}/docker-compose.monitoring.deploy.yml"
             EXPECTED_SCRAPE_TARGET="${GREEN}:${PORT_IN}"
             [[ -f "${MONITORING_ENV}" ]] || { echo "❌ monitoring env not found: ${MONITORING_ENV}"; exit 1; }
+            [[ -f "${MONITORING_COMPOSE_FILE}" ]] || { echo "❌ monitoring compose not found: ${MONITORING_COMPOSE_FILE}"; exit 1; }
 
             if grep -q '^BACKEND_SCRAPE_TARGET=' "${MONITORING_ENV}"; then
               sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${EXPECTED_SCRAPE_TARGET}#" "${MONITORING_ENV}"
@@ -395,8 +398,8 @@ jobs:
             echo "📡 synced monitoring target → ${EXPECTED_SCRAPE_TARGET}"
 
             (
-              cd "${MONITORING_ENV%/*}"
-              docker compose up -d prometheus
+              cd "${MONITORING_DIR}"
+              docker compose --env-file .env -f docker-compose.monitoring.deploy.yml up -d prometheus
             )
 
             ACTUAL_SCRAPE_TARGET=$(
