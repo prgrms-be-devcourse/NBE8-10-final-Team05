@@ -15,6 +15,9 @@ import { toErrorMessage } from "@/lib/api/rs-data";
 
 const PAGE_SIZE = 20;
 const LETTER_FILTERS = ["전체", "SENT", "ACCEPTED", "WRITING", "REPLIED"] as const;
+const DESKTOP_TABLE_GRID =
+  "lg:grid-cols-[90px_minmax(220px,1.6fr)_150px_150px_128px_150px_176px_176px_28px]";
+const DESKTOP_TABLE_MIN_WIDTH = "min-w-[1410px]";
 
 type LetterFilter = (typeof LETTER_FILTERS)[number];
 
@@ -205,46 +208,52 @@ export default function AdminLettersPage() {
 
         {!isLoading && !errorMessage && result.letters.length > 0 ? (
           <div className="mt-6 overflow-hidden rounded-[24px] border border-[#e6eef9]">
-            <div className="hidden grid-cols-[90px_minmax(0,1.4fr)_140px_140px_120px_140px_170px_170px_28px] items-center gap-4 bg-[#f7fbff] px-6 py-4 text-sm font-semibold text-[#6d82a5] lg:grid">
-              <span>ID</span>
-              <span>제목</span>
-              <span>발신자</span>
-              <span>수신자</span>
-              <span>상태</span>
-              <span>최근 조치</span>
-              <span>생성일</span>
-              <span>답장일</span>
-              <span />
-            </div>
+            <div className="overflow-x-auto">
+              <div className={DESKTOP_TABLE_MIN_WIDTH}>
+                <div
+                  className={`hidden items-center gap-4 bg-[#f7fbff] px-6 py-4 text-sm font-semibold text-[#6d82a5] lg:grid ${DESKTOP_TABLE_GRID}`}
+                >
+                  <span className="whitespace-nowrap">ID</span>
+                  <span className="whitespace-nowrap">제목</span>
+                  <span className="whitespace-nowrap">발신자</span>
+                  <span className="whitespace-nowrap">수신자</span>
+                  <span className="whitespace-nowrap">상태</span>
+                  <span className="whitespace-nowrap">최근 조치</span>
+                  <span className="whitespace-nowrap">생성일</span>
+                  <span className="whitespace-nowrap">답장일</span>
+                  <span />
+                </div>
 
-            <div className="divide-y divide-[#edf3fe]">
+                <div className="divide-y divide-[#edf3fe]">
               {result.letters.map((letter) => (
                 <Link
                   key={letter.letterId}
                   href={`/admin/letters/${letter.letterId}`}
                   className="block px-6 py-5 transition hover:bg-[#f9fbff]"
                 >
-                  <div className="hidden grid-cols-[90px_minmax(0,1.4fr)_140px_140px_120px_140px_170px_170px_28px] items-center gap-4 lg:grid">
-                    <span className="font-semibold text-[#29405f]">#{letter.letterId}</span>
-                    <span className="truncate text-[#314969]">{letter.title}</span>
-                    <span className="truncate text-[#516885]">
+                  <div className={`hidden items-center gap-4 lg:grid ${DESKTOP_TABLE_GRID}`}>
+                    <span className="whitespace-nowrap font-semibold text-[#29405f]">
+                      #{letter.letterId}
+                    </span>
+                    <span className="min-w-0 truncate text-[#314969]">{letter.title}</span>
+                    <span className="truncate whitespace-nowrap text-[#516885]">
                       {formatAdminLetterMemberName(letter.senderNickname)}
                     </span>
-                    <span className="truncate text-[#516885]">
+                    <span className="truncate whitespace-nowrap text-[#516885]">
                       {formatAdminLetterMemberName(letter.receiverNickname)}
                     </span>
                     <span
-                      className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(letter.status)}`}
+                      className={`inline-flex w-fit whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(letter.status)}`}
                     >
                       {formatAdminLetterStatusLabel(letter.status)}
                     </span>
-                    <span className="text-sm text-[#516885]">
+                    <span className="whitespace-nowrap text-sm text-[#516885]">
                       {formatAdminLetterActionLabel(letter.latestAction)}
                     </span>
-                    <span className="text-sm text-[#6b81a2]">
+                    <span className="whitespace-nowrap text-sm text-[#6b81a2]">
                       {formatAdminLetterDateTime(letter.createdAt)}
                     </span>
-                    <span className="text-sm text-[#6b81a2]">
+                    <span className="whitespace-nowrap text-sm text-[#6b81a2]">
                       {formatAdminLetterDateTime(letter.replyCreatedAt)}
                     </span>
                     <span className="text-[#9ab1d4]">
@@ -271,6 +280,8 @@ export default function AdminLettersPage() {
                   </div>
                 </Link>
               ))}
+                </div>
+              </div>
             </div>
           </div>
         ) : null}

@@ -21,9 +21,6 @@ import {
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData } from "@/lib/api/http-client";
 import { useAuthStore } from "@/lib/auth/auth-store";
-import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
-
-const API_BASE_URL = getPublicApiBaseUrl();
 
 // 1. 타입 정의
 interface SentLetter {
@@ -55,7 +52,6 @@ export default function SentLettersPage() {
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // 2. 데이터 가져오는 로직
@@ -124,63 +120,18 @@ export default function SentLettersPage() {
     return () => observer.disconnect();
   }, [hasMore, isLoading, isFetchingMore, page, fetchSentLetters]);
 
-  // 5. SSE 실시간 상태 갱신 설정
+  // 5. NotificationProvider의 전역 알림 이벤트를 구독
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (eventSourceRef.current) return;
 
-    // 절대 경로를 사용하여 SSE 연결
-    const es = new EventSource(joinUrl(API_BASE_URL, "/api/v1/notifications/subscribe"), {
-      withCredentials: true,
-    });
-    eventSourceRef.current = es;
-
-    const handlePartialUpdate = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        const { letterId, status } = data;
-
-        if (!letterId || !status) return;
-
-        console.log(`📩 [SSE] 상태 업데이트: ID ${letterId} -> ${status}`);
-
-        setLetters((prevLetters) =>
-          prevLetters.map((letter) =>
-            letter.id === Number(letterId)
-              ? { ...letter, status: status as SentLetter["status"] }
-              : letter,
-          ),
-        );
-      } catch {
-        console.warn("SSE 데이터 파싱 실패, 전체 갱신으로 폴백합니다.");
-        setPage(0);
-        void fetchSentLetters(0, true);
-      }
-    };
-
-    // 서버에서 정의된 이벤트 리스너 등록
-    es.addEventListener("letter_read", handlePartialUpdate);
-    es.addEventListener("writing_status", handlePartialUpdate);
-    es.addEventListener("reply_arrival", handlePartialUpdate);
-
-    // 본인이 보낸 편지가 새로 생기는 경우는 드물지만(작성 완료 시), 목록 동기화를 위해 리로드 이벤트 처리 가능
-    es.addEventListener("new_letter", () => {
+    const handleUpdate = () => {
       setPage(0);
       void fetchSentLetters(0, true);
-    });
-
-    es.onerror = (err) => {
-      console.error("SSE Connection Error:", err);
-      es.close();
-      eventSourceRef.current = null;
     };
 
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
+    window.addEventListener("notification_received", handleUpdate);
+    return () =>
+      window.removeEventListener("notification_received", handleUpdate);
   }, [isAuthenticated, fetchSentLetters]);
 
   const handleGoBack = () => {
