@@ -87,7 +87,9 @@ describe("deployment-env", () => {
     const { getMonitoringProxyBaseUrl, getMonitoringProxyInternalUrl } =
       await import("./deployment-env");
 
-    expect(getMonitoringProxyBaseUrl()).toBe("");
+    expect(getMonitoringProxyBaseUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site",
+    );
     expect(getMonitoringProxyInternalUrl()).toBe(
       "https://monitor.maum-on.parksuyeon.site",
     );
