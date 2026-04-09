@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { restoreSession } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
@@ -15,34 +15,39 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const syncedPathRef = useRef<string | null>(null);
+  const normalizedPath = pathname || "/";
+  const [startedSyncKey, setStartedSyncKey] = useState<string | null>(null);
   const { isRestoring, hasRestored, isAuthenticated } = useAuthStore();
+  const syncKey = isAuthenticated ? normalizedPath : null;
+  const needsSessionSync =
+    hasRestored &&
+    isAuthenticated &&
+    !isRestoring &&
+    startedSyncKey !== syncKey;
 
   useLayoutEffect(() => {
-    const normalizedPath = pathname || "/";
-    if (isRestoring || !hasRestored || !isAuthenticated) {
-      if (!isAuthenticated) {
-        syncedPathRef.current = null;
-      }
+    if (syncKey === null) {
       return;
     }
 
-    if (syncedPathRef.current === normalizedPath) {
+    if (!needsSessionSync) {
       return;
     }
 
-    syncedPathRef.current = normalizedPath;
+    queueMicrotask(() => {
+      setStartedSyncKey((current) => (current === syncKey ? current : syncKey));
+    });
     void restoreSession({ force: true });
-  }, [hasRestored, isAuthenticated, isRestoring, pathname]);
+  }, [needsSessionSync, syncKey]);
 
   useEffect(() => {
     if (!isRestoring && hasRestored && !isAuthenticated) {
-      const next = encodeURIComponent(pathname || "/");
+      const next = encodeURIComponent(normalizedPath);
       router.replace(`/login?next=${next}`);
     }
-  }, [hasRestored, isAuthenticated, isRestoring, pathname, router]);
+  }, [hasRestored, isAuthenticated, isRestoring, normalizedPath, router]);
 
-  if (isRestoring || !hasRestored) {
+  if (isRestoring || !hasRestored || needsSessionSync) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
         세션을 복원하고 있습니다...

@@ -186,6 +186,21 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** 브라우저 네비게이션 기반으로 로그아웃을 제출해 refresh 쿠키를 확실히 정리한다. */
+export function redirectToLogout(nextPath = "/login"): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const normalizedNextPath = nextPath.startsWith("/") ? nextPath : "/login";
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = `/logout?next=${encodeURIComponent(normalizedNextPath)}`;
+  form.style.display = "none";
+  document.body.appendChild(form);
+  form.submit();
+}
+
 /** 현재 사용자 정보를 재조회한다. auth failure 리다이렉트 정책을 선택할 수 있다. */
 export async function fetchMe(options?: {
   authFailureRedirect?: boolean;

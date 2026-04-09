@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import SessionRevisionBoundary from "@/components/auth/SessionRevisionBoundary";
 import { restoreSession } from "@/lib/auth/auth-service";
@@ -15,26 +15,31 @@ interface AdminRouteProps {
 export default function AdminRoute({ children }: AdminRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const syncedPathRef = useRef<string | null>(null);
+  const normalizedPath = pathname || "/admin/reports";
+  const [startedSyncKey, setStartedSyncKey] = useState<string | null>(null);
   const { isRestoring, hasRestored, isAuthenticated, member } = useAuthStore();
   const isAdmin = member?.role === "ADMIN";
+  const syncKey = isAuthenticated ? normalizedPath : null;
+  const needsSessionSync =
+    hasRestored &&
+    isAuthenticated &&
+    !isRestoring &&
+    startedSyncKey !== syncKey;
 
   useLayoutEffect(() => {
-    const normalizedPath = pathname || "/admin/reports";
-    if (isRestoring || !hasRestored || !isAuthenticated) {
-      if (!isAuthenticated) {
-        syncedPathRef.current = null;
-      }
+    if (syncKey === null) {
       return;
     }
 
-    if (syncedPathRef.current === normalizedPath) {
+    if (!needsSessionSync) {
       return;
     }
 
-    syncedPathRef.current = normalizedPath;
+    queueMicrotask(() => {
+      setStartedSyncKey((current) => (current === syncKey ? current : syncKey));
+    });
     void restoreSession({ force: true });
-  }, [hasRestored, isAuthenticated, isRestoring, pathname]);
+  }, [needsSessionSync, syncKey]);
 
   useEffect(() => {
     if (isRestoring || !hasRestored) {
@@ -42,7 +47,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     }
 
     if (!isAuthenticated) {
-      const next = encodeURIComponent(pathname || "/admin/reports");
+      const next = encodeURIComponent(normalizedPath);
       router.replace(`/login?next=${next}`);
       return;
     }
@@ -50,9 +55,9 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     if (!isAdmin) {
       router.replace("/forbidden");
     }
-  }, [hasRestored, isAdmin, isAuthenticated, isRestoring, pathname, router]);
+  }, [hasRestored, isAdmin, isAuthenticated, isRestoring, normalizedPath, router]);
 
-  if (isRestoring || !hasRestored) {
+  if (isRestoring || !hasRestored || needsSessionSync) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
         세션을 복원하고 있습니다...
