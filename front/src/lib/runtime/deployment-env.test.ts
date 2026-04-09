@@ -66,6 +66,14 @@ describe("deployment-env", () => {
     );
   });
 
+  it("설정된 쿠키 도메인이 현재 프런트 호스트와 무관하면 공유 쿠키 도메인을 사용하지 않는다", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_COOKIE_DOMAIN", ".maum-on.parksuyeon.site");
+
+    const { resolveSharedAuthCookieDomain } = await import("./deployment-env");
+
+    expect(resolveSharedAuthCookieDomain("preview-somehash.vercel.app")).toBeNull();
+  });
+
   it("모니터링 프록시 기본 URL은 same-origin 경로를 사용한다", async () => {
     const { getMonitoringProxyBaseUrl } = await import("./deployment-env");
 

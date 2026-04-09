@@ -62,6 +62,9 @@ function normalizeConfiguredCookieDomain(
   }
 
   if (prefersSharedCookieDomain) {
+    if (!isHostnameWithinCookieDomain(frontendHostname, configuredHostname)) {
+      return null;
+    }
     return `.${configuredHostname}`;
   }
 
@@ -70,7 +73,9 @@ function normalizeConfiguredCookieDomain(
     return sharedCookieDomain;
   }
 
-  return configuredHostname;
+  return normalizeHostname(frontendHostname) === configuredHostname
+    ? configuredHostname
+    : null;
 }
 
 function normalizeHostname(hostname: string): string {
@@ -129,6 +134,16 @@ function findSharedCookieDomain(hostA: string, hostB: string): string | null {
   }
 
   return `.${sharedLabels.join(".")}`;
+}
+
+function isHostnameWithinCookieDomain(hostname: string, cookieDomainHostname: string): boolean {
+  const normalizedHostname = normalizeHostname(hostname);
+  const normalizedCookieDomain = normalizeHostname(cookieDomainHostname);
+
+  return (
+    normalizedHostname === normalizedCookieDomain ||
+    normalizedHostname.endsWith(`.${normalizedCookieDomain}`)
+  );
 }
 
 export function resolveSharedAuthCookieDomain(frontendHostname: string): string | null {

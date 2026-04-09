@@ -6,7 +6,15 @@
 
 import http from "k6/http";
 import { check, group, sleep } from "k6";
-import { MODE, chance, normalizeBaseUrl, readBoolean, readNumber, readString } from "../lib/env.js";
+import {
+  MODE,
+  chance,
+  normalizeBaseUrl,
+  randomInt,
+  readBoolean,
+  readNumber,
+  readString,
+} from "../lib/env.js";
 import { getAccessToken } from "../lib/auth.js";
 import { asArray, bearerHeaders, dataOf, firstNumericId } from "../lib/http.js";
 import {
@@ -116,6 +124,8 @@ const ENABLE_CREATE =
 const defaultCreateShare = MODE === "smoke" ? 1 : MODE === "stress" ? 0.3 : 0.25;
 const CREATE_SHARE = resolveShare("REPORTS", "CREATE_SHARE", defaultCreateShare);
 const REPORT_REASON = readString("REPORTS_REASON", "SPAM");
+const REPORT_TARGET_PAGE_SIZE = readNumber("REPORTS_TARGET_PAGE_SIZE", 20);
+const REPORT_TARGET_PAGE_COUNT = readNumber("REPORTS_TARGET_PAGE_COUNT", 10);
 const ADMIN_HANDLE_ACTION = readString("ADMIN_REPORT_HANDLE_ACTION", "NONE").toUpperCase();
 const ADMIN_REPORT_ADMIN_COMMENT = readString("ADMIN_REPORT_ADMIN_COMMENT", "k6-admin-comment");
 const ADMIN_REPORT_NOTIFY = readBoolean("ADMIN_REPORT_NOTIFY", false);
@@ -130,6 +140,7 @@ export const handleSummary = buildSummary(DOMAIN);
 
 let cachedUserToken;
 let cachedAdminToken;
+const reportedTargetIds = new Set();
 function userToken() {
   if (!cachedUserToken) {
     cachedUserToken = getAccessToken(BASE_URL, {
@@ -150,37 +161,81 @@ function adminToken() {
   return cachedAdminToken;
 }
 
-function fetchFirstPostId() {
-  const response = http.get(`${BASE_URL}/api/v1/posts?page=0&size=5`);
+function readRsDataMessage(response) {
+  try {
+    return String(response.json()?.msg ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function fetchReportTargetIds(page = 0) {
+  const response = http.get(
+    `${BASE_URL}/api/v1/posts?page=${page}&size=${REPORT_TARGET_PAGE_SIZE}`,
+  );
   check(response, {
     "reports target posts list status 200": (res) => res.status === 200,
   });
-  return firstNumericId(asArray(dataOf(response)?.content));
+  return asArray(dataOf(response)?.content)
+    .map((post) => Number(post?.id ?? null))
+    .filter((postId) => Number.isFinite(postId));
+}
+
+function chooseReportTargetId() {
+  const pageCount = Math.max(1, REPORT_TARGET_PAGE_COUNT);
+  const startPage = randomInt(pageCount);
+
+  for (let offset = 0; offset < pageCount; offset += 1) {
+    const page = (startPage + offset) % pageCount;
+    const candidateId = firstNumericId(
+      fetchReportTargetIds(page).filter((postId) => !reportedTargetIds.has(postId)),
+    );
+    if (Number.isFinite(candidateId)) {
+      return candidateId;
+    }
+  }
+
+  return null;
 }
 
 function createReport(token) {
-  const targetId = fetchFirstPostId();
-  if (!targetId) return null;
+  for (let attempt = 0; attempt < Math.max(1, REPORT_TARGET_PAGE_COUNT); attempt += 1) {
+    const targetId = chooseReportTargetId();
+    if (!targetId) return null;
 
-  const response = http.post(
-    `${BASE_URL}/api/v1/reports`,
-    JSON.stringify({
-      targetId,
-      targetType: "POST",
-      reason: REPORT_REASON,
-      content: "k6 report sample",
-    }),
-    {
-      headers: bearerHeaders(token),
-    },
-  );
-  check(response, {
-    "report create status 200": (res) => res.status === 200,
-    "report create id 응답": (res) => Number.isFinite(Number(dataOf(res))),
-  });
+    const response = http.post(
+      `${BASE_URL}/api/v1/reports`,
+      JSON.stringify({
+        targetId,
+        targetType: "POST",
+        reason: REPORT_REASON,
+        content: "k6 report sample",
+      }),
+      {
+        headers: bearerHeaders(token),
+      },
+    );
 
-  const reportId = Number(dataOf(response));
-  return Number.isFinite(reportId) ? reportId : null;
+    if (response.status === 400 && readRsDataMessage(response).includes("이미 신고한 콘텐츠")) {
+      reportedTargetIds.add(targetId);
+      continue;
+    }
+
+    check(response, {
+      "report create status 200": (res) => res.status === 200,
+      "report create id 응답": (res) => Number.isFinite(Number(dataOf(res))),
+    });
+
+    const reportId = Number(dataOf(response));
+    if (Number.isFinite(reportId)) {
+      reportedTargetIds.add(targetId);
+      return reportId;
+    }
+
+    return null;
+  }
+
+  return null;
 }
 
 function readAdminStats(token) {
@@ -345,7 +400,7 @@ export function reportsUserCreate() {
       createReport(user);
     });
   } else {
-    fetchFirstPostId();
+    fetchReportTargetIds(0);
   }
   sleep(THINK_SECONDS);
 }
