@@ -122,4 +122,34 @@ describe("http-client", () => {
       resultCode: "403-1",
     });
   });
+
+  it("인증 API는 AUTH_API_BASE_URL이 있어도 항상 프런트 auth 프록시 경로를 사용한다", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.com");
+    vi.stubEnv("NEXT_PUBLIC_AUTH_API_BASE_URL", "https://auth.example.com");
+    const fetchMock = vi.fn().mockResolvedValue(
+      createJsonResponse({
+        resultCode: "200-3",
+        msg: "로그인 성공",
+        data: {
+          accessToken: "access-token",
+          tokenType: "Bearer",
+          expiresInSeconds: 3600,
+          member,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { requestData } = await import("./http-client");
+
+    await requestData("/api/v1/auth/login", {
+      method: "POST",
+      skipAuth: true,
+      retryOnAuthFailure: false,
+      authFailureRedirect: false,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/auth/login");
+  });
 });
