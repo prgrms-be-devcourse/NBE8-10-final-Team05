@@ -309,7 +309,7 @@ class LetterServiceTest {
             ReflectionTestUtils.setField(letter, "createDate", LocalDateTime.of(2026, 4, 9, 14, 0));
 
             Page<Letter> page = new PageImpl<>(List.of(letter));
-            given(letterPort.searchAdminLetters(null, null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
+            given(letterPort.findAdminLetters(null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
                     .willReturn(page);
             given(letterRedisRepository.isWriting(33L)).willReturn(true);
             given(letterAdminActionLogRepository.findLatestActionsByLetterIds(List.of(33L)))
@@ -372,7 +372,7 @@ class LetterServiceTest {
             ReflectionTestUtils.setField(letter, "createDate", LocalDateTime.of(2026, 4, 9, 14, 0));
 
             Page<Letter> page = new PageImpl<>(List.of(letter));
-            given(letterPort.searchAdminLetters(null, null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
+            given(letterPort.findAdminLetters(null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
                     .willReturn(page);
             given(letterAdminActionLogRepository.findLatestActionsByLetterIds(List.of(35L)))
                     .willThrow(new InvalidDataAccessResourceUsageException("relation \"letter_admin_action_logs\" does not exist"));
@@ -383,6 +383,34 @@ class LetterServiceTest {
             assertThat(result.letters()).hasSize(1);
             assertThat(result.letters().getFirst().latestAction()).isNull();
             assertThat(result.letters().getFirst().status()).isEqualTo("SENT");
+        }
+
+        @Test
+        @DisplayName("성공: 관리자 목록 검색어가 있으면 검색 전용 쿼리를 사용한다")
+        void givenQuery_whenGetAdminLetters_thenUseSearchQuery() {
+            Member sender = createMember(1L, "보낸이");
+            Member receiver = createMember(2L, "받는이");
+            Letter letter = Letter.builder()
+                    .title("위로")
+                    .content("괜찮아질 거예요.")
+                    .sender(sender)
+                    .receiver(receiver)
+                    .build();
+            letter.dispatch(receiver);
+            ReflectionTestUtils.setField(letter, "id", 37L);
+
+            Page<Letter> page = new PageImpl<>(List.of(letter));
+            given(letterPort.searchAdminLetters("위로", null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
+                    .willReturn(page);
+            given(letterRedisRepository.isWriting(37L)).willReturn(false);
+            given(letterAdminActionLogRepository.findLatestActionsByLetterIds(List.of(37L)))
+                    .willReturn(List.of());
+
+            AdminLetterListRes result = letterService.getAdminLetters(null, "위로", 0, 20);
+
+            assertThat(result.letters()).hasSize(1);
+            verify(letterPort).searchAdminLetters("위로", null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate")));
+            verify(letterPort, never()).findAdminLetters(any(), anyBoolean(), any(Pageable.class));
         }
 
         @Test

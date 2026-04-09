@@ -28,6 +28,7 @@ import com.back.member.domain.MemberAdminActionLogRepository;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberRepository;
+import com.back.member.domain.MemberRepository.AdminMemberListRow;
 import com.back.member.domain.MemberStatus;
 import com.back.post.repository.PostRepository;
 import com.back.report.adapter.out.persistence.ReportRepository;
@@ -298,27 +299,27 @@ class MemberServiceTest {
   @Test
   @DisplayName("관리자 회원 목록 조회는 상태/권한/소셜 메타데이터를 함께 매핑한다")
   void getAdminMembersMapsOperationalMetadata() {
-    Member member = Member.create("member9@test.com", "$2a$10$hashValue", "member9");
-    ReflectionTestUtils.setField(member, "id", 9L);
-    ReflectionTestUtils.setField(member, "role", MemberRole.ADMIN);
-    ReflectionTestUtils.setField(member, "status", MemberStatus.ACTIVE);
-    member.setCreateDate(LocalDateTime.of(2026, 4, 1, 9, 0));
-
-    OAuthAccount googleAccount =
-        OAuthAccount.connect(member, "google", "google-9", "member9@test.com");
-    googleAccount.touchLastLoginAt(LocalDateTime.of(2026, 4, 9, 8, 30));
+    AdminMemberListRow projection =
+        new StubAdminMemberListRow(
+            9L,
+            "member9@test.com",
+            "member9",
+            "ADMIN",
+            "ACTIVE",
+            true,
+            true,
+            LocalDateTime.of(2026, 4, 1, 9, 0),
+            LocalDateTime.of(2026, 4, 9, 8, 30));
 
     given(
             memberRepository.searchAdminMembers(
                 eq(null),
-                eq(MemberStatus.ACTIVE),
-                eq(MemberRole.ADMIN),
+                eq("ACTIVE"),
+                eq("ADMIN"),
                 eq("SOCIAL"),
                 eq(null),
                 any(Pageable.class)))
-        .willReturn(new PageImpl<>(List.of(member)));
-    given(oAuthAccountRepository.findAllByMemberIdInOrderByMemberIdAscIdAsc(List.of(9L)))
-        .willReturn(List.of(googleAccount));
+        .willReturn(new PageImpl<>(List.of(projection)));
 
     AdminMemberListResponse response =
         memberService.getAdminMembers(null, "ACTIVE", "ADMIN", "SOCIAL", 0, 20);
@@ -367,19 +368,24 @@ class MemberServiceTest {
   }
 
   @Test
-  @DisplayName("관리자 회원 목록 조회는 role/status가 null인 레거시 회원도 기본값으로 매핑한다")
-  void getAdminMembersFallsBackForLegacyNullRoleAndStatus() {
-    Member member = Member.create("legacy@test.com", "$2a$10$hashValue", "legacy");
-    ReflectionTestUtils.setField(member, "id", 41L);
-    ReflectionTestUtils.setField(member, "role", null);
-    ReflectionTestUtils.setField(member, "status", null);
+  @DisplayName("관리자 회원 목록 조회는 잘못된 raw role/status 문자열도 기본값으로 매핑한다")
+  void getAdminMembersFallsBackForLegacyInvalidRoleAndStatus() {
+    AdminMemberListRow projection =
+        new StubAdminMemberListRow(
+            41L,
+            "legacy@test.com",
+            "legacy",
+            "LEGACY_ADMIN",
+            "SUSPENDED",
+            true,
+            false,
+            LocalDateTime.of(2026, 4, 1, 9, 0),
+            null);
 
     given(
             memberRepository.searchAdminMembers(
                 eq(null), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
-        .willReturn(new PageImpl<>(List.of(member)));
-    given(oAuthAccountRepository.findAllByMemberIdInOrderByMemberIdAscIdAsc(List.of(41L)))
-        .willReturn(List.of());
+        .willReturn(new PageImpl<>(List.of(projection)));
 
     AdminMemberListResponse response = memberService.getAdminMembers(null, null, null, null, 0, 20);
 
@@ -457,5 +463,83 @@ class MemberServiceTest {
         .should()
         .revokeAllByMemberId(eq(31L), any(LocalDateTime.class));
     then(memberAdminActionLogRepository).should().save(any());
+  }
+
+  private static final class StubAdminMemberListRow implements AdminMemberListRow {
+    private final Long id;
+    private final String email;
+    private final String nickname;
+    private final String rawRole;
+    private final String rawStatus;
+    private final Boolean randomReceiveAllowed;
+    private final Boolean socialAccount;
+    private final LocalDateTime createdAt;
+    private final LocalDateTime lastLoginAt;
+
+    private StubAdminMemberListRow(
+        Long id,
+        String email,
+        String nickname,
+        String rawRole,
+        String rawStatus,
+        Boolean randomReceiveAllowed,
+        Boolean socialAccount,
+        LocalDateTime createdAt,
+        LocalDateTime lastLoginAt) {
+      this.id = id;
+      this.email = email;
+      this.nickname = nickname;
+      this.rawRole = rawRole;
+      this.rawStatus = rawStatus;
+      this.randomReceiveAllowed = randomReceiveAllowed;
+      this.socialAccount = socialAccount;
+      this.createdAt = createdAt;
+      this.lastLoginAt = lastLoginAt;
+    }
+
+    @Override
+    public Long getId() {
+      return id;
+    }
+
+    @Override
+    public String getEmail() {
+      return email;
+    }
+
+    @Override
+    public String getNickname() {
+      return nickname;
+    }
+
+    @Override
+    public String getRawRole() {
+      return rawRole;
+    }
+
+    @Override
+    public String getRawStatus() {
+      return rawStatus;
+    }
+
+    @Override
+    public Boolean getRandomReceiveAllowed() {
+      return randomReceiveAllowed;
+    }
+
+    @Override
+    public Boolean getSocialAccount() {
+      return socialAccount;
+    }
+
+    @Override
+    public LocalDateTime getCreatedAt() {
+      return createdAt;
+    }
+
+    @Override
+    public LocalDateTime getLastLoginAt() {
+      return lastLoginAt;
+    }
   }
 }

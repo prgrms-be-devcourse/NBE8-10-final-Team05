@@ -24,6 +24,30 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
               OR (:onlyUnassigned = false AND :status IS NULL)
               OR (:onlyUnassigned = false AND :status IS NOT NULL AND l.status = :status)
             )
+            """,
+            countQuery = """
+            SELECT count(l) FROM Letter l
+            WHERE (
+              (:onlyUnassigned = true AND l.status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NOT NULL AND l.status = :status)
+            )
+            """)
+    Page<Letter> findAdminLetters(
+            @Param("status") com.back.letter.domain.LetterStatus status,
+            @Param("onlyUnassigned") boolean onlyUnassigned,
+            Pageable pageable);
+
+    @Query(
+            value = """
+            SELECT l FROM Letter l
+            JOIN FETCH l.sender s
+            LEFT JOIN FETCH l.receiver r
+            WHERE (
+              (:onlyUnassigned = true AND l.status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NOT NULL AND l.status = :status)
+            )
             AND (
               :query IS NULL
               OR lower(l.title) LIKE lower(concat('%', :query, '%'))

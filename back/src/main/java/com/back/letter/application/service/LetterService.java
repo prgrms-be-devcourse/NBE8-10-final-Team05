@@ -178,11 +178,16 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
                 Math.min(Math.max(size, 1), 50),
                 Sort.by(Sort.Direction.DESC, "createDate"));
 
-        Page<Letter> letterPage = letterPort.searchAdminLetters(
-                normalizedQuery,
-                statusFilter,
-                onlyUnassigned,
-                pageable);
+        Page<Letter> letterPage = normalizedQuery == null
+                ? letterPort.findAdminLetters(
+                        statusFilter,
+                        onlyUnassigned,
+                        pageable)
+                : letterPort.searchAdminLetters(
+                        normalizedQuery,
+                        statusFilter,
+                        onlyUnassigned,
+                        pageable);
 
         List<Letter> letters = letterPage.getContent();
         Map<Long, String> latestActions = getLatestAdminActionMapSafely(
