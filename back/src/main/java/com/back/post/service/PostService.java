@@ -14,6 +14,7 @@ import com.back.post.entity.Post;
 import com.back.post.entity.PostCategory;
 import com.back.post.entity.PostResolutionStatus;
 import com.back.post.repository.PostRepository;
+import com.back.post.repository.PostViewCountRedisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -27,6 +28,7 @@ public class PostService {
     private static final int SUMMARY_MAX_LENGTH = 100;
 
     private final PostRepository postRepository;
+    private final PostViewCountRedisRepository postViewCountRedisRepository;
     private final MemberRepository memberRepository;
     private final CommentRepository commentRepository;
 
@@ -102,12 +104,15 @@ public class PostService {
      * @param id 조회할 게시글의 고유 식별자(ID)
      * @return 게시글 상세 응답 DTO
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public PostInfoRes getPost(Long id) {
         Post post = postRepository.findById(id)
                 .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
 
-        return PostInfoRes.from(post);
+        long pendingViewCount = postViewCountRedisRepository.incrementViewCount(id);
+        int displayedViewCount = post.getViewCount() + Math.toIntExact(pendingViewCount);
+
+        return PostInfoRes.from(post, displayedViewCount);
     }
 
 

@@ -5,8 +5,10 @@ import com.back.auth.application.AuthErrorCode;
 import com.back.comment.application.CommentErrorCode;
 import com.back.comment.dto.CommentCreateReq;
 import com.back.comment.dto.CommentInfoRes;
+import com.back.comment.dto.CommentPageCache;
 import com.back.comment.dto.ReplyInfoRes;
 import com.back.comment.entity.Comment;
+import com.back.comment.repository.CommentCacheRepository;
 import com.back.comment.repository.CommentRepository;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
@@ -16,6 +18,7 @@ import com.back.post.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -25,6 +28,7 @@ import java.util.List;
 public class CommentService {
 
     private final CommentRepository commentRepository;
+    private final CommentCacheRepository commentCacheRepository;
     private final PostRepository postRepository;
     private final MemberRepository memberRepository;
 
@@ -67,7 +71,9 @@ public class CommentService {
                 .content(content)
                 .parent(parentComment)
                 .build();
-        return commentRepository.save(comment).getId();
+        Comment savedComment = commentRepository.save(comment);
+        commentCacheRepository.evictPostPages(postId);
+        return savedComment.getId();
     }
 
 
@@ -82,8 +88,23 @@ public class CommentService {
     public Slice<CommentInfoRes> getComments(Long postId, Pageable pageable){
         postRepository.findById(postId)
                 .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
+
+        CommentPageCache cachedPage = commentCacheRepository.findPage(postId, pageable.getPageNumber(), pageable.getPageSize());
+        if (cachedPage != null) {
+            return new SliceImpl<>(cachedPage.content(), pageable, cachedPage.hasNext());
+        }
+
         Slice<Comment> parentComments = commentRepository.findByPostIdAndParentIsNull(postId, pageable);
-        return parentComments.map(this::toCommentInfoRes);
+        List<CommentInfoRes> content = parentComments.stream()
+                .map(this::toCommentInfoRes)
+                .toList();
+        commentCacheRepository.cachePage(
+                postId,
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                new CommentPageCache(content, parentComments.hasNext())
+        );
+        return new SliceImpl<>(content, pageable, parentComments.hasNext());
     }
 
 
@@ -110,6 +131,7 @@ public class CommentService {
         }
 
         comment.modify(validateContent(content));
+        commentCacheRepository.evictPostPages(comment.getPost().getId());
 
 
     }
@@ -136,13 +158,16 @@ public class CommentService {
         }
 
         boolean hasChildComments = commentRepository.existsByParent(comment);
+        Long postId = comment.getPost().getId();
 
         if(hasChildComments){
             comment.markAsDelete();
+            commentCacheRepository.evictPostPages(postId);
             return;
         }
 
         commentRepository.delete(comment);
+        commentCacheRepository.evictPostPages(postId);
     }
 
     /**

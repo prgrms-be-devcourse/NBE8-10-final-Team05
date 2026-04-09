@@ -5,6 +5,9 @@ import com.back.post.entity.PostCategory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -22,4 +25,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     long countByTitleStartingWith(String prefix);
 
     void deleteByTitleStartingWith(String prefix);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Post p set p.viewCount = p.viewCount + :delta where p.id = :postId")
+    int incrementViewCount(@Param("postId") Long postId, @Param("delta") int delta);
 }
