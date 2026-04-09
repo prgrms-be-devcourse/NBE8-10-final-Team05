@@ -189,7 +189,15 @@ jobs:
             NPM_BASE_URL="${{ env.NPM_BASE_URL }}"
 
             [[ -n "${APP_1_DOMAIN:-}" ]] || APP_1_DOMAIN="${API_PROXY_DOMAIN:-}"
-            [[ -n "${PASSWORD_1:-}" ]] || PASSWORD_1="${NPM_PASSWORD_FROM_SECRET:-}"
+            if [[ -n "${NPM_PASSWORD_FROM_SECRET:-}" ]]; then
+              PASSWORD_1="${NPM_PASSWORD_FROM_SECRET}"
+              NPM_PASSWORD_SOURCE="github_secret"
+            elif [[ -n "${PASSWORD_1:-}" ]]; then
+              NPM_PASSWORD_SOURCE="/etc/environment"
+            else
+              PASSWORD_1=""
+              NPM_PASSWORD_SOURCE="missing"
+            fi
             NPM_IDENTITY="${NPM_ADMIN_IDENTITY:-admin@npm.com}"
             [[ -n "${PASSWORD_1:-}" ]] || { echo "NPM admin password is empty (PASSWORD_1/NPM_ADMIN_PASSWORD)"; exit 1; }
             [[ -n "${NPM_IDENTITY:-}" ]] || { echo "NPM admin identity is empty"; exit 1; }
@@ -219,6 +227,7 @@ jobs:
             # ---------------------------------------------------------
             COOKIE_JAR="/tmp/npm_cookies.txt"
             LOGIN_BODY="/tmp/npm_login_response.json"
+            echo "🔐 NPM login attempt identity=${NPM_IDENTITY} source=${NPM_PASSWORD_SOURCE}"
             LOGIN_CODE=$(curl -sk -o "${LOGIN_BODY}" -w "%{http_code}" -c "${COOKIE_JAR}" \
               -X POST "${NPM_BASE_URL}/api/tokens" \
               -H "Content-Type: application/json" \
