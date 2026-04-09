@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, FileWarning, ShieldAlert, Siren, UserRoundX } from "lucide-react";
 import {
   formatAdminReportActionLabel,
   formatAdminReportDateTime,
   formatAdminReportStatusLabel,
   formatAdminReportTargetTypeLabel,
+  getAdminReportActionExecutionNote,
   getAdminReportActionDescription,
-  getAdminReportActionPrompt,
+  isAdminReportActionSupported,
 } from "@/lib/admin/report-presenter";
 import { getAdminReportDetail, handleAdminReport } from "@/lib/admin/report-service";
-import type { AdminReportAction, AdminReportDetail } from "@/lib/admin/report-types";
+import type {
+  AdminReportAction,
+  AdminReportDetail,
+} from "@/lib/admin/report-types";
 import { toErrorMessage } from "@/lib/api/rs-data";
 
 const REPORT_ACTIONS: AdminReportAction[] = ["REJECT", "DELETE", "BLOCK_USER"];
@@ -50,20 +54,51 @@ export default function AdminReportDetailPage() {
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<AdminReportAction | null>(null);
+
+  const loadReportDetail = useCallback(
+    async (id: number, preserveFeedback = false): Promise<AdminReportDetail> => {
+      if (!preserveFeedback) {
+        setIsLoading(true);
+      }
+      setLoadErrorMessage(null);
+      if (!preserveFeedback) {
+        setActionErrorMessage(null);
+        setNoticeMessage(null);
+      }
+
+      try {
+        const data = await getAdminReportDetail(id);
+        setReport(data);
+        setPendingAction(null);
+        return data;
+      } finally {
+        if (!preserveFeedback) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchReportDetail(id: number): Promise<void> {
-      setIsLoading(true);
-      setLoadErrorMessage(null);
-      setActionErrorMessage(null);
-      setNoticeMessage(null);
+    if (reportId === null) {
+      setReport(null);
+      setLoadErrorMessage("잘못된 신고 상세 경로입니다.");
+      setIsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
+    void (async () => {
       try {
-        const data = await getAdminReportDetail(id);
+        const data = await getAdminReportDetail(reportId);
         if (!cancelled) {
           setReport(data);
+          setPendingAction(null);
         }
       } catch (error: unknown) {
         if (!cancelled) {
@@ -75,45 +110,59 @@ export default function AdminReportDetailPage() {
           setIsLoading(false);
         }
       }
-    }
-
-    if (reportId === null) {
-      setReport(null);
-      setLoadErrorMessage("잘못된 신고 상세 경로입니다.");
-      setIsLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void fetchReportDetail(reportId);
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [reportId]);
 
-  async function onHandle(action: AdminReportAction) {
-    if (!report || isHandling) {
+  function onSelectAction(action: AdminReportAction) {
+    if (!report || isHandling || report.status === "PROCESSED") {
       return;
     }
 
-    if (!window.confirm(getAdminReportActionPrompt(action))) {
+    if (!isAdminReportActionSupported(action, report.targetInfo.targetType)) {
+      return;
+    }
+
+    setPendingAction(action);
+    setActionErrorMessage(null);
+  }
+
+  async function onConfirmHandle() {
+    if (!report || !pendingAction || isHandling) {
       return;
     }
 
     setIsHandling(true);
     setActionErrorMessage(null);
     setNoticeMessage(null);
-
     try {
-      await handleAdminReport(report.reportId, action);
-      setReport({
-        ...report,
-        status: "PROCESSED",
-        processingAction: action,
-      });
-      setNoticeMessage(`${formatAdminReportActionLabel(action)} 처리가 완료되었습니다.`);
+      await handleAdminReport(report.reportId, pendingAction);
+
+      try {
+        await loadReportDetail(report.reportId, true);
+        setNoticeMessage(
+          `${formatAdminReportActionLabel(pendingAction, report.targetInfo.targetType)} 처리가 완료되었습니다.`,
+        );
+      } catch (reloadError: unknown) {
+        setReport((current) =>
+          current
+            ? {
+                ...current,
+                status: "PROCESSED",
+                processingAction: pendingAction,
+              }
+            : current,
+        );
+        setNoticeMessage(
+          `${formatAdminReportActionLabel(pendingAction, report.targetInfo.targetType)} 처리가 완료되었습니다.`,
+        );
+        setActionErrorMessage(`최신 상태를 다시 불러오지 못했습니다. ${toErrorMessage(reloadError)}`);
+      }
+
+      setPendingAction(null);
     } catch (error: unknown) {
       setActionErrorMessage(toErrorMessage(error));
     } finally {
@@ -180,7 +229,7 @@ export default function AdminReportDetailPage() {
               {formatAdminReportStatusLabel(report.status)}
             </span>
             <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#6680a5] ring-1 ring-[#dce7f8]">
-              {formatAdminReportActionLabel(report.processingAction)}
+              {formatAdminReportActionLabel(report.processingAction, report.targetInfo.targetType)}
             </span>
           </div>
         </div>
@@ -268,34 +317,77 @@ export default function AdminReportDetailPage() {
 
             <div className="mt-5 grid gap-3">
               {REPORT_ACTIONS.map((action) => {
-                const actionUnavailable =
-                  action === "DELETE" && report.targetInfo.targetType !== "POST";
+                const actionUnavailable = !isAdminReportActionSupported(
+                  action,
+                  report.targetInfo.targetType,
+                );
                 const disabled = report.status === "PROCESSED" || isHandling || actionUnavailable;
+                const selected = pendingAction === action;
 
                 return (
                   <button
                     key={action}
                     type="button"
                     disabled={disabled}
-                    onClick={() => void onHandle(action)}
+                    onClick={() => onSelectAction(action)}
                     className={`rounded-[24px] border px-5 py-5 text-left transition ${
                       disabled
                         ? "cursor-not-allowed border-[#e3ebf8] bg-[#f8fbff] text-[#9aaecc]"
-                        : "border-[#dce7f8] bg-white text-[#314969] hover:border-[#86afe8] hover:bg-[#f9fbff]"
+                        : selected
+                          ? "border-[#86afe8] bg-[#f4f9ff] text-[#23456c]"
+                          : "border-[#dce7f8] bg-white text-[#314969] hover:border-[#86afe8] hover:bg-[#f9fbff]"
                     }`}
                   >
                     <p className="text-[17px] font-semibold tracking-[-0.02em]">
-                      {formatAdminReportActionLabel(action)}
+                      {formatAdminReportActionLabel(action, report.targetInfo.targetType)}
                     </p>
                     <p className="mt-2 text-sm leading-6">
                       {actionUnavailable
-                        ? "게시글 신고에서만 사용할 수 있는 액션입니다."
-                        : getAdminReportActionDescription(action)}
+                        ? "이 대상 유형에서는 사용할 수 없는 액션입니다."
+                        : getAdminReportActionDescription(action, report.targetInfo.targetType)}
                     </p>
                   </button>
                 );
               })}
             </div>
+
+            {pendingAction && report.status !== "PROCESSED" ? (
+              <div className="mt-5 rounded-[24px] border border-[#dce7f8] bg-[#f8fbff] px-5 py-5">
+                <p className="text-sm font-semibold text-[#6c82a5]">최종 확인</p>
+                <p className="mt-2 text-[18px] font-semibold text-[#223552]">
+                  {formatAdminReportActionLabel(pendingAction, report.targetInfo.targetType)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#5e7598]">
+                  {getAdminReportActionExecutionNote(pendingAction, report.targetInfo.targetType)}
+                </p>
+                <div className="mt-4 grid gap-2 rounded-[18px] bg-white px-4 py-4 text-sm text-[#526987]">
+                  <InfoRow
+                    label="대상 유형"
+                    value={formatAdminReportTargetTypeLabel(report.targetInfo.targetType)}
+                  />
+                  <InfoRow label="대상 식별값" value={report.targetInfo.targetId} />
+                  <InfoRow label="작성자" value={report.targetInfo.authorNickname || "알 수 없음"} />
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingAction(null)}
+                    disabled={isHandling}
+                    className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7598] ring-1 ring-[#dce7f8] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onConfirmHandle()}
+                    disabled={isHandling}
+                    className="rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3f80eb] disabled:cursor-not-allowed disabled:bg-[#b6c9e7]"
+                  >
+                    {isHandling ? "처리 중..." : "이 액션 실행"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {report.status === "PROCESSED" ? (
               <p className="mt-4 text-sm text-[#6c82a5]">이 신고는 이미 처리되었습니다.</p>
@@ -317,7 +409,13 @@ export default function AdminReportDetailPage() {
 
             <div className="mt-5 space-y-4 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-sm text-[#526987]">
               <InfoRow label="신고 상태" value={formatAdminReportStatusLabel(report.status)} />
-              <InfoRow label="최근 처리" value={formatAdminReportActionLabel(report.processingAction)} />
+              <InfoRow
+                label="최근 처리"
+                value={formatAdminReportActionLabel(
+                  report.processingAction,
+                  report.targetInfo.targetType,
+                )}
+              />
               <InfoRow label="대상 유형" value={formatAdminReportTargetTypeLabel(report.targetInfo.targetType)} />
               <InfoRow label="대상 식별값" value={report.targetInfo.targetId} />
               <InfoRow label="작성자" value={report.targetInfo.authorNickname || "알 수 없음"} />

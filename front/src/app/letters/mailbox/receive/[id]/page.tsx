@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
   Calendar,
+  Siren,
   MailOpen,
   Heart,
   Send,
@@ -46,6 +47,7 @@ export default function ReceivedLetterDetailPage() {
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [reportDialogKey, setReportDialogKey] = useState(0);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportNoticeMessage, setReportNoticeMessage] = useState<string | null>(null);
   const [reportErrorMessage, setReportErrorMessage] = useState<string | null>(
     null,
   );
@@ -122,20 +124,19 @@ export default function ReceivedLetterDetailPage() {
     if (!letter || isSubmittingReport) return;
     setIsSubmittingReport(true);
     setReportErrorMessage(null);
+    setReportNoticeMessage(null);
 
     try {
       await createReport({
         targetId: letter.id,
         targetType: "LETTER",
         reason,
-        content: content.trim(),
+        content: content.length > 0 ? content : undefined,
       });
 
-      // 성공 시 처리
       setIsReportDialogOpen(false);
-      alert("신고가 접수되었습니다.");
+      setReportNoticeMessage("신고가 접수되었습니다. 운영팀이 확인 후 조치할 예정입니다.");
 
-      // 다이얼로그 초기화를 위해 키 값 변경
       setReportDialogKey((prev) => prev + 1);
     } catch (error) {
       setReportErrorMessage(toErrorMessage(error));
@@ -214,10 +215,32 @@ export default function ReceivedLetterDetailPage() {
           >
             <ChevronLeft size={16} /> 돌아가기
           </button>
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900">
-            <MailOpen size={18} className="text-sky-400" /> 도착한 마음
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setReportErrorMessage(null);
+                setReportNoticeMessage(null);
+                setReportDialogKey((prev) => prev + 1);
+                setIsReportDialogOpen(true);
+              }}
+              disabled={isSubmittingReport}
+              className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#b45e6b] shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Siren size={16} />
+              신고
+            </button>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/60 px-4 py-2 text-sm font-semibold text-sky-900">
+              <MailOpen size={18} className="text-sky-400" /> 도착한 마음
+            </div>
           </div>
         </div>
+
+        {reportNoticeMessage ? (
+          <div className="mb-6 rounded-[1.75rem] border border-emerald-100 bg-emerald-50/80 px-5 py-4 text-sm font-medium text-emerald-700">
+            {reportNoticeMessage}
+          </div>
+        ) : null}
 
         {/* 편지 본문 카드 */}
         <section className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 md:p-14 shadow-lg border border-white relative overflow-hidden">
@@ -309,7 +332,7 @@ export default function ReceivedLetterDetailPage() {
       <ReportCreateDialog
         key={reportDialogKey}
         open={isReportDialogOpen}
-        targetLabel="편지"
+        targetLabel="비밀 편지"
         isSubmitting={isSubmittingReport}
         errorMessage={reportErrorMessage}
         onClose={() => setIsReportDialogOpen(false)}

@@ -1,6 +1,7 @@
-export type AdminReportTargetType = "POST" | "LETTER" | string;
+export type AdminReportTargetType = "POST" | "LETTER" | "COMMENT" | string;
 export type AdminReportStatus = "RECEIVED" | "PROCESSED" | string;
 export type AdminReportAction = "REJECT" | "DELETE" | "BLOCK_USER";
+export type AdminReportSortOption = "LATEST" | "PENDING_FIRST";
 
 export interface AdminReportListItem {
   reportId: number;

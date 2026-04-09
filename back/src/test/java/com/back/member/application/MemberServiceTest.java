@@ -10,19 +10,32 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 
 import com.back.auth.domain.RefreshTokenDomainService;
+import com.back.auth.domain.OAuthAccount;
 import com.back.auth.domain.OAuthAccountRepository;
 import com.back.global.exception.ServiceException;
+import com.back.letter.adapter.out.persistence.repository.LetterRepository;
+import com.back.member.adapter.in.web.dto.AdminMemberDetailResponse;
+import com.back.member.adapter.in.web.dto.AdminMemberListResponse;
+import com.back.member.adapter.in.web.dto.AdminRevokeMemberSessionsRequest;
+import com.back.member.adapter.in.web.dto.AdminUpdateMemberRoleRequest;
+import com.back.member.adapter.in.web.dto.AdminUpdateMemberStatusRequest;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberPasswordRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
 import com.back.member.adapter.in.web.dto.WithdrawMemberRequest;
+import com.back.member.domain.MemberAdminActionLogRepository;
 import com.back.member.domain.Member;
+import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
+import com.back.post.repository.PostRepository;
+import com.back.report.adapter.out.persistence.ReportRepository;
+import java.time.LocalDateTime;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +45,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -43,6 +58,10 @@ class MemberServiceTest {
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private RefreshTokenDomainService refreshTokenDomainService;
   @Mock private OAuthAccountRepository oAuthAccountRepository;
+  @Mock private MemberAdminActionLogRepository memberAdminActionLogRepository;
+  @Mock private ReportRepository reportRepository;
+  @Mock private PostRepository postRepository;
+  @Mock private LetterRepository letterRepository;
   @Mock private Clock clock;
 
   @InjectMocks private MemberService memberService;
@@ -51,6 +70,32 @@ class MemberServiceTest {
   void setUpClock() {
     lenient().when(clock.getZone()).thenReturn(ZoneOffset.UTC);
     lenient().when(clock.instant()).thenReturn(Instant.parse("2026-03-27T00:00:00Z"));
+    lenient()
+        .when(oAuthAccountRepository.findAllByMemberIdOrderByIdAsc(any(Long.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(memberAdminActionLogRepository.findByMemberIdOrderByCreateDateDesc(
+            any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(reportRepository.findByReporterIdOrderByCreateDateDesc(
+            any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(reportRepository.findPostTargetReportsByAuthorId(any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(reportRepository.findLetterTargetReportsBySenderId(any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(reportRepository.findCommentTargetReportsByAuthorId(any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(postRepository.findRecentByMemberId(any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
+    lenient()
+        .when(letterRepository.findRecentAdminLettersByMemberId(any(Long.class), any(Pageable.class)))
+        .thenReturn(List.of());
   }
 
   @Test
@@ -248,5 +293,147 @@ class MemberServiceTest {
 
     assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
     then(passwordEncoder).should(never()).matches(any(), any());
+  }
+
+  @Test
+  @DisplayName("관리자 회원 목록 조회는 상태/권한/소셜 메타데이터를 함께 매핑한다")
+  void getAdminMembersMapsOperationalMetadata() {
+    Member member = Member.create("member9@test.com", "$2a$10$hashValue", "member9");
+    ReflectionTestUtils.setField(member, "id", 9L);
+    ReflectionTestUtils.setField(member, "role", MemberRole.ADMIN);
+    ReflectionTestUtils.setField(member, "status", MemberStatus.ACTIVE);
+    member.setCreateDate(LocalDateTime.of(2026, 4, 1, 9, 0));
+
+    OAuthAccount googleAccount =
+        OAuthAccount.connect(member, "google", "google-9", "member9@test.com");
+    googleAccount.touchLastLoginAt(LocalDateTime.of(2026, 4, 9, 8, 30));
+
+    given(
+            memberRepository.searchAdminMembers(
+                eq(null),
+                eq(MemberStatus.ACTIVE),
+                eq(MemberRole.ADMIN),
+                eq("SOCIAL"),
+                eq(null),
+                any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(member)));
+    given(oAuthAccountRepository.findAllByMemberIdInOrderByMemberIdAscIdAsc(List.of(9L)))
+        .willReturn(List.of(googleAccount));
+
+    AdminMemberListResponse response =
+        memberService.getAdminMembers(null, "ACTIVE", "ADMIN", "SOCIAL", 0, 20);
+
+    assertThat(response.members()).hasSize(1);
+    assertThat(response.members().get(0).id()).isEqualTo(9L);
+    assertThat(response.members().get(0).role()).isEqualTo("ADMIN");
+    assertThat(response.members().get(0).status()).isEqualTo("ACTIVE");
+    assertThat(response.members().get(0).socialAccount()).isTrue();
+    assertThat(response.members().get(0).lastLoginAt())
+        .isEqualTo(LocalDateTime.of(2026, 4, 9, 8, 30));
+  }
+
+  @Test
+  @DisplayName("관리자 회원 상세 조회는 연결 provider와 마지막 로그인 시각을 반환한다")
+  void getAdminMemberDetailIncludesProvidersAndLastLoginAt() {
+    Member member = Member.create("member10@test.com", "$2a$10$hashValue", "member10");
+    ReflectionTestUtils.setField(member, "id", 10L);
+    ReflectionTestUtils.setField(member, "role", MemberRole.USER);
+    ReflectionTestUtils.setField(member, "status", MemberStatus.BLOCKED);
+    member.setCreateDate(LocalDateTime.of(2026, 4, 2, 10, 0));
+    ReflectionTestUtils.setField(member, "modifyDate", LocalDateTime.of(2026, 4, 9, 15, 0));
+
+    OAuthAccount googleAccount =
+        OAuthAccount.connect(member, "google", "google-10", "member10@test.com");
+    googleAccount.touchLastLoginAt(LocalDateTime.of(2026, 4, 8, 17, 45));
+    OAuthAccount kakaoAccount =
+        OAuthAccount.connect(member, "kakao", "kakao-10", "member10@test.com");
+    kakaoAccount.touchLastLoginAt(LocalDateTime.of(2026, 4, 9, 7, 20));
+
+    given(memberRepository.findById(10L)).willReturn(Optional.of(member));
+    given(oAuthAccountRepository.findAllByMemberIdOrderByIdAsc(10L))
+        .willReturn(List.of(googleAccount, kakaoAccount));
+
+    AdminMemberDetailResponse response = memberService.getAdminMemberDetail(10L);
+
+    assertThat(response.role()).isEqualTo("USER");
+    assertThat(response.status()).isEqualTo("BLOCKED");
+    assertThat(response.socialAccount()).isTrue();
+    assertThat(response.connectedProviders()).containsExactly("google", "kakao");
+    assertThat(response.lastLoginAt()).isEqualTo(LocalDateTime.of(2026, 4, 9, 7, 20));
+    assertThat(response.modifiedAt()).isEqualTo(LocalDateTime.of(2026, 4, 9, 15, 0));
+    assertThat(response.actionLogs()).isEmpty();
+    assertThat(response.recentPosts()).isEmpty();
+    assertThat(response.recentLetters()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("관리자 회원 차단은 상태 변경, 랜덤 수신 비활성화, refresh 세션 만료, 감사 로그 저장을 수행한다")
+  void updateAdminMemberStatusBlocksMemberAndRevokesSessions() {
+    Member member = Member.create("blocked-member@test.com", "$2a$10$hashValue", "blocked");
+    ReflectionTestUtils.setField(member, "id", 11L);
+    Member admin = Member.create("admin@test.com", "$2a$10$hashValue", "운영자");
+    ReflectionTestUtils.setField(admin, "id", 99L);
+
+    given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+    given(memberRepository.findById(99L)).willReturn(Optional.of(admin));
+
+    AdminMemberDetailResponse response =
+        memberService.updateAdminMemberStatus(
+            11L,
+            99L,
+            new AdminUpdateMemberStatusRequest("BLOCKED", "운영 정책 위반", true));
+
+    assertThat(member.getStatus()).isEqualTo(MemberStatus.BLOCKED);
+    assertThat(member.isRandomReceiveAllowed()).isFalse();
+    assertThat(response.status()).isEqualTo("BLOCKED");
+    then(refreshTokenDomainService)
+        .should()
+        .revokeAllByMemberId(eq(11L), any(LocalDateTime.class));
+    then(memberAdminActionLogRepository).should().save(any());
+  }
+
+  @Test
+  @DisplayName("마지막 활성 관리자 권한 강등은 차단된다")
+  void updateAdminMemberRoleProtectsLastActiveAdmin() {
+    Member admin = Member.create("solo-admin@test.com", "$2a$10$hashValue", "solo");
+    ReflectionTestUtils.setField(admin, "id", 21L);
+    ReflectionTestUtils.setField(admin, "role", MemberRole.ADMIN);
+    ReflectionTestUtils.setField(admin, "status", MemberStatus.ACTIVE);
+
+    given(memberRepository.findById(21L)).willReturn(Optional.of(admin));
+    given(memberRepository.countByRoleAndStatus(MemberRole.ADMIN, MemberStatus.ACTIVE))
+        .willReturn(1L);
+
+    assertThatThrownBy(
+            () ->
+                memberService.updateAdminMemberRole(
+                    21L, 77L, new AdminUpdateMemberRoleRequest("USER", "권한 정리")))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode())
+                    .isEqualTo("409-1"));
+  }
+
+  @Test
+  @DisplayName("관리자 세션 만료는 refresh 토큰 일괄 폐기와 감사 로그 저장을 수행한다")
+  void revokeAdminMemberSessionsWritesAuditLog() {
+    Member member = Member.create("session-member@test.com", "$2a$10$hashValue", "session");
+    ReflectionTestUtils.setField(member, "id", 31L);
+    Member admin = Member.create("admin2@test.com", "$2a$10$hashValue", "운영자2");
+    ReflectionTestUtils.setField(admin, "id", 88L);
+
+    given(memberRepository.findById(31L)).willReturn(Optional.of(member));
+    given(memberRepository.findById(88L)).willReturn(Optional.of(admin));
+
+    AdminMemberDetailResponse response =
+        memberService.revokeAdminMemberSessions(
+            31L, 88L, new AdminRevokeMemberSessionsRequest("비정상 로그인 정리"));
+
+    assertThat(response.id()).isEqualTo(31L);
+    then(refreshTokenDomainService)
+        .should()
+        .revokeAllByMemberId(eq(31L), any(LocalDateTime.class));
+    then(memberAdminActionLogRepository).should().save(any());
   }
 }

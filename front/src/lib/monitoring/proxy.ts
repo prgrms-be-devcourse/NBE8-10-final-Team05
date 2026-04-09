@@ -8,6 +8,19 @@ import { getMonitoringProxyInternalUrl, joinUrl } from "@/lib/runtime/deployment
 const MONITORING_PROXY_INTERNAL_URL = getMonitoringProxyInternalUrl();
 const GRAFANA_AUTH_PROXY_USER = "maum-on-admin";
 
+function normalizeMonitoringResponseHeaders(headers: Headers): Headers {
+  const normalizedHeaders = new Headers(headers);
+
+  // Next/Node fetch can transparently decode gzip/br responses while preserving
+  // the original upstream encoding headers. Strip them before streaming the body
+  // back to the browser to avoid double-decoding failures.
+  normalizedHeaders.delete("content-encoding");
+  normalizedHeaders.delete("content-length");
+  normalizedHeaders.delete("transfer-encoding");
+
+  return normalizedHeaders;
+}
+
 export async function proxyMonitoringRequest(
   request: NextRequest,
   prefix: "/grafana" | "/prometheus",
@@ -40,6 +53,7 @@ export async function proxyMonitoringRequest(
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("connection");
+  headers.set("accept-encoding", "identity");
 
   if (prefix === "/grafana") {
     headers.set("X-WEBAUTH-USER", GRAFANA_AUTH_PROXY_USER);
@@ -57,7 +71,9 @@ export async function proxyMonitoringRequest(
       cache: "no-store",
     });
 
-    const responseHeaders = new Headers(upstreamResponse.headers);
+    const responseHeaders = normalizeMonitoringResponseHeaders(
+      upstreamResponse.headers,
+    );
     responseHeaders.set("x-maum-on-monitoring-proxy", prefix);
 
     return new Response(upstreamResponse.body, {

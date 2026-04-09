@@ -4,14 +4,17 @@ import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
 import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
 import com.back.censorship.application.service.AiService;
 import com.back.global.event.LetterEvents;
-import com.back.global.event.LetterNotificationEvent;
 import com.back.global.exception.ServiceException;
+import com.back.letter.adapter.out.persistence.repository.LetterAdminActionLogRepository;
 import com.back.letter.adapter.out.persistence.repository.LetterRedisRepository;
 import com.back.letter.application.port.in.dto.*;
 import com.back.letter.application.port.out.LetterPort;
 import com.back.letter.application.service.LetterService;
+import com.back.letter.domain.AdminLetterActionType;
 import com.back.letter.domain.Letter;
+import com.back.letter.domain.LetterAdminActionLog;
 import com.back.letter.domain.LetterStatus;
+import com.back.member.application.MemberService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,10 +56,12 @@ class LetterServiceTest {
     @Mock private AiService aiService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private LetterRedisRepository letterRedisRepository;
+    @Mock private LetterAdminActionLogRepository letterAdminActionLogRepository;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private ValueOperations<String, Object> valueOperations;
     @Mock private CacheManager cacheManager;
     @Mock private Cache cache;
+    @Mock private MemberService memberService;
 
     @BeforeEach
     void setUp() {
@@ -288,15 +293,18 @@ class LetterServiceTest {
             ReflectionTestUtils.setField(letter, "id", 33L);
             ReflectionTestUtils.setField(letter, "createDate", LocalDateTime.of(2026, 4, 9, 14, 0));
 
-            given(letterPort.findAllForAdmin()).willReturn(List.of(letter));
+            Page<Letter> page = new PageImpl<>(List.of(letter));
+            given(letterPort.searchAdminLetters(null, null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
+                    .willReturn(page);
             given(letterRedisRepository.isWriting(33L)).willReturn(true);
+            given(letterAdminActionLogRepository.findByLetterIdOrderByCreateDateDesc(33L)).willReturn(List.of());
 
-            List<AdminLetterListItem> result = letterService.getAdminLetters();
+            AdminLetterListRes result = letterService.getAdminLetters(null, null, 0, 20);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.getFirst().status()).isEqualTo("WRITING");
-            assertThat(result.getFirst().senderNickname()).isEqualTo("보낸이");
-            assertThat(result.getFirst().receiverNickname()).isEqualTo("받는이");
+            assertThat(result.letters()).hasSize(1);
+            assertThat(result.letters().getFirst().status()).isEqualTo("WRITING");
+            assertThat(result.letters().getFirst().senderNickname()).isEqualTo("보낸이");
+            assertThat(result.letters().getFirst().receiverNickname()).isEqualTo("받는이");
         }
 
         @Test
@@ -320,6 +328,7 @@ class LetterServiceTest {
 
             given(letterPort.findByIdForAdmin(44L)).willReturn(Optional.of(letter));
             given(letterRedisRepository.isWriting(44L)).willReturn(false);
+            given(letterAdminActionLogRepository.findByLetterIdOrderByCreateDateDesc(44L)).willReturn(List.of());
 
             AdminLetterDetailRes result = letterService.getAdminLetter(44L);
 
@@ -328,6 +337,87 @@ class LetterServiceTest {
             assertThat(result.replySummary()).isEqualTo("휴식을 권하는 답장");
             assertThat(result.sender().nickname()).isEqualTo("보낸이");
             assertThat(result.receiver().nickname()).isEqualTo("받는이");
+        }
+
+        @Test
+        @DisplayName("성공: 운영 메모는 상태 변경 없이 조치 이력만 기록한다")
+        void givenNoteAction_whenHandleAdminLetter_thenSaveActionLogOnly() {
+            Member sender = createMember(1L, "보낸이");
+            Member admin = createMember(9L, "운영자");
+            Letter letter = Letter.builder()
+                    .title("메모 대상")
+                    .content("내용")
+                    .sender(sender)
+                    .build();
+            ReflectionTestUtils.setField(letter, "id", 51L);
+            ReflectionTestUtils.setField(letter, "status", LetterStatus.SENT);
+
+            given(letterPort.findByIdForAdmin(51L)).willReturn(Optional.of(letter));
+            given(memberRepository.findById(9L)).willReturn(Optional.of(admin));
+
+            letterService.handleAdminLetter(
+                    51L,
+                    new AdminLetterHandleReq(AdminLetterActionType.NOTE, "표현 수위 지켜보기"),
+                    9L);
+
+            assertThat(letter.getStatus()).isEqualTo(LetterStatus.SENT);
+            verify(letterAdminActionLogRepository).save(any(LetterAdminActionLog.class));
+        }
+
+        @Test
+        @DisplayName("성공: 재배정 조치는 새 수신자를 배정하고 writing 상태를 제거한다")
+        void givenReassignAction_whenHandleAdminLetter_thenAssignNewReceiver() {
+            Member sender = createMember(1L, "보낸이");
+            Member oldReceiver = createMember(2L, "기존수신자");
+            Member newReceiver = createMember(3L, "새수신자");
+            Member admin = createMember(9L, "운영자");
+            Letter letter = Letter.builder()
+                    .title("재배정 대상")
+                    .content("내용")
+                    .sender(sender)
+                    .receiver(oldReceiver)
+                    .build();
+            letter.dispatch(oldReceiver);
+            ReflectionTestUtils.setField(letter, "id", 61L);
+            ReflectionTestUtils.setField(letter, "status", LetterStatus.ACCEPTED);
+
+            given(letterPort.findByIdForAdmin(61L)).willReturn(Optional.of(letter));
+            given(letterPort.findRandomMemberExceptMe(List.of(1L, 2L))).willReturn(Optional.of(newReceiver));
+            given(memberRepository.findById(9L)).willReturn(Optional.of(admin));
+
+            letterService.handleAdminLetter(
+                    61L,
+                    new AdminLetterHandleReq(AdminLetterActionType.REASSIGN_RECEIVER, "응답 지연으로 재배정"),
+                    9L);
+
+            assertThat(letter.getReceiver().getId()).isEqualTo(3L);
+            assertThat(letter.getStatus()).isEqualTo(LetterStatus.SENT);
+            verify(letterRedisRepository).deleteWritingStatus(61L);
+            verify(letterAdminActionLogRepository).save(any(LetterAdminActionLog.class));
+        }
+
+        @Test
+        @DisplayName("성공: 발신자 차단 조치는 발신자를 BLOCKED 상태로 변경한다")
+        void givenBlockSenderAction_whenHandleAdminLetter_thenBlockSender() {
+            Member sender = createMember(1L, "보낸이");
+            Member admin = createMember(9L, "운영자");
+            Letter letter = Letter.builder()
+                    .title("차단 대상")
+                    .content("내용")
+                    .sender(sender)
+                    .build();
+            ReflectionTestUtils.setField(letter, "id", 71L);
+
+            given(letterPort.findByIdForAdmin(71L)).willReturn(Optional.of(letter));
+            given(memberRepository.findById(9L)).willReturn(Optional.of(admin));
+
+            letterService.handleAdminLetter(
+                    71L,
+                    new AdminLetterHandleReq(AdminLetterActionType.BLOCK_SENDER, "악성 발신자 차단"),
+                    9L);
+
+            verify(memberService).blockMemberByAdminAction(1L, 9L, "악성 발신자 차단", true);
+            verify(letterAdminActionLogRepository).save(any(LetterAdminActionLog.class));
         }
     }
 }

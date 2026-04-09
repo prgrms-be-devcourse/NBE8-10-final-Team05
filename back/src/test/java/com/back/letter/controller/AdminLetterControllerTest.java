@@ -11,8 +11,12 @@ import com.back.global.security.jwt.JwtProperties;
 import com.back.global.security.jwt.JwtTokenService;
 import com.back.letter.adapter.in.web.AdminLetterController;
 import com.back.letter.application.port.in.AdminLetterUseCase;
+import com.back.letter.application.port.in.dto.AdminLetterActionLogItem;
 import com.back.letter.application.port.in.dto.AdminLetterDetailRes;
+import com.back.letter.application.port.in.dto.AdminLetterHandleReq;
 import com.back.letter.application.port.in.dto.AdminLetterListItem;
+import com.back.letter.application.port.in.dto.AdminLetterListRes;
+import com.back.letter.domain.AdminLetterActionType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -36,10 +40,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -53,6 +61,9 @@ class AdminLetterControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockitoBean
     private AdminLetterUseCase adminLetterUseCase;
@@ -108,20 +119,27 @@ class AdminLetterControllerTest {
     @Test
     @DisplayName("[GET] 관리자는 비밀편지 목록을 조회할 수 있다")
     void getLettersSuccess() throws Exception {
-        given(adminLetterUseCase.getAdminLetters()).willReturn(List.of(
-                new AdminLetterListItem(
-                        7L,
-                        "안부",
-                        "보낸사람",
-                        "받는사람",
-                        "SENT",
-                        LocalDateTime.of(2026, 4, 9, 12, 30),
-                        null)));
+        given(adminLetterUseCase.getAdminLetters(null, null, 0, 20)).willReturn(
+                new AdminLetterListRes(
+                        List.of(new AdminLetterListItem(
+                                7L,
+                                "안부",
+                                "보낸사람",
+                                "받는사람",
+                                "NOTE",
+                                "SENT",
+                                LocalDateTime.of(2026, 4, 9, 12, 30),
+                                null)),
+                        1,
+                        1,
+                        0,
+                        true,
+                        true));
 
         mockMvc.perform(get("/api/v1/admin/letters").with(authentication(adminAuth)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resultCode").value("200-1"))
-                .andExpect(jsonPath("$.data[0].letterId").value(7L));
+                .andExpect(jsonPath("$.data.letters[0].letterId").value(7L));
     }
 
     @Test
@@ -138,13 +156,36 @@ class AdminLetterControllerTest {
                         "REPLIED",
                         LocalDateTime.of(2026, 4, 9, 10, 0),
                         LocalDateTime.of(2026, 4, 9, 10, 30),
-                        new AdminLetterDetailRes.AdminLetterMemberSummary(1L, "보낸이"),
-                        new AdminLetterDetailRes.AdminLetterMemberSummary(2L, "받는이")));
+                        new AdminLetterDetailRes.AdminLetterMemberSummary(1L, "보낸이", "ACTIVE", true),
+                        new AdminLetterDetailRes.AdminLetterMemberSummary(2L, "받는이", "ACTIVE", true),
+                        List.of(new AdminLetterActionLogItem(
+                                1L,
+                                "NOTE",
+                                "관리자",
+                                "운영 메모",
+                                LocalDateTime.of(2026, 4, 9, 11, 0)))));
 
         mockMvc.perform(get("/api/v1/admin/letters/{id}", 9L).with(authentication(adminAuth)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resultCode").value("200-2"))
                 .andExpect(jsonPath("$.data.sender.nickname").value("보낸이"));
+    }
+
+    @Test
+    @DisplayName("[POST] 관리자는 비밀편지 운영 조치를 기록할 수 있다")
+    void handleLetterSuccess() throws Exception {
+        AdminLetterHandleReq request = new AdminLetterHandleReq(
+                AdminLetterActionType.NOTE,
+                "발신자 표현 수위 관찰");
+        doNothing().when(adminLetterUseCase).handleAdminLetter(eq(9L), any(AdminLetterHandleReq.class), eq(1L));
+
+        mockMvc.perform(post("/api/v1/admin/letters/{id}/actions", 9L)
+                        .with(authentication(adminAuth))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resultCode").value("200-3"));
     }
 
     @Test

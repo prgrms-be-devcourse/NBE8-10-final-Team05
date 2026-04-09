@@ -10,16 +10,18 @@ public record AdminLetterListItem(
     String title,
     String senderNickname,
     String receiverNickname,
+    String latestAction,
     String status,
     LocalDateTime createdAt,
     LocalDateTime replyCreatedAt) {
 
-  public static AdminLetterListItem from(Letter letter, boolean isWriting) {
+  public static AdminLetterListItem from(Letter letter, boolean isWriting, String latestAction) {
     return new AdminLetterListItem(
         letter.getId(),
         letter.getTitle(),
         getNickname(letter.getSender()),
         getNickname(letter.getReceiver()),
+        latestAction,
         resolveStatus(letter, isWriting),
         letter.getCreateDate(),
         letter.getReplyCreatedDate());

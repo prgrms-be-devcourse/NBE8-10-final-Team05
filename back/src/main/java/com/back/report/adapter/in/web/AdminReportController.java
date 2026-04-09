@@ -1,12 +1,14 @@
 package com.back.report.adapter.in.web;
 
 import com.back.global.rsData.RsData;
+import com.back.global.security.adapter.in.AuthenticatedMember;
 import com.back.report.adapter.in.web.dto.ReportDetailResponse;
 import com.back.report.adapter.in.web.dto.ReportHandleRequest;
 import com.back.report.adapter.in.web.dto.ReportListResponse;
 import com.back.report.application.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,8 +37,11 @@ public class AdminReportController {
 
     // 신고 처리
     @PostMapping("/{id}/handle")
-    public RsData<Void> handle(@PathVariable Long id, @RequestBody ReportHandleRequest request) {
-        reportService.handleReport(id, request);
+    public RsData<Void> handle(
+            @PathVariable Long id,
+            @RequestBody ReportHandleRequest request,
+            @AuthenticationPrincipal AuthenticatedMember authMember) {
+        reportService.handleReport(id, request, authMember.memberId());
         return new RsData<>("200-3", "신고 처리가 완료되었습니다.");
     }
 }

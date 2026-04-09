@@ -109,6 +109,15 @@ public class Letter extends BaseEntity {
         this.receiver = newReceiver;
     }
 
+    public void adminReassign(Member newReceiver) {
+        if (this.status == LetterStatus.REPLIED) {
+            throw new ServiceException("400-3", "답장이 완료된 편지는 재배정할 수 없습니다.");
+        }
+
+        this.receiver = newReceiver;
+        this.status = LetterStatus.SENT;
+    }
+
     /**
      * 권한 검증 내부 헬퍼 메서드
      */

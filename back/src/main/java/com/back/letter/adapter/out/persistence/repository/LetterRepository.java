@@ -14,8 +14,46 @@ import java.util.Optional;
 
 public interface LetterRepository extends JpaRepository<Letter, Long> {
 
-    @Query("SELECT l FROM Letter l JOIN FETCH l.sender LEFT JOIN FETCH l.receiver ORDER BY l.createDate DESC")
-    List<Letter> findAllForAdmin();
+    @Query(
+            value = """
+            SELECT l FROM Letter l
+            JOIN FETCH l.sender s
+            LEFT JOIN FETCH l.receiver r
+            WHERE (
+              (:onlyUnassigned = true AND l.status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NOT NULL AND l.status = :status)
+            )
+            AND (
+              :query IS NULL
+              OR lower(l.title) LIKE lower(concat('%', :query, '%'))
+              OR lower(l.content) LIKE lower(concat('%', :query, '%'))
+              OR lower(s.nickname) LIKE lower(concat('%', :query, '%'))
+              OR lower(coalesce(r.nickname, '')) LIKE lower(concat('%', :query, '%'))
+            )
+            """,
+            countQuery = """
+            SELECT count(l) FROM Letter l
+            JOIN l.sender s
+            LEFT JOIN l.receiver r
+            WHERE (
+              (:onlyUnassigned = true AND l.status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NULL)
+              OR (:onlyUnassigned = false AND :status IS NOT NULL AND l.status = :status)
+            )
+            AND (
+              :query IS NULL
+              OR lower(l.title) LIKE lower(concat('%', :query, '%'))
+              OR lower(l.content) LIKE lower(concat('%', :query, '%'))
+              OR lower(s.nickname) LIKE lower(concat('%', :query, '%'))
+              OR lower(coalesce(r.nickname, '')) LIKE lower(concat('%', :query, '%'))
+            )
+            """)
+    Page<Letter> searchAdminLetters(
+            @Param("query") String query,
+            @Param("status") com.back.letter.domain.LetterStatus status,
+            @Param("onlyUnassigned") boolean onlyUnassigned,
+            Pageable pageable);
 
     @Query("SELECT l FROM Letter l JOIN FETCH l.sender LEFT JOIN FETCH l.receiver WHERE l.id = :id")
     Optional<Letter> findByIdForAdmin(@Param("id") Long id);
@@ -25,6 +63,16 @@ public interface LetterRepository extends JpaRepository<Letter, Long> {
 
     @Query("SELECT l FROM Letter l JOIN FETCH l.receiver WHERE l.sender.id = :memberId")
     Page<Letter> findBySenderId(@Param("memberId") Long memberId, Pageable pageable);
+
+    @Query("""
+            SELECT l
+            FROM Letter l
+            JOIN FETCH l.sender s
+            LEFT JOIN FETCH l.receiver r
+            WHERE s.id = :memberId OR r.id = :memberId
+            ORDER BY l.createDate DESC
+            """)
+    List<Letter> findRecentAdminLettersByMemberId(@Param("memberId") Long memberId, Pageable pageable);
 
     @Query(value = "SELECT * FROM members " +
             "WHERE id NOT IN (:excludeIds) " + // != 대신 NOT IN 사용

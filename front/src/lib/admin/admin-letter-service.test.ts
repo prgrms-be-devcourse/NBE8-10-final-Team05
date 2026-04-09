@@ -15,59 +15,86 @@ describe("admin-letter-service", () => {
     vi.unstubAllGlobals();
   });
 
-  it("관리자 편지 목록 조회는 RsData의 data 배열을 반환한다", async () => {
+  it("관리자 편지 목록 조회는 검색/필터 쿼리를 포함해 RsData의 data를 반환한다", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       createJsonResponse({
         resultCode: "200-1",
         msg: "관리자 편지 목록을 조회했습니다.",
-        data: [
-          {
-            letterId: 21,
-            title: "괜찮아질까요",
-            senderNickname: "보낸이",
-            receiverNickname: "받는이",
-            status: "SENT",
-            createdAt: "2026-04-09T12:10:00",
-            replyCreatedAt: null,
-          },
-        ],
+        data: {
+          letters: [
+            {
+              letterId: 21,
+              title: "괜찮아질까요",
+              senderNickname: "보낸이",
+              receiverNickname: "받는이",
+              latestAction: "NOTE",
+              status: "SENT",
+              createdAt: "2026-04-09T12:10:00",
+              replyCreatedAt: null,
+            },
+          ],
+          totalPages: 3,
+          totalElements: 41,
+          currentPage: 1,
+          isFirst: false,
+          isLast: false,
+        },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
     const { getAdminLetters } = await import("./admin-letter-service");
 
-    await expect(getAdminLetters()).resolves.toEqual([
-      {
-        letterId: 21,
-        title: "괜찮아질까요",
-        senderNickname: "보낸이",
-        receiverNickname: "받는이",
+    await expect(
+      getAdminLetters({
         status: "SENT",
-        createdAt: "2026-04-09T12:10:00",
-        replyCreatedAt: null,
-      },
-    ]);
+        query: "받는이",
+        page: 1,
+        size: 20,
+      }),
+    ).resolves.toMatchObject({
+      totalPages: 3,
+      totalElements: 41,
+      currentPage: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/v1/admin/letters?status=SENT&query=%EB%B0%9B%EB%8A%94%EC%9D%B4&page=1&size=20",
+      expect.objectContaining({
+        credentials: "include",
+      }),
+    );
   });
 
-  it("관리자 편지 404 오류는 편지 없음 안내 문구로 변환된다", async () => {
+  it("관리자 편지 조치 요청은 액션과 메모를 전송한다", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      createJsonResponse(
-        {
-          resultCode: "404-1",
-          msg: "존재하지 않는 편지입니다.",
-          data: null,
-        },
-        404,
-      ),
+      createJsonResponse({
+        resultCode: "200-3",
+        msg: "관리자 편지 조치를 기록했습니다.",
+        data: null,
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { getAdminLetterDetail } = await import("./admin-letter-service");
-    const { toErrorMessage } = await import("@/lib/api/rs-data");
+    const { handleAdminLetter } = await import("./admin-letter-service");
 
-    await expect(getAdminLetterDetail(404)).rejects.toSatisfy((error: unknown) => {
-      return toErrorMessage(error) === "해당 비밀편지를 찾을 수 없습니다.";
-    });
+    await expect(
+      handleAdminLetter(9, {
+        action: "NOTE",
+        memo: "발신자 표현 수위 관찰 필요",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/v1/admin/letters/9/actions",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({
+          action: "NOTE",
+          memo: "발신자 표현 수위 관찰 필요",
+        }),
+      }),
+    );
   });
 });

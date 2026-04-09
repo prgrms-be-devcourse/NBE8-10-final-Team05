@@ -16,6 +16,9 @@ public interface OAuthAccountRepository extends JpaRepository<OAuthAccount, Long
   /** 특정 회원의 연결된 외부 계정을 생성순으로 조회한다. */
   List<OAuthAccount> findAllByMemberIdOrderByIdAsc(Long memberId);
 
+  /** 여러 회원의 연결된 외부 계정을 회원별/생성순으로 조회한다. */
+  List<OAuthAccount> findAllByMemberIdInOrderByMemberIdAscIdAsc(List<Long> memberIds);
+
   /** 특정 회원이 소셜/OIDC 계정을 하나 이상 연결했는지 확인한다. */
   boolean existsByMemberId(Long memberId);
 }
