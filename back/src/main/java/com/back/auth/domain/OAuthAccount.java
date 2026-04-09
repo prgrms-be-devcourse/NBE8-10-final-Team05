@@ -94,6 +94,13 @@ public class OAuthAccount extends BaseEntity {
     this.emailAtProvider = normalizeEmail(emailAtProvider);
   }
 
+  public void reassignMember(Member member) {
+    if (member == null) {
+      throw new IllegalArgumentException("member must not be null");
+    }
+    this.member = member;
+  }
+
   private static String normalizeProvider(String provider) {
     if (!StringUtils.hasText(provider)) {
       throw new IllegalArgumentException(ERR_PROVIDER_BLANK);

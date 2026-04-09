@@ -22,6 +22,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -90,14 +91,12 @@ class OidcCallbackServiceTest {
 
     given(oauthAccountRepository.findByProviderAndProviderUserId("maum-on-oidc", "provider-user-1"))
         .willReturn(Optional.empty());
-    given(memberRepository.findByEmail("oidc@test.com")).willReturn(Optional.empty());
+    given(memberRepository.existsByEmail("oidc@test.com")).willReturn(false);
     given(passwordEncoder.encode(any(String.class))).willReturn("$2a$10$hash");
 
     Member savedMember = Member.create("oidc@test.com", "$2a$10$hash", "oidc-user");
     ReflectionTestUtils.setField(savedMember, "id", 100L);
     given(memberRepository.save(any(Member.class))).willReturn(savedMember);
-    given(oauthAccountRepository.findByMemberIdAndProvider(100L, "maum-on-oidc"))
-        .willReturn(Optional.empty());
     given(oauthAccountRepository.save(any(OAuthAccount.class))).willAnswer(invocation -> invocation.getArgument(0));
 
     AuthService.AuthTokenIssueResult issueResult =
@@ -119,6 +118,171 @@ class OidcCallbackServiceTest {
     assertThat(result.issueResult().response().accessToken()).isEqualTo("internal-access-token");
     assertThat(result.issueResult().refreshToken()).isEqualTo("internal-refresh-token");
     then(authService).should().issueTokenPairForMember(savedMember);
+  }
+
+  @Test
+  @DisplayName("다른 provider가 동일 이메일을 반환해도 기존 회원에 자동 연결하지 않는다")
+  void callbackDoesNotAutoLinkAcrossProvidersByEmail() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-03-20T00:00:00Z"));
+    OidcAuthorizeProperties properties =
+        new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
+    OidcAuthorizationRequestService authorizationRequestService =
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
+    OidcCallbackService callbackService =
+        new OidcCallbackService(
+            properties,
+            authorizationRequestService,
+            clientRegistrationRepository,
+            oidcTokenClient,
+            oidcIdTokenValidator,
+            oauthAccountRepository,
+            memberRepository,
+            passwordEncoder,
+            authService,
+            clock);
+
+    ClientRegistration registration = registration("maum-on-oidc");
+    given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
+
+    OidcAuthorizationStartResult startResult =
+        authorizationRequestService.startAuthorization(
+            "maum-on-oidc", "http://localhost:3000/login", "http://localhost:8080");
+
+    given(
+            oidcTokenClient.exchangeCode(
+                any(ClientRegistration.class), any(String.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcTokenClient.OidcTokenResponse(
+                "access-from-provider", "id-token", "Bearer", 3600L, "openid profile email"));
+    given(
+            oidcIdTokenValidator.validate(
+                any(ClientRegistration.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcIdTokenValidator.OidcIdTokenClaims(
+                "google-user-1", "shared@test.com", "google-user"));
+
+    given(oauthAccountRepository.findByProviderAndProviderUserId("maum-on-oidc", "google-user-1"))
+        .willReturn(Optional.empty());
+    given(memberRepository.existsByEmail("shared@test.com")).willReturn(true);
+    given(passwordEncoder.encode(any(String.class))).willReturn("$2a$10$hash");
+
+    Member savedMember = Member.create("maum-on-oidc_google-user-1@oidc.local", "$2a$10$hash", "google-user");
+    ReflectionTestUtils.setField(savedMember, "id", 101L);
+    ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
+    given(memberRepository.save(any(Member.class))).willReturn(savedMember);
+    given(oauthAccountRepository.save(any(OAuthAccount.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+    AuthService.AuthTokenIssueResult issueResult =
+        new AuthService.AuthTokenIssueResult(
+            new com.back.auth.adapter.in.web.dto.AuthTokenResponse(
+                "internal-access-token",
+                "Bearer",
+                3600L,
+                new com.back.auth.adapter.in.web.dto.AuthMemberResponse(
+                    101L,
+                    "maum-on-oidc_google-user-1@oidc.local",
+                    "google-user",
+                    "USER",
+                    "ACTIVE")),
+            "internal-refresh-token");
+    given(authService.issueTokenPairForMember(savedMember)).willReturn(issueResult);
+
+    callbackService.handleCallback(
+        "maum-on-oidc", "auth-code", startResult.state(), "http://localhost:8080");
+
+    then(memberRepository).should().save(memberCaptor.capture());
+    assertThat(memberCaptor.getValue().getEmail()).isEqualTo("maum-on-oidc_google-user-1@oidc.local");
+    then(authService).should().issueTokenPairForMember(savedMember);
+  }
+
+  @Test
+  @DisplayName("이미 자동 연결된 다중 provider 회원은 현재 provider 로그인 시 분리 복구한다")
+  void callbackSplitsPreviouslyAutoLinkedMember() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-03-20T00:00:00Z"));
+    OidcAuthorizeProperties properties =
+        new OidcAuthorizeProperties(true, 300L, List.of("http://localhost:3000"));
+    OidcAuthorizationRequestService authorizationRequestService =
+        new OidcAuthorizationRequestService(
+            properties,
+            clientRegistrationRepository,
+            new InMemoryOidcAuthorizationStateStore(),
+            clock);
+    OidcCallbackService callbackService =
+        new OidcCallbackService(
+            properties,
+            authorizationRequestService,
+            clientRegistrationRepository,
+            oidcTokenClient,
+            oidcIdTokenValidator,
+            oauthAccountRepository,
+            memberRepository,
+            passwordEncoder,
+            authService,
+            clock);
+
+    ClientRegistration registration = registration("maum-on-oidc");
+    given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
+
+    OidcAuthorizationStartResult startResult =
+        authorizationRequestService.startAuthorization(
+            "maum-on-oidc", "http://localhost:3000/login", "http://localhost:8080");
+
+    given(
+            oidcTokenClient.exchangeCode(
+                any(ClientRegistration.class), any(String.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcTokenClient.OidcTokenResponse(
+                "access-from-provider", "id-token", "Bearer", 3600L, "openid profile email"));
+    given(
+            oidcIdTokenValidator.validate(
+                any(ClientRegistration.class), any(String.class), any(String.class)))
+        .willReturn(
+            new OidcIdTokenValidator.OidcIdTokenClaims(
+                "google-user-1", "shared@test.com", "google-user"));
+
+    Member pollutedMember = Member.create("shared@test.com", "$2a$10$hash", "kakao-user");
+    ReflectionTestUtils.setField(pollutedMember, "id", 50L);
+    OAuthAccount googleAccount =
+        OAuthAccount.connect(pollutedMember, "maum-on-oidc", "google-user-1", "shared@test.com");
+    OAuthAccount kakaoAccount =
+        OAuthAccount.connect(pollutedMember, "kakao", "kakao-user-1", "shared@test.com");
+
+    given(oauthAccountRepository.findByProviderAndProviderUserId("maum-on-oidc", "google-user-1"))
+        .willReturn(Optional.of(googleAccount));
+    given(oauthAccountRepository.findAllByMemberIdOrderByIdAsc(50L))
+        .willReturn(List.of(googleAccount, kakaoAccount));
+    given(memberRepository.existsByEmail("shared@test.com")).willReturn(true);
+    given(passwordEncoder.encode(any(String.class))).willReturn("$2a$10$hash");
+
+    Member separatedMember =
+        Member.create("maum-on-oidc_google-user-1@oidc.local", "$2a$10$hash", "google-user");
+    ReflectionTestUtils.setField(separatedMember, "id", 101L);
+    given(memberRepository.save(any(Member.class))).willReturn(separatedMember);
+
+    AuthService.AuthTokenIssueResult issueResult =
+        new AuthService.AuthTokenIssueResult(
+            new com.back.auth.adapter.in.web.dto.AuthTokenResponse(
+                "internal-access-token",
+                "Bearer",
+                3600L,
+                new com.back.auth.adapter.in.web.dto.AuthMemberResponse(
+                    101L,
+                    "maum-on-oidc_google-user-1@oidc.local",
+                    "google-user",
+                    "USER",
+                    "ACTIVE")),
+            "internal-refresh-token");
+    given(authService.issueTokenPairForMember(separatedMember)).willReturn(issueResult);
+
+    callbackService.handleCallback(
+        "maum-on-oidc", "auth-code", startResult.state(), "http://localhost:8080");
+
+    assertThat(googleAccount.getMember()).isSameAs(separatedMember);
+    then(authService).should().issueTokenPairForMember(separatedMember);
   }
 
   @Test
