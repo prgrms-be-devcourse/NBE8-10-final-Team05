@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
-import { fetchMe, logout } from "@/lib/auth/auth-service";
+import { fetchMe, redirectToLogout } from "@/lib/auth/auth-service";
 import { patchAuthenticatedMember, useAuthStore } from "@/lib/auth/auth-store";
 import {
   getEmailSavedNotice,
@@ -249,8 +249,7 @@ export default function SettingsPage() {
     try {
       await withdrawMember(settings.socialAccount ? undefined : withdrawPassword);
       setNoticeMessage(getWithdrawNotice());
-      await logout();
-      window.location.replace("/");
+      redirectToLogout("/");
     } catch (error: unknown) {
       setErrorMessage(toMemberSettingsErrorMessage(error));
     } finally {

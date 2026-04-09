@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { useAuthHint } from "@/components/auth/AuthHintProvider";
 import BrandWordmark from "@/components/branding/BrandWordmark";
-import { logout } from "@/lib/auth/auth-service";
+import { redirectToLogout } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
 type MainNavKey = "home" | "stories" | "diary" | "letters";
@@ -57,13 +57,9 @@ export default function MainHeader() {
 
   const activeNav = resolveActiveNav(pathname);
 
-  async function handleLogout() {
-    try {
-      await logout();
-    } finally {
-      setMobileMenuOpen(false);
-      window.location.replace("/login");
-    }
+  function handleLogout() {
+    setMobileMenuOpen(false);
+    redirectToLogout("/login");
   }
 
   return (
@@ -124,7 +120,7 @@ export default function MainHeader() {
               )}
               <button
                 type="button"
-                onClick={() => void handleLogout()}
+                onClick={handleLogout}
                 className="underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
               >
                 로그아웃
@@ -197,7 +193,7 @@ export default function MainHeader() {
                   type="button"
                   className="text-left underline decoration-[#a9bddc] underline-offset-4 transition hover:text-[#2f4b73]"
                   onClick={() => {
-                    void handleLogout();
+                    handleLogout();
                   }}
                 >
                   로그아웃
