@@ -33,6 +33,7 @@ import {
   getMonitoringProxyBaseUrl,
   getPrometheusHomeUrl,
 } from "@/lib/admin/grafana-dashboard";
+import { redirectToLogout } from "@/lib/auth/auth-service";
 import { getPublicApiBaseUrl } from "@/lib/runtime/deployment-env";
 
 type StatusCardProps = {
@@ -156,6 +157,10 @@ export default function AdminSettingsPage() {
   const { member } = useAuthStore();
   const [grafanaState, setGrafanaState] =
     useState<GrafanaSessionState>("checking");
+
+  function handleLogout(): void {
+    redirectToLogout("/login");
+  }
 
   async function loadMonitoringState(): Promise<void> {
     setGrafanaState("checking");
@@ -416,13 +421,14 @@ export default function AdminSettingsPage() {
               >
                 내 설정 열기
               </Link>
-              <Link
-                href="/logout"
+              <button
+                type="button"
+                onClick={handleLogout}
                 className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-[#dce7f8] bg-white px-4 py-3 text-sm font-semibold text-[#5d769b] transition hover:text-[#34527d]"
               >
                 <LogOut size={15} />
                 로그아웃
-              </Link>
+              </button>
             </div>
           </section>
 

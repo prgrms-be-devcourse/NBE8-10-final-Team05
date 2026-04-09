@@ -80,6 +80,21 @@ describe("deployment-env", () => {
     expect(getMonitoringProxyBaseUrl()).toBe("");
   });
 
+  it("운영에서는 API 도메인 규칙으로 monitor ingress를 추론한다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
+
+    const { getMonitoringProxyBaseUrl, getMonitoringProxyInternalUrl } =
+      await import("./deployment-env");
+
+    expect(getMonitoringProxyBaseUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site",
+    );
+    expect(getMonitoringProxyInternalUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site",
+    );
+  });
+
   it("경로 조합 유틸은 슬래시를 중복하지 않는다", async () => {
     const { joinBasePath, joinUrl } = await import("./deployment-env");
 

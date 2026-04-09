@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildGrafanaPanelUrl,
   getGrafanaHomeUrl,
@@ -9,6 +9,11 @@ import {
 } from "./grafana-dashboard";
 
 describe("grafana-dashboard", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+  });
+
   it("모니터링 프록시 기본 URL은 same-origin 경로를 사용한다", () => {
     expect(getMonitoringProxyBaseUrl()).toBe("");
   });
@@ -35,5 +40,20 @@ describe("grafana-dashboard", () => {
     expect(url).toContain("panelId=3");
     expect(url).toContain("theme=light");
     expect(url).toContain("refresh=60s");
+  });
+
+  it("운영에서는 Grafana 링크를 monitor ingress로 직접 연다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
+
+    const {
+      getGrafanaHomeUrl: getHomeUrl,
+      getGrafanaSessionProbeUrl: getProbeUrl,
+      getMonitoringProxyBaseUrl: getBaseUrl,
+    } = await import("./grafana-dashboard");
+
+    expect(getBaseUrl()).toBe("https://monitor.maum-on.parksuyeon.site");
+    expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
+    expect(getProbeUrl()).toBe("/grafana/api/user");
   });
 });

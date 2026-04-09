@@ -177,6 +177,26 @@ jobs:
           printf '%s' "$DOT_ENV_B64" | base64 -d > "$DEPLOY_PATH/.env"
 
           cd "$DEPLOY_PATH"
+          RAW_GF_SERVER_ROOT_URL="$(grep -E '^GF_SERVER_ROOT_URL=' .env | tail -n 1 | cut -d= -f2- || true)"
+          if [[ -n "${RAW_GF_SERVER_ROOT_URL}" ]]; then
+            NORMALIZED_GF_SERVER_ROOT_URL="${RAW_GF_SERVER_ROOT_URL%/}"
+          else
+            NORMALIZED_GF_SERVER_ROOT_URL="https://monitor.maum-on.parksuyeon.site"
+          fi
+          case "${NORMALIZED_GF_SERVER_ROOT_URL}" in
+            */grafana)
+              NORMALIZED_GF_SERVER_ROOT_URL="${NORMALIZED_GF_SERVER_ROOT_URL}/"
+              ;;
+            *)
+              NORMALIZED_GF_SERVER_ROOT_URL="${NORMALIZED_GF_SERVER_ROOT_URL}/grafana/"
+              ;;
+          esac
+          if grep -q '^GF_SERVER_ROOT_URL=' .env; then
+            sed -i -E "s#^GF_SERVER_ROOT_URL=.*#GF_SERVER_ROOT_URL=${NORMALIZED_GF_SERVER_ROOT_URL}#" .env
+          else
+            printf '\nGF_SERVER_ROOT_URL=%s\n' "${NORMALIZED_GF_SERVER_ROOT_URL}" >> .env
+          fi
+
           TARGET_DOMAIN="${PROXY_HOST_DOMAIN:-${APP_1_DOMAIN:-}}"
           if [[ -n "${TARGET_DOMAIN}" && -n "${PASSWORD_1:-}" ]]; then
             COOKIE_JAR="/tmp/npm_cookies_monitoring.txt"
@@ -208,7 +228,7 @@ jobs:
             BACKEND_UP=$(curl -fsS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22maum-on-back%22%7D" \
               | jq -r '.data.result[0].value[1] // "0"' || echo 0)
             if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null && \
-               curl -fsS http://127.0.0.1:3000/api/health >/dev/null && \
+               (curl -fsS http://127.0.0.1:3000/grafana/api/health >/dev/null || curl -fsS http://127.0.0.1:3000/api/health >/dev/null) && \
                [[ "${BACKEND_UP}" == "1" ]]; then
               trap - ERR
               ls -1dt "${DEPLOY_PATH}"/.rollback-* 2>/dev/null | tail -n +6 | xargs -r rm -rf

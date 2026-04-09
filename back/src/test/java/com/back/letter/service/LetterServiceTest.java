@@ -30,6 +30,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
+import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -337,6 +338,60 @@ class LetterServiceTest {
             assertThat(result.replySummary()).isEqualTo("휴식을 권하는 답장");
             assertThat(result.sender().nickname()).isEqualTo("보낸이");
             assertThat(result.receiver().nickname()).isEqualTo("받는이");
+        }
+
+        @Test
+        @DisplayName("성공: 조치 이력 테이블 조회가 실패해도 관리자 목록은 기본값으로 반환한다")
+        void givenActionLogQueryFailure_whenGetAdminLetters_thenReturnListWithoutLatestAction() {
+            Member sender = createMember(1L, "보낸이");
+            Member receiver = createMember(2L, "받는이");
+            Letter letter = Letter.builder()
+                    .title("관리자용 편지")
+                    .content("내용")
+                    .sender(sender)
+                    .receiver(receiver)
+                    .build();
+            letter.dispatch(receiver);
+            ReflectionTestUtils.setField(letter, "id", 35L);
+            ReflectionTestUtils.setField(letter, "createDate", LocalDateTime.of(2026, 4, 9, 14, 0));
+
+            Page<Letter> page = new PageImpl<>(List.of(letter));
+            given(letterPort.searchAdminLetters(null, null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
+                    .willReturn(page);
+            given(letterAdminActionLogRepository.findByLetterIdOrderByCreateDateDesc(35L))
+                    .willThrow(new InvalidDataAccessResourceUsageException("relation \"letter_admin_action_logs\" does not exist"));
+            given(letterRedisRepository.isWriting(35L)).willReturn(false);
+
+            AdminLetterListRes result = letterService.getAdminLetters(null, null, 0, 20);
+
+            assertThat(result.letters()).hasSize(1);
+            assertThat(result.letters().getFirst().latestAction()).isNull();
+            assertThat(result.letters().getFirst().status()).isEqualTo("SENT");
+        }
+
+        @Test
+        @DisplayName("성공: 조치 이력 테이블 조회가 실패해도 관리자 상세는 빈 이력으로 반환한다")
+        void givenActionLogQueryFailure_whenGetAdminLetter_thenReturnDetailWithoutLogs() {
+            Member sender = createMember(1L, "보낸이");
+            Member receiver = createMember(2L, "받는이");
+            Letter letter = Letter.builder()
+                    .title("괜찮아질까요")
+                    .content("지금 너무 힘들어요.")
+                    .sender(sender)
+                    .receiver(receiver)
+                    .build();
+            ReflectionTestUtils.setField(letter, "id", 46L);
+            ReflectionTestUtils.setField(letter, "status", LetterStatus.ACCEPTED);
+
+            given(letterPort.findByIdForAdmin(46L)).willReturn(Optional.of(letter));
+            given(letterAdminActionLogRepository.findByLetterIdOrderByCreateDateDesc(46L))
+                    .willThrow(new InvalidDataAccessResourceUsageException("relation \"letter_admin_action_logs\" does not exist"));
+            given(letterRedisRepository.isWriting(46L)).willReturn(false);
+
+            AdminLetterDetailRes result = letterService.getAdminLetter(46L);
+
+            assertThat(result.actionLogs()).isEmpty();
+            assertThat(result.status()).isEqualTo("ACCEPTED");
         }
 
         @Test

@@ -367,6 +367,28 @@ class MemberServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 회원 목록 조회는 role/status가 null인 레거시 회원도 기본값으로 매핑한다")
+  void getAdminMembersFallsBackForLegacyNullRoleAndStatus() {
+    Member member = Member.create("legacy@test.com", "$2a$10$hashValue", "legacy");
+    ReflectionTestUtils.setField(member, "id", 41L);
+    ReflectionTestUtils.setField(member, "role", null);
+    ReflectionTestUtils.setField(member, "status", null);
+
+    given(
+            memberRepository.searchAdminMembers(
+                eq(null), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
+        .willReturn(new PageImpl<>(List.of(member)));
+    given(oAuthAccountRepository.findAllByMemberIdInOrderByMemberIdAscIdAsc(List.of(41L)))
+        .willReturn(List.of());
+
+    AdminMemberListResponse response = memberService.getAdminMembers(null, null, null, null, 0, 20);
+
+    assertThat(response.members()).hasSize(1);
+    assertThat(response.members().get(0).role()).isEqualTo("USER");
+    assertThat(response.members().get(0).status()).isEqualTo("ACTIVE");
+  }
+
+  @Test
   @DisplayName("관리자 회원 차단은 상태 변경, 랜덤 수신 비활성화, refresh 세션 만료, 감사 로그 저장을 수행한다")
   void updateAdminMemberStatusBlocksMemberAndRevokesSessions() {
     Member member = Member.create("blocked-member@test.com", "$2a$10$hashValue", "blocked");
