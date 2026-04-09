@@ -1,11 +1,14 @@
 package com.back.global.security.handler;
 
 import com.back.auth.application.AccessTokenCookieService;
+import com.back.auth.application.AuthHintCookieService;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.AuthSuccessCode;
+import com.back.auth.application.OidcMemberLinkService;
 import com.back.auth.application.RefreshTokenCookieService;
 import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
+import com.back.member.domain.Member;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,8 +31,10 @@ import tools.jackson.databind.ObjectMapper;
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
   private final AuthService authService;
+  private final OidcMemberLinkService oidcMemberLinkService;
   private final RefreshTokenCookieService refreshTokenCookieService;
   private final AccessTokenCookieService accessTokenCookieService;
+  private final AuthHintCookieService authHintCookieService;
   private final ObjectMapper objectMapper;
 
   @Override
@@ -41,15 +46,20 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
       OAuth2User oauth2User = oauth2Authentication.getPrincipal();
       SocialProfile socialProfile =
           resolveProfile(oauth2Authentication.getAuthorizedClientRegistrationId(), oauth2User);
+      Member member =
+          oidcMemberLinkService.resolveMember(
+              oauth2Authentication.getAuthorizedClientRegistrationId(),
+              resolveProviderUserId(oauth2User),
+              socialProfile.email(),
+              socialProfile.nickname());
 
       AuthService.AuthTokenIssueResult issueResult =
-          authService.oidcLogin(socialProfile.email(), socialProfile.nickname());
-      
+          authService.issueTokenPairForMember(member);
+
       refreshTokenCookieService.issueRefreshTokenCookie(response, issueResult.refreshToken());
       accessTokenCookieService.issueAccessTokenCookie(response, issueResult.response().accessToken());
-      
-      // auth_hint 쿠키 설정 (미들웨어 가이드용)
-      response.addHeader("Set-Cookie", "auth_hint=member; Path=/; Max-Age=3600; SameSite=Lax");
+      authHintCookieService.issueAuthenticatedHintCookie(
+          response, issueResult.response().member().role());
 
       RsData<?> rsData =
           new RsData<>(
@@ -75,6 +85,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
       case "kakao" -> resolveKakaoProfile(oauth2User);
       default -> resolveDefaultProfile(oauth2User);
     };
+  }
+
+  private String resolveProviderUserId(OAuth2User oauth2User) {
+    if (oauth2User == null || !StringUtils.hasText(oauth2User.getName())) {
+      throw new ServiceException("401-2", "provider user id is required from provider.");
+    }
+
+    return oauth2User.getName().trim();
   }
 
   private SocialProfile resolveDefaultProfile(OAuth2User oauth2User) {

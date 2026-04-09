@@ -56,17 +56,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -133,17 +123,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -212,17 +192,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -298,17 +268,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -340,17 +300,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -391,17 +341,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -456,17 +396,7 @@ class OidcCallbackServiceTest {
             new InMemoryOidcAuthorizationStateStore(),
             clock);
     OidcCallbackService callbackService =
-        new OidcCallbackService(
-            properties,
-            authorizationRequestService,
-            clientRegistrationRepository,
-            oidcTokenClient,
-            oidcIdTokenValidator,
-            oauthAccountRepository,
-            memberRepository,
-            passwordEncoder,
-            authService,
-            clock);
+        callbackService(properties, authorizationRequestService, clock);
 
     ClientRegistration registration = registration("maum-on-oidc");
     given(clientRegistrationRepository.findByRegistrationId("maum-on-oidc")).willReturn(registration);
@@ -507,6 +437,23 @@ class OidcCallbackServiceTest {
         .providerConfigurationMetadata(Map.of("issuer", "https://accounts.example.com"))
         .issuerUri("https://accounts.example.com")
         .build();
+  }
+
+  private OidcCallbackService callbackService(
+      OidcAuthorizeProperties properties,
+      OidcAuthorizationRequestService authorizationRequestService,
+      Clock clock) {
+    OidcMemberLinkService oidcMemberLinkService =
+        new OidcMemberLinkService(
+            oauthAccountRepository, memberRepository, passwordEncoder, clock);
+    return new OidcCallbackService(
+        properties,
+        authorizationRequestService,
+        clientRegistrationRepository,
+        oidcTokenClient,
+        oidcIdTokenValidator,
+        oidcMemberLinkService,
+        authService);
   }
 
   private static final class MutableClock extends Clock {
