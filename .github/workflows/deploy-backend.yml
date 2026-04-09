@@ -139,6 +139,7 @@ jobs:
         env:
           API_PROXY_DOMAIN: ${{ secrets.API_PROXY_DOMAIN || '' }}
           NPM_ADMIN_PASSWORD: ${{ secrets.NPM_ADMIN_PASSWORD || '' }}
+          NPM_ADMIN_IDENTITY: ${{ secrets.NPM_ADMIN_IDENTITY || 'admin@npm.com' }}
         run: |
           GITHUB_TOKEN_B64=$(printf '%s' "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)
           NPM_ADMIN_PASSWORD_B64=$(printf '%s' "${NPM_ADMIN_PASSWORD}" | base64 -w0)
@@ -189,6 +190,9 @@ jobs:
 
             [[ -n "${APP_1_DOMAIN:-}" ]] || APP_1_DOMAIN="${API_PROXY_DOMAIN:-}"
             [[ -n "${PASSWORD_1:-}" ]] || PASSWORD_1="${NPM_PASSWORD_FROM_SECRET:-}"
+            NPM_IDENTITY="${NPM_ADMIN_IDENTITY:-admin@npm.com}"
+            [[ -n "${PASSWORD_1:-}" ]] || { echo "NPM admin password is empty (PASSWORD_1/NPM_ADMIN_PASSWORD)"; exit 1; }
+            [[ -n "${NPM_IDENTITY:-}" ]] || { echo "NPM admin identity is empty"; exit 1; }
 
             echo "🔹 Use image: ${IMAGE}"
             printf '%s' "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1
@@ -214,13 +218,18 @@ jobs:
             #     - /etc/environment 등에 설정된 PASSWORD_1, APP_1_DOMAIN 사용 가정
             # ---------------------------------------------------------
             COOKIE_JAR="/tmp/npm_cookies.txt"
-            LOGIN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -c "${COOKIE_JAR}" \
-              -X POST ${NPM_BASE_URL}/api/tokens \
+            LOGIN_BODY="/tmp/npm_login_response.json"
+            LOGIN_CODE=$(curl -sk -o "${LOGIN_BODY}" -w "%{http_code}" -c "${COOKIE_JAR}" \
+              -X POST "${NPM_BASE_URL}/api/tokens" \
               -H "Content-Type: application/json" \
-              -d "$(jq -nc --arg id "admin@npm.com" --arg pw "${PASSWORD_1:-}" '{identity:$id, secret:$pw}')")
+              -d "$(jq -nc --arg id "${NPM_IDENTITY}" --arg pw "${PASSWORD_1:-}" '{identity:$id, secret:$pw}')")
 
             # 로그인 검증(200이 아니면 실패)
-            [[ "${LOGIN_CODE}" == "200" ]] || { echo "NPM login failed (HTTP ${LOGIN_CODE})"; exit 1; }
+            if [[ "${LOGIN_CODE}" != "200" ]]; then
+              echo "NPM login failed (HTTP ${LOGIN_CODE}) for identity ${NPM_IDENTITY}"
+              [[ -s "${LOGIN_BODY}" ]] && { echo "NPM login response:"; cat "${LOGIN_BODY}"; }
+              exit 1
+            fi
             [[ -n "${APP_1_DOMAIN:-}" ]] || { echo "APP_1_DOMAIN is empty"; exit 1; }
 
             # 대상 프록시 호스트 ID 조회(도메인 매칭), 없으면 자동 등록
