@@ -56,6 +56,10 @@ function mapApiErrorMessage(error: ApiError): string {
     return "해당 신고 내역을 찾을 수 없습니다.";
   }
 
+  if (error.resultCode === "404-1" && error.message === "존재하지 않는 편지입니다.") {
+    return "해당 비밀편지를 찾을 수 없습니다.";
+  }
+
   if (error.status >= 500 || error.message === "Unexpected server error.") {
     return "서버에 일시적인 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
   }

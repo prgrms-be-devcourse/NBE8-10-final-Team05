@@ -31,6 +31,16 @@ public class LetterPersistenceAdapter implements LetterPort {
     }
 
     @Override
+    public Optional<Letter> findByIdForAdmin(long id) {
+        return letterRepository.findByIdForAdmin(id);
+    }
+
+    @Override
+    public List<Letter> findAllForAdmin() {
+        return letterRepository.findAllForAdmin();
+    }
+
+    @Override
     public Page<Letter> findByReceiverId(long memberId, Pageable pageable) {
         return letterRepository.findByReceiverId(memberId, pageable);
     }

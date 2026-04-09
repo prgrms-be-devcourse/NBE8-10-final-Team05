@@ -30,7 +30,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
+public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, AdminLetterUseCase {
 
     private final LetterPort letterPort;
     private final MemberRepository memberRepository;
@@ -154,6 +154,23 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
                 .orElseThrow(() -> new ServiceException("404-1", "편지를 찾을 수 없습니다."));
 
         return LetterInfoRes.from(letter);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminLetterListItem> getAdminLetters() {
+        return letterPort.findAllForAdmin().stream()
+                .map(letter -> AdminLetterListItem.from(letter, letterRedisRepository.isWriting(letter.getId())))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminLetterDetailRes getAdminLetter(long id) {
+        Letter letter = letterPort.findByIdForAdmin(id)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 편지입니다."));
+
+        return AdminLetterDetailRes.from(letter, letterRedisRepository.isWriting(letter.getId()));
     }
 
     @Override

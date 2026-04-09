@@ -14,6 +14,11 @@ import java.util.Optional;
 
 public interface LetterRepository extends JpaRepository<Letter, Long> {
 
+    @Query("SELECT l FROM Letter l JOIN FETCH l.sender LEFT JOIN FETCH l.receiver ORDER BY l.createDate DESC")
+    List<Letter> findAllForAdmin();
+
+    @Query("SELECT l FROM Letter l JOIN FETCH l.sender LEFT JOIN FETCH l.receiver WHERE l.id = :id")
+    Optional<Letter> findByIdForAdmin(@Param("id") Long id);
 
     @Query("SELECT l FROM Letter l JOIN FETCH l.sender WHERE l.receiver.id = :memberId")
     Page<Letter> findByReceiverId(@Param("memberId") Long memberId, Pageable pageable);

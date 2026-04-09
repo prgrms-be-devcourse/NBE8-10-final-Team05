@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface LetterPort {
     Letter save(Letter letter);
     Optional<Letter> findById(long id);
+    Optional<Letter> findByIdForAdmin(long id);
+    List<Letter> findAllForAdmin();
     Page<Letter> findByReceiverId(long memberId, Pageable pageable);
     Page<Letter> findBySenderId(long memberId, Pageable pageable);
     Optional<Member> findRandomMemberExceptMe(List<Long> excludeIds);

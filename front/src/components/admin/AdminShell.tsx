@@ -29,7 +29,7 @@ type AdminNavItem = {
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: "대시보드", icon: LayoutDashboard, href: "/admin", matchMode: "exact" },
   { label: "회원 관리", icon: Users, href: "/admin/members", matchMode: "prefix" },
-  { label: "비밀편지 관리", icon: BookHeart },
+  { label: "비밀편지 관리", icon: BookHeart, href: "/admin/letters", matchMode: "prefix" },
   { label: "신고 관리", icon: ShieldAlert, href: "/admin/reports", matchMode: "prefix" },
   { label: "설정", icon: Settings },
 ];

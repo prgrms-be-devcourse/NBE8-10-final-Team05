@@ -32,6 +32,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -265,6 +266,68 @@ class LetterServiceTest {
             assertThat(result.letters().get(0).title()).isEqualTo("받은 편지");
             // LetterListRes 내의 개별 아이템 필드명이 isWriting()이라면 아래와 같이 검증
             // assertThat(result.letters().get(0).isWriting()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 편지 조회 테스트")
+    class AdminInquiry {
+
+        @Test
+        @DisplayName("성공: 관리자 목록 조회 시 현재 작성 중 상태를 WRITING 으로 반영한다")
+        void givenAdminLetters_whenGetAdminLetters_thenReturnWritingStatus() {
+            Member sender = createMember(1L, "보낸이");
+            Member receiver = createMember(2L, "받는이");
+            Letter letter = Letter.builder()
+                    .title("관리자용 편지")
+                    .content("내용")
+                    .sender(sender)
+                    .receiver(receiver)
+                    .build();
+            letter.dispatch(receiver);
+            ReflectionTestUtils.setField(letter, "id", 33L);
+            ReflectionTestUtils.setField(letter, "createDate", LocalDateTime.of(2026, 4, 9, 14, 0));
+
+            given(letterPort.findAllForAdmin()).willReturn(List.of(letter));
+            given(letterRedisRepository.isWriting(33L)).willReturn(true);
+
+            List<AdminLetterListItem> result = letterService.getAdminLetters();
+
+            assertThat(result).hasSize(1);
+            assertThat(result.getFirst().status()).isEqualTo("WRITING");
+            assertThat(result.getFirst().senderNickname()).isEqualTo("보낸이");
+            assertThat(result.getFirst().receiverNickname()).isEqualTo("받는이");
+        }
+
+        @Test
+        @DisplayName("성공: 관리자 상세 조회는 편지 내용과 답장 정보를 함께 반환한다")
+        void givenAdminLetterId_whenGetAdminLetter_thenReturnDetail() {
+            Member sender = createMember(1L, "보낸이");
+            Member receiver = createMember(2L, "받는이");
+            Letter letter = Letter.builder()
+                    .title("괜찮아질까요")
+                    .content("지금 너무 힘들어요.")
+                    .summary("불안을 토로하는 편지")
+                    .replyContent("천천히 숨을 고르고 쉬어봐요.")
+                    .replySummary("휴식을 권하는 답장")
+                    .sender(sender)
+                    .receiver(receiver)
+                    .build();
+            ReflectionTestUtils.setField(letter, "id", 44L);
+            ReflectionTestUtils.setField(letter, "status", LetterStatus.REPLIED);
+            ReflectionTestUtils.setField(letter, "createDate", LocalDateTime.of(2026, 4, 9, 9, 0));
+            ReflectionTestUtils.setField(letter, "replyCreatedDate", LocalDateTime.of(2026, 4, 9, 9, 20));
+
+            given(letterPort.findByIdForAdmin(44L)).willReturn(Optional.of(letter));
+            given(letterRedisRepository.isWriting(44L)).willReturn(false);
+
+            AdminLetterDetailRes result = letterService.getAdminLetter(44L);
+
+            assertThat(result.status()).isEqualTo("REPLIED");
+            assertThat(result.summary()).isEqualTo("불안을 토로하는 편지");
+            assertThat(result.replySummary()).isEqualTo("휴식을 권하는 답장");
+            assertThat(result.sender().nickname()).isEqualTo("보낸이");
+            assertThat(result.receiver().nickname()).isEqualTo("받는이");
         }
     }
 }
