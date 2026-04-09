@@ -57,6 +57,7 @@ const MONITORING_TONE_BY_STATE: Record<GrafanaSessionState, string> = {
   checking: "bg-[#eef5ff] text-[#4f8cf0]",
   ready: "bg-[#edf9f1] text-[#2f9b61]",
   "login-required": "bg-[#fff6ea] text-[#d38a2f]",
+  disabled: "bg-[#f1f4f8] text-[#6b7b8f]",
   unavailable: "bg-[#fff1f1] text-[#d06363]",
 };
 
@@ -195,6 +196,7 @@ export default function AdminSettingsPage() {
   const monitoringToneClassName = MONITORING_TONE_BY_STATE[grafanaState];
   const publicApiBaseUrl = getPublicApiBaseUrl();
   const monitoringBasePath = formatMonitoringBasePath(getMonitoringProxyBaseUrl());
+  const showObservabilityLinks = grafanaState !== "disabled";
 
   return (
     <div className="space-y-6">
@@ -317,27 +319,47 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <ExternalLinkCard
-                href={getGrafanaHomeUrl()}
-                icon={Gauge}
-                title={getMonitoringPrimaryActionLabel(grafanaState)}
-                description={getMonitoringStatusDescription(grafanaState)}
-                toneClassName={monitoringToneClassName}
-              />
-              <ExternalLinkCard
-                href={getPrometheusHomeUrl()}
-                icon={Server}
-                title="Prometheus"
-                description="메트릭 수집 상태와 즉시 쿼리를 직접 확인합니다."
-                toneClassName="bg-[#fff6ea] text-[#d38a2f]"
-              />
-              <ExternalLinkCard
-                href={getK6GrafanaDashboardUrl()}
-                icon={BadgeCheck}
-                title="K6 대시보드"
-                description="부하 테스트 결과와 런타임 지표를 같은 대시보드에서 봅니다."
-                toneClassName="bg-[#eef8ff] text-[#4d87c4]"
-              />
+              {showObservabilityLinks ? (
+                <ExternalLinkCard
+                  href={getGrafanaHomeUrl()}
+                  icon={Gauge}
+                  title={getMonitoringPrimaryActionLabel(grafanaState)}
+                  description={getMonitoringStatusDescription(grafanaState)}
+                  toneClassName={monitoringToneClassName}
+                />
+              ) : (
+                <section className="rounded-[24px] border border-[#e3ebf7] bg-[#f8fbff] px-5 py-5 md:col-span-2">
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-full ${monitoringToneClassName}`}
+                  >
+                    <Gauge size={18} />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold tracking-[-0.03em] text-[#223552]">
+                    {getMonitoringPrimaryActionLabel(grafanaState)}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#8aa0bf]">
+                    {getMonitoringStatusDescription(grafanaState)}
+                  </p>
+                </section>
+              )}
+              {showObservabilityLinks ? (
+                <ExternalLinkCard
+                  href={getPrometheusHomeUrl()}
+                  icon={Server}
+                  title="Prometheus"
+                  description="메트릭 수집 상태와 즉시 쿼리를 직접 확인합니다."
+                  toneClassName="bg-[#fff6ea] text-[#d38a2f]"
+                />
+              ) : null}
+              {showObservabilityLinks ? (
+                <ExternalLinkCard
+                  href={getK6GrafanaDashboardUrl()}
+                  icon={BadgeCheck}
+                  title="K6 대시보드"
+                  description="부하 테스트 결과와 런타임 지표를 같은 대시보드에서 봅니다."
+                  toneClassName="bg-[#eef8ff] text-[#4d87c4]"
+                />
+              ) : null}
               <InternalLinkCard
                 href="/settings"
                 icon={UserRoundCog}
@@ -419,7 +441,7 @@ export default function AdminSettingsPage() {
                 </p>
                 <p className="mt-2 text-sm leading-6 text-[#8aa0bf]">
                   현재 상태는 {getMonitoringStatusLabel(grafanaState)} 입니다. 관측 패널이
-                  비어 있으면 먼저 Grafana 로그인 또는 스택 기동 여부를 점검합니다.
+                  비어 있으면 {getMonitoringStatusDescription(grafanaState)}
                 </p>
               </div>
               <div className="rounded-[18px] border border-[#e3ebf7] bg-[#f8fbff] px-4 py-4">

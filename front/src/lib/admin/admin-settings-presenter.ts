@@ -32,6 +32,8 @@ export function getMonitoringStatusLabel(state: GrafanaSessionState): string {
       return "연결 준비 완료";
     case "login-required":
       return "로그인 필요";
+    case "disabled":
+      return "미구성";
     case "unavailable":
       return "연결 확인 필요";
     case "checking":
@@ -48,6 +50,8 @@ export function getMonitoringStatusDescription(
       return "Grafana 세션이 유효해서 관측 패널을 바로 열 수 있습니다.";
     case "login-required":
       return "Grafana에 먼저 로그인해야 패널 iframe과 상세 대시보드가 정상 표시됩니다.";
+    case "disabled":
+      return "모니터링 프록시가 아직 구성되지 않았습니다. 운영 환경에서는 monitor ingress 또는 내부 프록시 주소가 연결돼 있어야 합니다.";
     case "unavailable":
       return "모니터링 프록시 또는 관측 스택 응답이 없어 실행 상태를 먼저 점검해야 합니다.";
     case "checking":
@@ -59,7 +63,15 @@ export function getMonitoringStatusDescription(
 export function getMonitoringPrimaryActionLabel(
   state: GrafanaSessionState,
 ): string {
-  return state === "login-required" ? "Grafana 로그인" : "Grafana 열기";
+  if (state === "login-required") {
+    return "Grafana 로그인";
+  }
+
+  if (state === "disabled") {
+    return "Grafana 미구성";
+  }
+
+  return "Grafana 열기";
 }
 
 export function formatMonitoringBasePath(basePath: string): string {
