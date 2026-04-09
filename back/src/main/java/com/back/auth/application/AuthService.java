@@ -1,6 +1,5 @@
 package com.back.auth.application;
 
-import lombok.extern.slf4j.Slf4j;
 import com.back.auth.adapter.in.web.dto.AuthLoginRequest;
 import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
@@ -26,6 +25,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +42,6 @@ public class AuthService {
   private static final String ERROR_MSG_EMAIL_BLANK = "email must not be blank.";
   private static final String ERROR_MSG_PASSWORD_BLANK = "password must not be blank.";
   private static final String ROLE_PREFIX = "ROLE_";
-  private static final String DEFAULT_NICKNAME = "anonymous";
 
   private final MemberRepository memberRepository;
   private final PasswordEncoder passwordEncoder;
@@ -74,21 +73,6 @@ public class AuthService {
 
     assertMemberCanAuthenticate(member);
     return issueTokenPair(member, UUID.randomUUID().toString());
-  }
-
-  /** OIDC 로그인 처리: 이메일로 회원을 조회하고 없으면 생성한 뒤 access/refresh 토큰을 발급한다. */
-  @Transactional
-  public AuthTokenIssueResult oidcLogin(String email, String nickname) {
-    String normalizedEmail = normalizeEmail(email);
-    String normalizedNickname = normalizeNickname(nickname, normalizedEmail);
-
-    Member member =
-        memberRepository
-            .findByEmail(normalizedEmail)
-            .orElseGet(() -> createOidcMember(normalizedEmail, normalizedNickname));
-
-    assertMemberCanAuthenticate(member);
-    return issueTokenPairForMember(member);
   }
 
   /** 이미 식별된 회원 기준으로 기존 내부 토큰 발급 경로를 재사용한다. */
@@ -238,12 +222,6 @@ public class AuthService {
         AuthMemberResponse.from(member));
   }
 
-  private Member createOidcMember(String email, String nickname) {
-    String generatedPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
-    Member member = Member.create(email, generatedPasswordHash, nickname);
-    return memberRepository.save(member);
-  }
-
   private void assertMemberCanAuthenticate(Member member) {
     if (member.getStatus() == MemberStatus.BLOCKED) {
       throw AuthErrorCode.MEMBER_BLOCKED.toException();
@@ -269,19 +247,6 @@ public class AuthService {
       throw new ServiceException(ERROR_CODE_BAD_REQUEST, ERROR_MSG_PASSWORD_BLANK);
     }
     return password;
-  }
-
-  private String normalizeNickname(String nickname, String emailFallback) {
-    if (StringUtils.hasText(nickname)) {
-      return nickname.trim();
-    }
-
-    int atIndex = emailFallback.indexOf('@');
-    if (atIndex > 0) {
-      return emailFallback.substring(0, atIndex);
-    }
-
-    return DEFAULT_NICKNAME;
   }
 
   /**
