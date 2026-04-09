@@ -127,6 +127,7 @@ function GrafanaFallbackCard({
   }
 
   const isLoginRequired = state === "login-required";
+  const isDisabled = state === "disabled";
 
   return (
     <section className="rounded-[30px] bg-white px-6 py-7 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
@@ -136,32 +137,42 @@ function GrafanaFallbackCard({
             Observability
           </p>
           <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-[#223552]">
-            {isLoginRequired ? "Grafana 로그인 필요" : "Grafana 연결 확인 필요"}
+            {isLoginRequired
+              ? "Grafana 로그인 필요"
+              : isDisabled
+                ? "Observability 미구성"
+                : "Grafana 연결 확인 필요"}
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#6e83a5]">
             {isLoginRequired
               ? "패널은 Grafana 세션이 있어야 보입니다. 새 창에서 먼저 로그인한 뒤 이 화면으로 돌아오면 iframe 패널을 바로 확인할 수 있습니다."
-              : "로컬 모니터링 스택이 응답하지 않습니다. docker compose로 Grafana, Prometheus, Nginx가 정상 기동했는지 먼저 확인해야 합니다."}
+              : isDisabled
+                ? "모니터링 프록시가 아직 구성되지 않았습니다. 운영에서는 monitor ingress나 내부 프록시 주소가 연결돼 있어야 Grafana 패널을 표시할 수 있습니다."
+                : "로컬 모니터링 스택이 응답하지 않습니다. docker compose로 Grafana, Prometheus, Nginx가 정상 기동했는지 먼저 확인해야 합니다."}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <a
-            href={getGrafanaHomeUrl()}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3e7fe7]"
-          >
-            {isLoginRequired ? "Grafana 로그인 열기" : "Grafana 열기"}
-            <ExternalLink size={14} />
-          </a>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
-          >
-            다시 확인
-          </button>
+          {!isDisabled ? (
+            <a
+              href={getGrafanaHomeUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3e7fe7]"
+            >
+              {isLoginRequired ? "Grafana 로그인 열기" : "Grafana 열기"}
+              <ExternalLink size={14} />
+            </a>
+          ) : null}
+          {!isDisabled ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
+            >
+              다시 확인
+            </button>
+          ) : null}
         </div>
       </div>
     </section>
@@ -258,6 +269,7 @@ export default function AdminDashboardPage() {
     ],
     [stats],
   );
+  const showObservabilityLinks = grafanaState !== "disabled";
 
   return (
     <div className="space-y-6">
@@ -276,33 +288,39 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <a
-              href={getGrafanaHomeUrl()}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
-            >
-              Grafana 열기
-              <ExternalLink size={14} />
-            </a>
-            <a
-              href={getPrometheusHomeUrl()}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
-            >
-              Prometheus 열기
-              <ExternalLink size={14} />
-            </a>
-            <a
-              href={getK6GrafanaDashboardUrl()}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
-            >
-              k6 대시보드
-              <ExternalLink size={14} />
-            </a>
+            {showObservabilityLinks ? (
+              <a
+                href={getGrafanaHomeUrl()}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
+              >
+                Grafana 열기
+                <ExternalLink size={14} />
+              </a>
+            ) : null}
+            {showObservabilityLinks ? (
+              <a
+                href={getPrometheusHomeUrl()}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
+              >
+                Prometheus 열기
+                <ExternalLink size={14} />
+              </a>
+            ) : null}
+            {showObservabilityLinks ? (
+              <a
+                href={getK6GrafanaDashboardUrl()}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7ca8] ring-1 ring-[#dce7f8] transition hover:text-[#35527e]"
+              >
+                k6 대시보드
+                <ExternalLink size={14} />
+              </a>
+            ) : null}
             <Link
               href="/admin/reports"
               className="inline-flex items-center gap-1 rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3e7fe7]"

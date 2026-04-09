@@ -7,6 +7,8 @@ import { getMonitoringProxyInternalUrl, joinUrl } from "@/lib/runtime/deployment
 
 const MONITORING_PROXY_INTERNAL_URL = getMonitoringProxyInternalUrl();
 const GRAFANA_AUTH_PROXY_USER = "maum-on-admin";
+const MONITORING_STATUS_HEADER = "x-maum-on-monitoring-status";
+const MONITORING_STATUS_DISABLED = "disabled";
 
 export async function proxyMonitoringRequest(
   request: NextRequest,
@@ -32,6 +34,17 @@ export async function proxyMonitoringRequest(
       `${request.nextUrl.pathname}${request.nextUrl.search}`,
     );
     return NextResponse.redirect(forbiddenUrl);
+  }
+
+  if (!MONITORING_PROXY_INTERNAL_URL) {
+    return new Response("Monitoring proxy is not configured.", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+        [MONITORING_STATUS_HEADER]: MONITORING_STATUS_DISABLED,
+      },
+    });
   }
 
   const targetUrl = new URL(

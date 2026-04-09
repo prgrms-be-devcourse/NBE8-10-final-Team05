@@ -167,11 +167,46 @@ export function getServerApiBaseUrl(): string {
   );
 }
 
-export function getMonitoringProxyInternalUrl(): string {
-  return normalizeAbsoluteBaseUrl(
-    process.env.MONITORING_PROXY_INTERNAL_URL,
-    DEFAULT_MONITORING_PROXY_INTERNAL_URL,
-  );
+function inferMonitoringProxyUrlFromApiBaseUrl(): string | null {
+  const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (!publicApiBaseUrl) {
+    return null;
+  }
+
+  try {
+    const apiUrl = new URL(publicApiBaseUrl);
+    if (!apiUrl.hostname.startsWith("api.")) {
+      return null;
+    }
+
+    apiUrl.hostname = `monitor.${apiUrl.hostname.slice("api.".length)}`;
+    apiUrl.pathname = "";
+    apiUrl.search = "";
+    apiUrl.hash = "";
+
+    return trimTrailingSlash(apiUrl.toString());
+  } catch {
+    return null;
+  }
+}
+
+export function getMonitoringProxyInternalUrl(): string | null {
+  const configuredUrl = process.env.MONITORING_PROXY_INTERNAL_URL?.trim();
+  if (configuredUrl) {
+    return trimTrailingSlash(configuredUrl);
+  }
+
+  const publicMonitoringProxyUrl =
+    process.env.NEXT_PUBLIC_MONITORING_PROXY_URL?.trim();
+  if (publicMonitoringProxyUrl) {
+    return trimTrailingSlash(publicMonitoringProxyUrl);
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return DEFAULT_MONITORING_PROXY_INTERNAL_URL;
+  }
+
+  return inferMonitoringProxyUrlFromApiBaseUrl();
 }
 
 export function getMonitoringProxyBaseUrl(): string {
