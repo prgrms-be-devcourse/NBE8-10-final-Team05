@@ -155,6 +155,20 @@ describe("auth-proxy", () => {
     ).toBe("maum-on.parksuyeon.site");
   });
 
+  it("x-forwarded-host가 있어도 브라우저가 요청한 host 헤더를 우선 사용한다", () => {
+    const headers = new Headers({
+      host: "preview-somehash.vercel.app",
+      "x-forwarded-host": "api.maum-on.parksuyeon.site",
+    });
+
+    expect(
+      resolveRequestHostname({
+        headers,
+        nextUrl: new URL("https://preview-somehash.vercel.app/api/v1/auth/login"),
+      }),
+    ).toBe("preview-somehash.vercel.app");
+  });
+
   it("중복 refreshToken 쿠키가 있으면 가장 최신 iat 값만 남긴다", () => {
     const olderRefreshToken = createFakeJwt({ iat: 100, exp: 200 });
     const newerRefreshToken = createFakeJwt({ iat: 300, exp: 400 });
