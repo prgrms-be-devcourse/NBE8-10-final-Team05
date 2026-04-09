@@ -119,6 +119,7 @@ public class SecurityConfig {
                       "/api/v1/admin/monitoring/auth",
                       "/api/v1/health",
                       "/api/v1/home/stats",
+                      "/api/v1/auth/session",
                       "/api/v1/posts",
                       "/api/v1/posts/*",
                       "/api/v1/auth/oidc/authorize/**",

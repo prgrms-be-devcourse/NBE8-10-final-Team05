@@ -80,16 +80,14 @@ describe("deployment-env", () => {
     expect(getMonitoringProxyBaseUrl()).toBe("");
   });
 
-  it("운영에서는 API 도메인 규칙으로 monitor ingress를 추론한다", async () => {
+  it("운영에서도 공개 모니터링 경로 기본값은 same-origin을 유지한다", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
 
     const { getMonitoringProxyBaseUrl, getMonitoringProxyInternalUrl } =
       await import("./deployment-env");
 
-    expect(getMonitoringProxyBaseUrl()).toBe(
-      "https://monitor.maum-on.parksuyeon.site",
-    );
+    expect(getMonitoringProxyBaseUrl()).toBe("");
     expect(getMonitoringProxyInternalUrl()).toBe(
       "https://monitor.maum-on.parksuyeon.site",
     );

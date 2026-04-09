@@ -212,6 +212,12 @@ public class AuthService {
     return member;
   }
 
+  /** refresh 토큰을 회전시키지 않고 현재 세션용 access 토큰 payload를 만든다. */
+  public AuthTokenResponse issueSessionToken(String rawRefreshToken) {
+    Member member = authenticateByRefreshToken(rawRefreshToken);
+    return toTokenResponse(generateAccessToken(member), member);
+  }
+
   private JwtRefreshSubject parseRefreshSubject(String rawRefreshToken) {
     try {
       return jwtTokenService.parseRefreshToken(rawRefreshToken);

@@ -1,9 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
-  buildSetCookieHeadersForFrontend,
-  extractCookieNameFromSetCookie,
-  extractSetCookieHeaders,
   normalizeRefreshTokenCookieHeader,
   resolveRequestHostname,
 } from "@/lib/auth/auth-proxy";
@@ -20,7 +17,7 @@ import {
 } from "@/lib/runtime/deployment-env";
 
 const BACKEND_BASE_URL = getServerApiBaseUrl();
-const REFRESH_PATH = "/api/v1/auth/refresh";
+const SESSION_PATH = "/api/v1/auth/session";
 const REFRESH_COOKIE_NAME = "refreshToken";
 const AUTH_HINT_MEMBER = "member";
 const AUTH_HINT_ADMIN = "admin";
@@ -177,7 +174,6 @@ async function fetchRefreshedSession(
   request: NextRequest,
 ): Promise<{
   authPayload: AuthTokenPayload;
-  refreshSetCookies: string[];
 } | {
   isTokenReuseDetected: boolean;
 } | null> {
@@ -188,8 +184,8 @@ async function fetchRefreshedSession(
 
   try {
     const normalizedCookieHeader = normalizeRefreshTokenCookieHeader(cookieHeader);
-    const response = await fetch(new URL(REFRESH_PATH, BACKEND_BASE_URL), {
-      method: "POST",
+    const response = await fetch(new URL(SESSION_PATH, BACKEND_BASE_URL), {
+      method: "GET",
       headers: {
         cookie: normalizedCookieHeader,
       },
@@ -197,7 +193,7 @@ async function fetchRefreshedSession(
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 && request.nextUrl.pathname !== "/admin") {
         try {
           const errorPayload = await response.json();
           if (errorPayload?.resultCode === "401-5") {
@@ -218,9 +214,6 @@ async function fetchRefreshedSession(
 
     return {
       authPayload: data,
-      refreshSetCookies: extractSetCookieHeaders(response.headers).filter(
-        (value) => extractCookieNameFromSetCookie(value) === REFRESH_COOKIE_NAME,
-      ),
     };
   } catch {
     return null;
@@ -309,14 +302,6 @@ export async function middleware(request: NextRequest) {
     },
   });
   setAuthHintCookie(response, hintValue, requestHostname);
-
-  for (const cookie of session.refreshSetCookies) {
-    for (const rewrittenCookie of buildSetCookieHeadersForFrontend(cookie, {
-      requestHostname,
-    })) {
-      response.headers.append("set-cookie", rewrittenCookie);
-    }
-  }
 
   return response;
 }

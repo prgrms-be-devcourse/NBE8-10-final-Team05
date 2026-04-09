@@ -3,10 +3,7 @@ import type {
   AdminDashboardStats,
   GrafanaSessionState,
 } from "@/lib/admin/admin-dashboard-types";
-import {
-  getGrafanaSessionProbeUrl,
-  usesCrossOriginMonitoringEmbed,
-} from "@/lib/admin/grafana-dashboard";
+import { getGrafanaSessionProbeUrl } from "@/lib/admin/grafana-dashboard";
 
 const ADMIN_DASHBOARD_STATS_PATH = "/api/v1/admin/dashboard/stats";
 const MONITORING_STATUS_HEADER = "x-maum-on-monitoring-status";
@@ -17,10 +14,6 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 }
 
 export async function getGrafanaSessionState(): Promise<GrafanaSessionState> {
-  if (usesCrossOriginMonitoringEmbed()) {
-    return "ready";
-  }
-
   try {
     const response = await fetch(getGrafanaSessionProbeUrl(), {
       method: "GET",

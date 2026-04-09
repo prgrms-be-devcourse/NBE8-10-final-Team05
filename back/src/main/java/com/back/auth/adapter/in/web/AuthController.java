@@ -89,6 +89,17 @@ public class AuthController {
         issueResult.response());
   }
 
+  /** 현재 refresh 쿠키가 유효한지만 확인하고 access 토큰 payload를 재구성한다(회전 없음). */
+  @GetMapping("/session")
+  public RsData<AuthTokenResponse> session(HttpServletRequest request) {
+    String rawRefreshToken = refreshTokenCookieService.resolveRefreshToken(request).orElse(null);
+    AuthTokenResponse response = authService.issueSessionToken(rawRefreshToken);
+    return new RsData<>(
+        AuthSuccessCode.SESSION_SUCCESS.code(),
+        AuthSuccessCode.SESSION_SUCCESS.message(),
+        response);
+  }
+
   /** 로그아웃 API: refresh 폐기 시도 후 쿠키를 항상 만료시킨다. */
   @PostMapping("/logout")
   public RsData<Void> logout(HttpServletRequest request, HttpServletResponse response) {
