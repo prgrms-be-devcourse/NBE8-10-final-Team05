@@ -429,7 +429,7 @@ export default function AdminReportsPage() {
 
         {!isLoading && !errorMessage && visibleReports.length > 0 ? (
           <div className="mt-5 overflow-hidden rounded-[24px] border border-[#e6eef9]">
-            <div className="hidden grid-cols-[84px_minmax(140px,1.05fr)_108px_92px_minmax(140px,1fr)_108px_180px_116px] items-center gap-4 bg-[#f7fbff] px-6 py-4 text-sm font-semibold text-[#6d82a5] lg:grid">
+            <div className="hidden grid-cols-[72px_minmax(120px,0.95fr)_96px_84px_minmax(120px,0.85fr)_96px_160px_88px] items-center gap-3 bg-[#f7fbff] px-5 py-4 text-sm font-semibold text-[#6d82a5] lg:grid">
               <span className="whitespace-nowrap">신고 ID</span>
               <span className="whitespace-nowrap">신고자</span>
               <span className="whitespace-nowrap">대상 타입</span>
@@ -449,8 +449,8 @@ export default function AdminReportsPage() {
                 );
 
                 return (
-                  <div key={report.reportId} className="px-6 py-5 transition hover:bg-[#f9fbff]">
-                    <div className="hidden grid-cols-[84px_minmax(140px,1.05fr)_108px_92px_minmax(140px,1fr)_108px_180px_116px] items-center gap-4 lg:grid">
+                  <div key={report.reportId} className="px-5 py-5 transition hover:bg-[#f9fbff]">
+                    <div className="hidden grid-cols-[72px_minmax(120px,0.95fr)_96px_84px_minmax(120px,0.85fr)_96px_160px_88px] items-center gap-3 lg:grid">
                       <Link href={`/admin/reports/${report.reportId}`} className="contents">
                         <span className="font-semibold text-[#29405f]">#{report.reportId}</span>
                         <span className="truncate text-[#516885]">{report.reporterNickname}</span>
@@ -469,13 +469,13 @@ export default function AdminReportsPage() {
                         </span>
                       </Link>
 
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         {report.status === "RECEIVED" ? (
                           <button
                             type="button"
                             onClick={() => openQuickActionPanel(report.reportId)}
                             disabled={isQuickHandling}
-                            className={`rounded-full px-3 py-2 text-[11px] font-semibold transition ${
+                            className={`rounded-full px-2.5 py-2 text-[11px] font-semibold transition ${
                               isQuickActionOpen
                                 ? "bg-[#4f8cf0] text-white"
                                 : "bg-white text-[#5f7598] ring-1 ring-[#dce7f8] hover:text-[#35527e]"
@@ -486,7 +486,7 @@ export default function AdminReportsPage() {
                         ) : null}
                         <Link
                           href={`/admin/reports/${report.reportId}`}
-                          className="inline-flex items-center gap-1 rounded-full bg-[#edf5ff] px-3 py-2 text-[11px] font-semibold text-[#3d7fe1] transition hover:bg-[#e3efff]"
+                          className="inline-flex items-center gap-1 rounded-full bg-[#edf5ff] px-2.5 py-2 text-[11px] font-semibold text-[#3d7fe1] transition hover:bg-[#e3efff]"
                         >
                           상세
                           <ChevronRight size={14} />
