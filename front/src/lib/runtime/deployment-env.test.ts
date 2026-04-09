@@ -43,6 +43,29 @@ describe("deployment-env", () => {
     );
   });
 
+  it("설정된 쿠키 도메인이 api 호스트여도 프론트와 공유 가능한 상위 도메인으로 보정한다", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_COOKIE_DOMAIN", "api.maum-on.parksuyeon.site");
+
+    const { resolveSharedAuthCookieDomain } = await import("./deployment-env");
+
+    expect(resolveSharedAuthCookieDomain("www.maum-on.parksuyeon.site")).toBe(
+      ".maum-on.parksuyeon.site",
+    );
+  });
+
+  it("설정된 쿠키 도메인이 URL이어도 호스트를 파싱해 상위 도메인으로 보정한다", async () => {
+    vi.stubEnv(
+      "NEXT_PUBLIC_AUTH_COOKIE_DOMAIN",
+      "https://api.maum-on.parksuyeon.site/",
+    );
+
+    const { resolveSharedAuthCookieDomain } = await import("./deployment-env");
+
+    expect(resolveSharedAuthCookieDomain("www.maum-on.parksuyeon.site")).toBe(
+      ".maum-on.parksuyeon.site",
+    );
+  });
+
   it("모니터링 프록시 기본 URL은 same-origin 경로를 사용한다", async () => {
     const { getMonitoringProxyBaseUrl } = await import("./deployment-env");
 

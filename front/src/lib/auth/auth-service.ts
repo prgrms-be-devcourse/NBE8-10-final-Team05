@@ -267,7 +267,7 @@ function isRestoreResultStillRelevant(startedRevision: number): boolean {
 }
 
 export function supportsOidcPopup(provider: OidcProvider): boolean {
-  return provider === "maum-on-oidc";
+  return provider === "maum-on-oidc" || provider === "kakao";
 }
 
 export function isOidcPopupCallback(searchParams: URLSearchParams): boolean {
