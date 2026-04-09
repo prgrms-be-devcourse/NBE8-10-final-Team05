@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -118,8 +117,7 @@ public class OidcCallbackService {
    *
    * <ul>
    *   <li>provider+providerUserId 매핑이 있으면 기존 Member 사용(lastLoginAt/email 업데이트)
-   *   <li>매핑이 없고 email이 있으면 email 기반 Member 조회(없으면 신규 생성)
-   *   <li>동일 member+provider에 다른 providerUserId가 이미 연결돼 있으면 충돌(409-2)
+   *   <li>매핑이 없으면 새 Member를 생성하되, 다른 계정과 email 충돌 시 provider scoped fallback email 사용
    *   <li>최종적으로 oauth_accounts 연결 레코드를 보장
    * </ul>
    */
@@ -128,17 +126,20 @@ public class OidcCallbackService {
     LocalDateTime now = LocalDateTime.now(clock);
     String providerUserId = claims.subject().trim();
 
-    Optional<Member> memberFromProviderUserId =
-        findMemberByProviderUserId(provider, providerUserId, claims.email(), now);
-    if (memberFromProviderUserId.isPresent()) {
-      return memberFromProviderUserId.get();
+    String providerEmail = normalizeEmailClaim(claims.email());
+    Optional<OAuthAccount> linkedAccount =
+        findLinkedAccount(provider, providerUserId, providerEmail, now);
+    if (linkedAccount.isPresent()) {
+      return resolveLinkedMember(
+          linkedAccount.get(), provider, providerUserId, providerEmail, claims.nickname());
     }
 
-    String normalizedEmail = normalizeOrBuildEmail(provider, providerUserId, claims.email());
-    String nickname = normalizeNickname(claims.nickname(), normalizedEmail);
-    Member member = findOrCreateMemberByEmail(normalizedEmail, nickname);
-    validateOrUpdateExistingProviderLink(member, provider, providerUserId, claims.email(), now);
-    linkProviderAccountIfAbsent(member, provider, providerUserId, claims.email());
+    String memberEmail = resolveMemberEmail(provider, providerUserId, providerEmail);
+    String nickname =
+        normalizeNickname(
+            claims.nickname(), providerEmail != null ? providerEmail : memberEmail);
+    Member member = createOidcMember(memberEmail, nickname);
+    linkProviderAccountIfAbsent(member, provider, providerUserId, providerEmail);
     return member;
   }
 
@@ -209,7 +210,7 @@ public class OidcCallbackService {
         exception.getRsData().msg());
   }
 
-  private Optional<Member> findMemberByProviderUserId(
+  private Optional<OAuthAccount> findLinkedAccount(
       String provider, String providerUserId, String email, LocalDateTime now) {
     return oauthAccountRepository
         .findByProviderAndProviderUserId(provider, providerUserId)
@@ -217,28 +218,52 @@ public class OidcCallbackService {
             account -> {
               account.touchLastLoginAt(now);
               account.updateEmailAtProvider(email);
-              return account.getMember();
+              return account;
             });
   }
 
-  private Member findOrCreateMemberByEmail(String email, String nickname) {
-    return memberRepository.findByEmail(email).orElseGet(() -> createOidcMember(email, nickname));
+  private Member resolveLinkedMember(
+      OAuthAccount linkedAccount,
+      String provider,
+      String providerUserId,
+      String providerEmail,
+      String nicknameClaim) {
+    if (!shouldSplitAutoLinkedMember(linkedAccount)) {
+      return linkedAccount.getMember();
+    }
+
+    String memberEmail = resolveMemberEmail(provider, providerUserId, providerEmail);
+    String nickname =
+        normalizeNickname(nicknameClaim, providerEmail != null ? providerEmail : memberEmail);
+    Member separatedMember = createOidcMember(memberEmail, nickname);
+    linkedAccount.reassignMember(separatedMember);
+    return separatedMember;
   }
 
-  private void validateOrUpdateExistingProviderLink(
-      Member member, String provider, String providerUserId, String email, LocalDateTime now) {
-    Optional<OAuthAccount> existingLink =
-        oauthAccountRepository.findByMemberIdAndProvider(member.getId(), provider);
-    if (existingLink.isEmpty()) {
-      return;
+  private boolean shouldSplitAutoLinkedMember(OAuthAccount linkedAccount) {
+    return oauthAccountRepository.findAllByMemberIdOrderByIdAsc(linkedAccount.getMember().getId()).size() > 1;
+  }
+
+  private String normalizeEmailClaim(String emailClaim) {
+    if (!StringUtils.hasText(emailClaim)) {
+      return null;
     }
 
-    OAuthAccount existingAccount = existingLink.get();
-    if (!Objects.equals(existingAccount.getProviderUserId(), providerUserId)) {
-      throw AuthErrorCode.OIDC_ACCOUNT_LINK_CONFLICT.toException();
+    return emailClaim.trim().toLowerCase(Locale.ROOT);
+  }
+
+  /**
+   * 동일 이메일 자동 연결은 금지한다.
+   *
+   * <p>다른 provider 계정이 같은 이메일을 공유하더라도 별도 내부 회원으로 분리해
+   * 기존 프로필/설정이 다른 provider 로그인에 섞이지 않도록 한다.
+   */
+  private String resolveMemberEmail(String provider, String providerUserId, String providerEmail) {
+    if (providerEmail != null && !memberRepository.existsByEmail(providerEmail)) {
+      return providerEmail;
     }
-    existingAccount.touchLastLoginAt(now);
-    existingAccount.updateEmailAtProvider(email);
+
+    return buildFallbackEmail(provider, providerUserId);
   }
 
   private void linkProviderAccountIfAbsent(
@@ -312,11 +337,8 @@ public class OidcCallbackService {
     return memberRepository.save(member);
   }
 
-  /** provider 응답에 email이 없을 때 내부 대체 이메일을 생성한다. */
-  private String normalizeOrBuildEmail(String provider, String providerUserId, String emailClaim) {
-    if (StringUtils.hasText(emailClaim)) {
-      return emailClaim.trim().toLowerCase(Locale.ROOT);
-    }
+  /** provider 이메일을 내부 식별자로 쓸 수 없을 때 provider scoped 대체 이메일을 생성한다. */
+  private String buildFallbackEmail(String provider, String providerUserId) {
     String sanitizedSubject = UNSAFE_SUBJECT_PATTERN.matcher(providerUserId).replaceAll("_");
     if (sanitizedSubject.length() > MAX_SANITIZED_SUBJECT_LENGTH) {
       sanitizedSubject = sanitizedSubject.substring(0, MAX_SANITIZED_SUBJECT_LENGTH);
