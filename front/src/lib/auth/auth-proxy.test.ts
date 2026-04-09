@@ -22,7 +22,9 @@ describe("auth-proxy", () => {
 
   it("공유 상위 도메인이 있으면 Set-Cookie Domain을 그 값으로 맞춘다", () => {
     const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const originalCookieDomain = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.maum-on.parksuyeon.site";
+    delete process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
 
     expect(
       rewriteSetCookieForFrontend(
@@ -34,11 +36,14 @@ describe("auth-proxy", () => {
     );
 
     process.env.NEXT_PUBLIC_API_BASE_URL = originalApiBaseUrl;
+    process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN = originalCookieDomain;
   });
 
   it("공유 상위 도메인을 계산할 수 없으면 Set-Cookie Domain을 제거한다", () => {
     const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const originalCookieDomain = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.maum-on.parksuyeon.site";
+    delete process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
 
     expect(
       rewriteSetCookieForFrontend(
@@ -48,11 +53,28 @@ describe("auth-proxy", () => {
     ).toBe("refreshToken=abc; Path=/; HttpOnly; Secure; SameSite=None");
 
     process.env.NEXT_PUBLIC_API_BASE_URL = originalApiBaseUrl;
+    process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN = originalCookieDomain;
+  });
+
+  it("설정된 쿠키 도메인이 현재 프런트 호스트와 맞지 않으면 Domain을 제거한다", () => {
+    const originalCookieDomain = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
+    process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN = ".maum-on.parksuyeon.site";
+
+    expect(
+      rewriteSetCookieForFrontend(
+        "refreshToken=abc; Path=/; Domain=api.example.com; HttpOnly; Secure; SameSite=None",
+        { requestHostname: "preview-somehash.vercel.app" },
+      ),
+    ).toBe("refreshToken=abc; Path=/; HttpOnly; Secure; SameSite=None");
+
+    process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN = originalCookieDomain;
   });
 
   it("공유 도메인을 사용할 때 이전 host-only 쿠키 만료 헤더를 함께 만든다", () => {
     const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const originalCookieDomain = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.maum-on.parksuyeon.site";
+    delete process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
 
     expect(
       buildSetCookieHeadersForFrontend(
@@ -65,13 +87,16 @@ describe("auth-proxy", () => {
     ]);
 
     process.env.NEXT_PUBLIC_API_BASE_URL = originalApiBaseUrl;
+    process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN = originalCookieDomain;
   });
 
   it("auth 전용 API 주소가 있으면 그 호스트 기준으로 공유 도메인을 계산한다", () => {
     const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     const originalAuthApiBaseUrl = process.env.NEXT_PUBLIC_AUTH_API_BASE_URL;
+    const originalCookieDomain = process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:8080";
     process.env.NEXT_PUBLIC_AUTH_API_BASE_URL = "https://api.maum-on.parksuyeon.site";
+    delete process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN;
 
     expect(
       buildSetCookieHeadersForFrontend(
@@ -85,6 +110,7 @@ describe("auth-proxy", () => {
 
     process.env.NEXT_PUBLIC_API_BASE_URL = originalApiBaseUrl;
     process.env.NEXT_PUBLIC_AUTH_API_BASE_URL = originalAuthApiBaseUrl;
+    process.env.NEXT_PUBLIC_AUTH_COOKIE_DOMAIN = originalCookieDomain;
   });
 
   it("복수 Set-Cookie 헤더를 분리한다", () => {

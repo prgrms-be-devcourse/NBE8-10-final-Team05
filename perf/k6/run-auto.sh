@@ -3,7 +3,7 @@
 # ==========================================
 # ⚙️ 기본 설정 (매번 입력하지 않아도 됨)
 # ==========================================
-HOST_IP="43.202.84.158"
+HOST_IP="${HOST_IP:-43.202.84.158}"
 DEFAULT_PROM_URL="https://monitor.maum-on.parksuyeon.site/prometheus/api/v1/write"
 DEFAULT_TREND_STATS="p(90),p(95),p(99),avg,min,max"
 
@@ -28,9 +28,16 @@ function print_usage() {
 function resolve_active_port() {
   if curl -s -m 1 "http://$HOST_IP:18080/api/v1/posts?page=0&size=1" > /dev/null; then
     echo "18080"
-  else
-    echo "18081"
+    return 0
   fi
+
+  if curl -s -m 1 "http://$HOST_IP:18081/api/v1/posts?page=0&size=1" > /dev/null; then
+    echo "18081"
+    return 0
+  fi
+
+  echo ""
+  return 1
 }
 
 # 데이터 리셋 수행
@@ -84,6 +91,12 @@ done
 # 4. 실행
 echo "🔍 활성 포트를 탐색 중..."
 ACTIVE_PORT=$(resolve_active_port)
+if [ -z "$ACTIVE_PORT" ]; then
+  echo "❌ 서버 감지 실패: http://$HOST_IP:18080, http://$HOST_IP:18081 모두 연결되지 않습니다."
+  echo "   - AWS Security Group / 방화벽에서 현재 IP의 직접 앱 포트 접근이 허용돼 있는지 확인하세요."
+  echo "   - 다른 서버를 치려면 HOST_IP 환경변수로 실제 공인 IP를 지정하세요."
+  exit 1
+fi
 echo "✅ 서버 감지: http://$HOST_IP:$ACTIVE_PORT | 🆔 TEST_ID: $TEST_ID"
 
 if [ "$DO_RESET" = true ]; then

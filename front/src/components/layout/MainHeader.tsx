@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { useAuthHint } from "@/components/auth/AuthHintProvider";
@@ -34,7 +34,6 @@ function resolveActiveNav(pathname: string): MainNavKey {
 }
 
 export default function MainHeader() {
-  const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAuthenticated, hasRestored, member } = useAuthStore();
@@ -59,10 +58,12 @@ export default function MainHeader() {
   const activeNav = resolveActiveNav(pathname);
 
   async function handleLogout() {
-    await logout();
-    setMobileMenuOpen(false);
-    router.replace("/login");
-    router.refresh();
+    try {
+      await logout();
+    } finally {
+      setMobileMenuOpen(false);
+      window.location.replace("/login");
+    }
   }
 
   return (
