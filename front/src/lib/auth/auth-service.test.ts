@@ -135,6 +135,7 @@ describe("auth-service", () => {
     await authService.restoreSession({ force: true });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/auth/session");
     expect(authStore.getAuthState()).toMatchObject({
       isAuthenticated: true,
       hasRestored: true,
