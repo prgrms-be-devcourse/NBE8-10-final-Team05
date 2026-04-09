@@ -113,21 +113,14 @@ export default function AdminLettersPage() {
       <section className="rounded-[30px] bg-[#f7fbff] px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
-              Admin Letters
-            </p>
-            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
+            <h1 className="text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
               비밀편지 관리
             </h1>
-            <p className="mt-2 text-[15px] leading-7 text-[#6e83a5]">
-              검색, 상태 필터, 페이지네이션으로 운영 대상 편지를 빠르게 찾고 바로 상세 조치로
-              이동합니다.
-            </p>
           </div>
 
           <div className="rounded-[24px] bg-white px-5 py-4 text-right shadow-[0_22px_44px_-40px_rgba(77,119,176,0.45)]">
             <p className="text-xs font-semibold tracking-[0.18em] text-[#89a0c1] uppercase">
-              Result
+              건수
             </p>
             <p className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#223552]">
               {result.totalElements}
@@ -181,7 +174,7 @@ export default function AdminLettersPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#223552]">
-              운영 대상 목록
+              목록
             </h2>
             <p className="mt-2 text-sm text-[#89a0c1]">
               총 {result.totalElements}건 중 {result.currentPage + 1}페이지를 보고 있습니다.
@@ -194,7 +187,7 @@ export default function AdminLettersPage() {
 
         {isLoading ? (
           <div className="mt-6 rounded-[24px] bg-[#f7fbff] px-6 py-14 text-center text-[#5f7598]">
-            비밀편지 목록을 불러오는 중입니다.
+            목록 로딩 중
           </div>
         ) : null}
 
@@ -206,7 +199,7 @@ export default function AdminLettersPage() {
 
         {!isLoading && !errorMessage && result.letters.length === 0 ? (
           <div className="mt-6 rounded-[24px] bg-[#f7fbff] px-6 py-14 text-center text-[#5f7598]">
-            조건에 맞는 비밀편지가 없습니다.
+            결과 없음
           </div>
         ) : null}
 

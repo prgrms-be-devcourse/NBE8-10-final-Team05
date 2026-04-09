@@ -331,25 +331,21 @@ export default function AdminMembersPage() {
       {
         label: "현재 페이지 회원",
         value: memberList.members.length,
-        helper: `총 ${memberList.totalElements}명`,
       },
       {
         label: "정상 회원",
         value: activeCount,
-        helper: "즉시 응대 가능",
       },
       {
         label: "차단 회원",
         value: blockedCount,
-        helper: "운영 확인 필요",
       },
       {
         label: "관리자",
         value: adminCount,
-        helper: "현재 페이지 기준",
       },
     ];
-  }, [memberList.members, memberList.totalElements]);
+  }, [memberList.members]);
 
   function applyUpdatedMemberDetail(updated: AdminMemberDetail): void {
     setMemberDetail(updated);
@@ -541,15 +537,9 @@ export default function AdminMembersPage() {
       <section className="rounded-[30px] bg-[#f7fbff] px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
-              Admin Members
-            </p>
-            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
+            <h1 className="text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
               회원 관리
             </h1>
-            <p className="mt-2 text-[15px] leading-7 text-[#6e83a5]">
-              검색부터 제재, 세션 만료, 권한 변경, 관련 이력 확인까지 한 화면에서 처리합니다.
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -564,7 +554,6 @@ export default function AdminMembersPage() {
                 <p className="mt-2 text-[26px] font-semibold tracking-[-0.04em] text-[#223552]">
                   {item.value}
                 </p>
-                <p className="mt-1 text-xs text-[#91a5c2]">{item.helper}</p>
               </div>
             ))}
           </div>
@@ -645,9 +634,6 @@ export default function AdminMembersPage() {
               <h2 className="text-[26px] font-semibold tracking-[-0.04em] text-[#223552]">
                 회원 목록
               </h2>
-              <p className="mt-2 text-sm text-[#89a0c1]">
-                최신 가입 회원부터 정렬합니다. 필터를 바꾸면 운영 대상만 빠르게 좁힐 수 있습니다.
-              </p>
             </div>
             <div className="rounded-full bg-[#eff5ff] px-4 py-2 text-sm font-semibold text-[#5f7ca8]">
               총 {memberList.totalElements}명
@@ -656,7 +642,7 @@ export default function AdminMembersPage() {
 
           {isListLoading ? (
             <div className="mt-6 rounded-[24px] bg-[#f7fbff] px-6 py-14 text-center text-[#5f7598]">
-              회원 목록을 불러오는 중입니다.
+              목록 로딩 중
             </div>
           ) : null}
 
@@ -668,7 +654,7 @@ export default function AdminMembersPage() {
 
           {!isListLoading && !listErrorMessage && memberList.members.length === 0 ? (
             <div className="mt-6 rounded-[24px] border border-dashed border-[#d8e5f7] bg-[#fbfdff] px-5 py-12 text-center text-[#7d92b0]">
-              현재 조건에 맞는 회원이 없습니다.
+              결과 없음
             </div>
           ) : null}
 
@@ -715,7 +701,7 @@ export default function AdminMembersPage() {
                               label={
                                 member.lastLoginAt
                                   ? `최근 로그인 ${formatDateTime(member.lastLoginAt)}`
-                                  : "로그인 기록 없음"
+                                  : "기록 없음"
                               }
                             />
                           </div>
@@ -782,15 +768,12 @@ export default function AdminMembersPage() {
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
                   회원 상세
                 </h2>
-                <p className="mt-1 text-sm text-[#89a0c1]">
-                  계정 상태, 운영 조치, 관련 콘텐츠 이력을 함께 확인합니다.
-                </p>
               </div>
             </div>
 
             {isDetailLoading ? (
               <div className="mt-6 rounded-[22px] bg-[#f7fbff] px-5 py-12 text-center text-[#6780a6]">
-                회원 상세를 불러오는 중입니다.
+                상세 로딩 중
               </div>
             ) : null}
 
@@ -802,7 +785,7 @@ export default function AdminMembersPage() {
 
             {!isDetailLoading && !detailErrorMessage && !memberDetail ? (
               <div className="mt-6 rounded-[22px] border border-dashed border-[#d8e5f7] bg-[#fbfdff] px-5 py-12 text-center text-[#7d92b0]">
-                목록에서 회원을 선택하면 상세 정보가 표시됩니다.
+                회원 선택
               </div>
             ) : null}
 
@@ -845,7 +828,7 @@ export default function AdminMembersPage() {
                 <div className="rounded-[20px] border border-[#dce7f8] bg-[#fbfdff] px-4 py-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-[#38547b]">
                     <ShieldCheck size={16} />
-                    연결된 provider
+                    연동 계정
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {memberDetail.connectedProviders.length > 0 ? (
@@ -858,23 +841,18 @@ export default function AdminMembersPage() {
                         </span>
                       ))
                     ) : (
-                      <span className="text-sm text-[#8ca2c1]">연결된 소셜 provider가 없습니다.</span>
+                      <span className="text-sm text-[#8ca2c1]">연동 없음</span>
                     )}
                   </div>
                 </div>
 
                 <div className="rounded-[20px] border border-[#dce7f8] bg-white px-4 py-4">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-semibold text-[#38547b]">운영 조치</p>
-                    <p className="text-sm text-[#7f96b6]">
-                      차단/권한 변경은 사유를 남기고, 세션 만료는 즉시 적용합니다.
-                    </p>
-                  </div>
+                  <p className="text-sm font-semibold text-[#38547b]">조치</p>
 
                   <textarea
                     value={actionReason}
                     onChange={(event) => setActionReason(event.target.value)}
-                    placeholder="운영 사유를 입력해 주세요. 예: 신고 누적, 권한 정리, 비정상 로그인 대응"
+                    placeholder="사유 입력"
                     className="mt-4 min-h-[110px] w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 py-3 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
                   />
 
@@ -997,9 +975,6 @@ export default function AdminMembersPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-[#38547b]">감사 로그</p>
-                      <p className="mt-1 text-sm text-[#7f96b6]">
-                        최신 운영 조치부터 최근 20건까지 표시합니다.
-                      </p>
                     </div>
                     <span className="rounded-full bg-[#eff5ff] px-3 py-1 text-xs font-semibold text-[#5f7ca8]">
                       {memberDetail.actionLogs.length}건
@@ -1011,12 +986,7 @@ export default function AdminMembersPage() {
                 </div>
 
                 <div className="rounded-[20px] border border-[#dce7f8] bg-white px-4 py-4">
-                  <div>
-                    <p className="text-sm font-semibold text-[#38547b]">신고 이력</p>
-                    <p className="mt-1 text-sm text-[#7f96b6]">
-                      회원이 접수한 신고와 회원 콘텐츠로 접수된 신고를 나눠서 표시합니다.
-                    </p>
-                  </div>
+                  <p className="text-sm font-semibold text-[#38547b]">신고 이력</p>
                   <div className="mt-4 grid gap-4 xl:grid-cols-2">
                     <HistoryPanel
                       title="접수한 신고"
@@ -1024,7 +994,7 @@ export default function AdminMembersPage() {
                     >
                       <ReportHistoryList
                         items={memberDetail.submittedReports}
-                        emptyLabel="접수한 신고가 없습니다."
+                        emptyLabel="이력 없음"
                       />
                     </HistoryPanel>
                     <HistoryPanel
@@ -1033,7 +1003,7 @@ export default function AdminMembersPage() {
                     >
                       <ReportHistoryList
                         items={memberDetail.receivedReports}
-                        emptyLabel="회원 콘텐츠 기준 신고 이력이 없습니다."
+                        emptyLabel="이력 없음"
                       />
                     </HistoryPanel>
                   </div>
@@ -1041,12 +1011,7 @@ export default function AdminMembersPage() {
 
                 <div className="rounded-[20px] border border-[#dce7f8] bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#38547b]">게시글 이력</p>
-                      <p className="mt-1 text-sm text-[#7f96b6]">
-                        최근 작성 게시글 5건을 운영 상태와 함께 표시합니다.
-                      </p>
-                    </div>
+                    <p className="text-sm font-semibold text-[#38547b]">게시글 이력</p>
                     <span className="rounded-full bg-[#eff5ff] px-3 py-1 text-xs font-semibold text-[#5f7ca8]">
                       {memberDetail.recentPosts.length}건
                     </span>
@@ -1058,12 +1023,7 @@ export default function AdminMembersPage() {
 
                 <div className="rounded-[20px] border border-[#dce7f8] bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#38547b]">편지 이력</p>
-                      <p className="mt-1 text-sm text-[#7f96b6]">
-                        최근 편지 송수신 5건을 상대 회원과 상태 기준으로 표시합니다.
-                      </p>
-                    </div>
+                    <p className="text-sm font-semibold text-[#38547b]">편지 이력</p>
                     <span className="rounded-full bg-[#eff5ff] px-3 py-1 text-xs font-semibold text-[#5f7ca8]">
                       {memberDetail.recentLetters.length}건
                     </span>
@@ -1083,61 +1043,65 @@ export default function AdminMembersPage() {
               </div>
               <div>
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-                  운영 보조 생성
+                  회원 생성
                 </h2>
-                <p className="mt-1 text-sm text-[#89a0c1]">
-                  테스트/운영 확인용 계정을 빠르게 생성합니다.
-                </p>
               </div>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <input
-                value={createEmail}
-                onChange={(event) => setCreateEmail(event.target.value)}
-                placeholder="이메일"
-                className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
-              />
-              <input
-                value={createPassword}
-                onChange={(event) => setCreatePassword(event.target.value)}
-                placeholder="비밀번호"
-                type="password"
-                className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
-              />
-              <input
-                value={createNickname}
-                onChange={(event) => setCreateNickname(event.target.value)}
-                placeholder="닉네임"
-                className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
-              />
-            </div>
+            <form
+              className="mt-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleCreateMember();
+              }}
+            >
+              <div className="space-y-3">
+                <input
+                  value={createEmail}
+                  onChange={(event) => setCreateEmail(event.target.value)}
+                  placeholder="이메일"
+                  className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
+                />
+                <input
+                  value={createPassword}
+                  onChange={(event) => setCreatePassword(event.target.value)}
+                  placeholder="비밀번호"
+                  type="password"
+                  className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
+                />
+                <input
+                  value={createNickname}
+                  onChange={(event) => setCreateNickname(event.target.value)}
+                  placeholder="닉네임"
+                  className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
+                />
+              </div>
 
-            {createErrorMessage ? (
-              <p className="mt-4 rounded-[14px] border border-[#f3d0d0] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4b4b]">
-                {createErrorMessage}
-              </p>
-            ) : null}
-            {createNoticeMessage ? (
-              <p className="mt-4 rounded-[14px] border border-[#d5ead8] bg-[#f1fbf2] px-4 py-3 text-sm text-[#3e6f49]">
-                {createNoticeMessage}
-              </p>
-            ) : null}
+              {createErrorMessage ? (
+                <p className="mt-4 rounded-[14px] border border-[#f3d0d0] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4b4b]">
+                  {createErrorMessage}
+                </p>
+              ) : null}
+              {createNoticeMessage ? (
+                <p className="mt-4 rounded-[14px] border border-[#d5ead8] bg-[#f1fbf2] px-4 py-3 text-sm text-[#3e6f49]">
+                  {createNoticeMessage}
+                </p>
+              ) : null}
 
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => void handleCreateMember()}
-                disabled={isCreating}
-                className={`rounded-[14px] px-5 py-2.5 text-sm font-semibold text-white transition ${
-                  isCreating
-                    ? "cursor-not-allowed bg-[#b6c9e7]"
-                    : "bg-[#4f8cf0] hover:bg-[#3f80eb]"
-                }`}
-              >
-                {isCreating ? "생성 중..." : "회원 생성"}
-              </button>
-            </div>
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className={`rounded-[14px] px-5 py-2.5 text-sm font-semibold text-white transition ${
+                    isCreating
+                      ? "cursor-not-allowed bg-[#b6c9e7]"
+                      : "bg-[#4f8cf0] hover:bg-[#3f80eb]"
+                  }`}
+                >
+                  {isCreating ? "생성 중..." : "회원 생성"}
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       </section>
@@ -1221,7 +1185,7 @@ function HistoryEmpty({ label }: { label: string }) {
 
 function ActionLogList({ items }: { items: AdminMemberActionLogItem[] }) {
   if (items.length === 0) {
-    return <HistoryEmpty label="아직 기록된 운영 조치가 없습니다." />;
+    return <HistoryEmpty label="이력 없음" />;
   }
 
   return (
@@ -1297,7 +1261,7 @@ function ReportHistoryList({
 
 function PostHistoryList({ items }: { items: AdminMemberPostHistoryItem[] }) {
   if (items.length === 0) {
-    return <HistoryEmpty label="최근 게시글 이력이 없습니다." />;
+    return <HistoryEmpty label="이력 없음" />;
   }
 
   return (
@@ -1327,7 +1291,7 @@ function PostHistoryList({ items }: { items: AdminMemberPostHistoryItem[] }) {
 
 function LetterHistoryList({ items }: { items: AdminMemberLetterHistoryItem[] }) {
   if (items.length === 0) {
-    return <HistoryEmpty label="최근 편지 이력이 없습니다." />;
+    return <HistoryEmpty label="이력 없음" />;
   }
 
   return (

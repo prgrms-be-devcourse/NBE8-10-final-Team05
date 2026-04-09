@@ -31,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -181,11 +184,21 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
                 onlyUnassigned,
                 pageable);
 
-        Page<AdminLetterListItem> mappedPage = letterPage.map(letter ->
-                AdminLetterListItem.from(
-                        letter,
-                        isWritingStatusAvailable(letter.getId()),
-                        getLatestAdminActionSafely(letter.getId())));
+        List<Letter> letters = letterPage.getContent();
+        Map<Long, String> latestActions = getLatestAdminActionMapSafely(
+                letters.stream()
+                        .map(Letter::getId)
+                        .toList());
+
+        Page<AdminLetterListItem> mappedPage = new PageImpl<>(
+                letters.stream()
+                        .map(letter -> AdminLetterListItem.from(
+                                letter,
+                                isWritingStatusAvailable(letter.getId()),
+                                latestActions.get(letter.getId())))
+                        .toList(),
+                pageable,
+                letterPage.getTotalElements());
 
         return AdminLetterListRes.from(mappedPage);
     }
@@ -224,6 +237,9 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
             case NOTE -> {
             }
             case REASSIGN_RECEIVER -> {
+                if (isWritingStatusAvailable(letter.getId())) {
+                    throw new ServiceException("400-3", "답장을 작성 중인 편지는 재배정할 수 없습니다.");
+                }
                 List<Long> excludeIds = buildExcludedMemberIds(letter);
                 Member newReceiver = letterPort.findRandomMemberExceptMe(excludeIds)
                         .orElseThrow(() -> new ServiceException("404-2", "편지를 전달할 수 있는 다른 유저가 없습니다."));
@@ -315,6 +331,24 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
         return memberRepository.findById(adminMemberId)
                 .map(Member::getNickname)
                 .orElse("관리자#" + adminMemberId);
+    }
+
+    private Map<Long, String> getLatestAdminActionMapSafely(List<Long> letterIds) {
+        if (letterIds.isEmpty()) {
+            return Map.of();
+        }
+
+        try {
+            return letterAdminActionLogRepository.findLatestActionsByLetterIds(letterIds)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            LetterAdminActionLogRepository.LatestActionProjection::getLetterId,
+                            LetterAdminActionLogRepository.LatestActionProjection::getActionType,
+                            (left, right) -> left));
+        } catch (DataAccessException exception) {
+            log.warn("관리자 편지 최신 조치 목록을 불러오지 못해 기본값으로 대체합니다. letterIds={}", letterIds, exception);
+            return Map.of();
+        }
     }
 
     private String getLatestAdminActionSafely(long letterId) {

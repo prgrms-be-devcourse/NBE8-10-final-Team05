@@ -173,7 +173,7 @@ export default function AdminReportDetailPage() {
   if (isLoading) {
     return (
       <div className="rounded-[28px] bg-white px-6 py-14 text-center text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
-        신고 상세를 불러오는 중입니다.
+        상세 로딩 중
       </div>
     );
   }
@@ -184,10 +184,8 @@ export default function AdminReportDetailPage() {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff0f0] text-[#c46464]">
           <ShieldAlert size={22} />
         </div>
-        <p className="mt-4 text-[18px] font-semibold text-[#7a3d3d]">
-          신고 상세를 확인할 수 없습니다.
-        </p>
-        <p className="mt-2 text-sm text-[#9a4b4b]">{loadErrorMessage ?? "신고 정보를 찾을 수 없습니다."}</p>
+        <p className="mt-4 text-[18px] font-semibold text-[#7a3d3d]">조회 실패</p>
+        <p className="mt-2 text-sm text-[#9a4b4b]">{loadErrorMessage ?? "데이터 없음"}</p>
         <Link
           href="/admin/reports"
           className="mt-5 inline-flex text-sm font-semibold text-[#7a3d3d] underline decoration-[#e4a6a6] underline-offset-4"
@@ -211,15 +209,9 @@ export default function AdminReportDetailPage() {
 
         <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
-              Report Detail
-            </p>
-            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
+            <h1 className="text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
               신고 #{report.reportId}
             </h1>
-            <p className="mt-2 text-[15px] leading-7 text-[#6e83a5]">
-              신고자, 대상 정보, 처리 액션을 한 번에 확인합니다.
-            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -263,11 +255,8 @@ export default function AdminReportDetailPage() {
               </div>
               <div>
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-                  신고 설명
+                  사유
                 </h2>
-                <p className="mt-1 text-sm text-[#8ba0bf]">
-                  운영자가 우선 확인해야 할 사유입니다.
-                </p>
               </div>
             </div>
 
@@ -278,7 +267,7 @@ export default function AdminReportDetailPage() {
               <p>
                 {report.description?.trim().length
                   ? report.description
-                  : "신고 설명이 비어 있습니다."}
+                  : "내용 없음"}
               </p>
             </div>
           </div>
@@ -290,10 +279,10 @@ export default function AdminReportDetailPage() {
               </div>
               <div>
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-                  신고 대상 원문
+                  원문
                 </h2>
                 <p className="mt-1 text-sm text-[#8ba0bf]">
-                  작성자 {report.targetInfo.authorNickname || "알 수 없음"}
+                  작성자 {report.targetInfo.authorNickname || "-"}
                 </p>
               </div>
             </div>
@@ -301,7 +290,7 @@ export default function AdminReportDetailPage() {
             <div className="mt-5 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 whitespace-pre-wrap text-[#405a7f]">
               {report.targetInfo.originalContent?.trim().length
                 ? report.targetInfo.originalContent
-                : "원문 내용을 확인할 수 없습니다."}
+                : "내용 없음"}
             </div>
           </div>
         </div>
@@ -309,11 +298,8 @@ export default function AdminReportDetailPage() {
         <div className="space-y-6">
           <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
             <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-              처리 액션
+              조치
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
-              현재 백엔드가 지원하는 세 가지 처리만 노출합니다.
-            </p>
 
             <div className="mt-5 grid gap-3">
               {REPORT_ACTIONS.map((action) => {
@@ -343,7 +329,7 @@ export default function AdminReportDetailPage() {
                     </p>
                     <p className="mt-2 text-sm leading-6">
                       {actionUnavailable
-                        ? "이 대상 유형에서는 사용할 수 없는 액션입니다."
+                        ? "사용 불가"
                         : getAdminReportActionDescription(action, report.targetInfo.targetType)}
                     </p>
                   </button>
@@ -353,7 +339,7 @@ export default function AdminReportDetailPage() {
 
             {pendingAction && report.status !== "PROCESSED" ? (
               <div className="mt-5 rounded-[24px] border border-[#dce7f8] bg-[#f8fbff] px-5 py-5">
-                <p className="text-sm font-semibold text-[#6c82a5]">최종 확인</p>
+                <p className="text-sm font-semibold text-[#6c82a5]">확인</p>
                 <p className="mt-2 text-[18px] font-semibold text-[#223552]">
                   {formatAdminReportActionLabel(pendingAction, report.targetInfo.targetType)}
                 </p>
@@ -383,7 +369,7 @@ export default function AdminReportDetailPage() {
                     disabled={isHandling}
                     className="rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3f80eb] disabled:cursor-not-allowed disabled:bg-[#b6c9e7]"
                   >
-                    {isHandling ? "처리 중..." : "이 액션 실행"}
+                    {isHandling ? "처리 중..." : "실행"}
                   </button>
                 </div>
               </div>
@@ -401,9 +387,8 @@ export default function AdminReportDetailPage() {
               </div>
               <div>
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-                  대상 정보
+                  대상
                 </h2>
-                <p className="mt-1 text-sm text-[#8ba0bf]">처리 전 마지막 확인용 카드입니다.</p>
               </div>
             </div>
 
@@ -418,7 +403,7 @@ export default function AdminReportDetailPage() {
               />
               <InfoRow label="대상 유형" value={formatAdminReportTargetTypeLabel(report.targetInfo.targetType)} />
               <InfoRow label="대상 식별값" value={report.targetInfo.targetId} />
-              <InfoRow label="작성자" value={report.targetInfo.authorNickname || "알 수 없음"} />
+              <InfoRow label="작성자" value={report.targetInfo.authorNickname || "-"} />
             </div>
           </div>
         </div>

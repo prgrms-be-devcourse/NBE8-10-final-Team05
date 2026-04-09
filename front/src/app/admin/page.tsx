@@ -33,13 +33,11 @@ import { toErrorMessage } from "@/lib/api/rs-data";
 function SummaryCard({
   label,
   value,
-  helper,
   icon: Icon,
   tone,
 }: {
   label: string;
   value: number;
-  helper: string;
   icon: typeof Flag;
   tone: string;
 }) {
@@ -54,19 +52,16 @@ function SummaryCard({
       <p className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-[#223552]">
         {value}
       </p>
-      <p className="mt-2 text-sm text-[#93a6c1]">{helper}</p>
     </div>
   );
 }
 
 function GrafanaPanelCard({
   title,
-  description,
   iframeSrc,
   height,
 }: {
   title: string;
-  description: string;
   iframeSrc: string;
   height: number;
 }) {
@@ -79,7 +74,6 @@ function GrafanaPanelCard({
           <h2 className="text-[22px] font-semibold tracking-[-0.04em] text-[#223552]">
             {title}
           </h2>
-          <p className="mt-2 text-sm text-[#8fa4c0]">{description}</p>
         </div>
         <a
           href={iframeSrc}
@@ -120,7 +114,7 @@ function GrafanaFallbackCard({
       <section className="rounded-[30px] bg-white px-6 py-8 text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
         <div className="flex items-center gap-3">
           <Loader2 className="animate-spin text-[#4f8cf0]" size={18} />
-          <p className="text-sm font-semibold">Grafana 세션을 확인하는 중입니다.</p>
+          <p className="text-sm font-semibold">Grafana 확인 중</p>
         </div>
       </section>
     );
@@ -133,23 +127,13 @@ function GrafanaFallbackCard({
     <section className="rounded-[30px] bg-white px-6 py-7 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
-            Observability
-          </p>
-          <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-[#223552]">
+          <h2 className="text-[28px] font-semibold tracking-[-0.05em] text-[#223552]">
             {isLoginRequired
-              ? "Grafana 로그인 필요"
+              ? "Grafana 로그인"
               : isDisabled
-                ? "Observability 미구성"
-                : "Grafana 연결 확인 필요"}
+                ? "모니터링 미구성"
+                : "Grafana 확인 필요"}
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#6e83a5]">
-            {isLoginRequired
-              ? "패널은 Grafana 세션이 있어야 보입니다. 새 창에서 먼저 로그인한 뒤 이 화면으로 돌아오면 iframe 패널을 바로 확인할 수 있습니다."
-              : isDisabled
-                ? "모니터링 프록시가 아직 구성되지 않았습니다. 운영에서는 monitor ingress나 내부 프록시 주소가 연결돼 있어야 Grafana 패널을 표시할 수 있습니다."
-                : "로컬 모니터링 스택이 응답하지 않습니다. docker compose로 Grafana, Prometheus, Nginx가 정상 기동했는지 먼저 확인해야 합니다."}
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -227,42 +211,36 @@ export default function AdminDashboardPage() {
       {
         label: "오늘 접수 신고",
         value: stats?.todayReportsCount ?? 0,
-        helper: "오늘 기준 새로 들어온 신고",
         icon: Flag,
         tone: "bg-[#edf5ff] text-[#4f8cf0]",
       },
       {
         label: "처리 대기",
         value: stats?.pendingReportsCount ?? 0,
-        helper: "먼저 확인이 필요한 항목",
         icon: Inbox,
         tone: "bg-[#eefbf4] text-[#37b36a]",
       },
       {
         label: "처리 완료",
         value: stats?.processedReportsCount ?? 0,
-        helper: "운영 판단이 끝난 신고",
         icon: ShieldCheck,
         tone: "bg-[#fff6eb] text-[#f2a34b]",
       },
       {
         label: "오늘 생성 편지",
         value: stats?.todayLettersCount ?? 0,
-        helper: "오늘 생성된 비밀편지",
         icon: Mail,
         tone: "bg-[#fff1f1] text-[#e17272]",
       },
       {
         label: "오늘 작성 일기",
         value: stats?.todayDiariesCount ?? 0,
-        helper: "오늘 기록된 개인 일기",
         icon: BookHeart,
         tone: "bg-[#f4f0ff] text-[#8b64dc]",
       },
       {
         label: "수신 허용 회원",
         value: stats?.availableReceiversCount ?? 0,
-        helper: "현재 랜덤 편지를 받을 수 있는 회원",
         icon: UserRoundCheck,
         tone: "bg-[#eef8ff] text-[#4d87c4]",
       },
@@ -276,15 +254,9 @@ export default function AdminDashboardPage() {
       <section className="rounded-[30px] bg-[#f7fbff] px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
-              Admin Dashboard
-            </p>
-            <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-[#223552]">
+            <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#223552]">
               운영 대시보드
             </h1>
-            <p className="mt-2 text-[15px] leading-7 text-[#6e83a5]">
-              신고 흐름과 애플리케이션 상태를 한 화면에서 확인합니다.
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -337,7 +309,6 @@ export default function AdminDashboardPage() {
               key={card.label}
               label={card.label}
               value={card.value}
-              helper={card.helper}
               icon={card.icon}
               tone={card.tone}
             />
@@ -347,7 +318,7 @@ export default function AdminDashboardPage() {
 
       {isLoading ? (
         <div className="rounded-[28px] bg-white px-6 py-12 text-center text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
-          운영 지표를 불러오는 중입니다.
+          집계 로딩 중
         </div>
       ) : null}
 
@@ -367,7 +338,6 @@ export default function AdminDashboardPage() {
             <GrafanaPanelCard
               key={panel.panelId}
               title={panel.title}
-              description={panel.description}
               iframeSrc={buildGrafanaPanelUrl(panel.panelId)}
               height={panel.height}
             />

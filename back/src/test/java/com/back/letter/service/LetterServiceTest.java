@@ -75,6 +75,20 @@ class LetterServiceTest {
         return member;
     }
 
+    private LetterAdminActionLogRepository.LatestActionProjection latestActionProjection(Long letterId, String actionType) {
+        return new LetterAdminActionLogRepository.LatestActionProjection() {
+            @Override
+            public Long getLetterId() {
+                return letterId;
+            }
+
+            @Override
+            public String getActionType() {
+                return actionType;
+            }
+        };
+    }
+
     @Nested
     @DisplayName("편지 생성 및 즉시 발송 테스트")
     class CreateAndSendLetter {
@@ -298,7 +312,8 @@ class LetterServiceTest {
             given(letterPort.searchAdminLetters(null, null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
                     .willReturn(page);
             given(letterRedisRepository.isWriting(33L)).willReturn(true);
-            given(letterAdminActionLogRepository.findByLetterIdOrderByCreateDateDesc(33L)).willReturn(List.of());
+            given(letterAdminActionLogRepository.findLatestActionsByLetterIds(List.of(33L)))
+                    .willReturn(List.of(latestActionProjection(33L, "NOTE")));
 
             AdminLetterListRes result = letterService.getAdminLetters(null, null, 0, 20);
 
@@ -306,6 +321,7 @@ class LetterServiceTest {
             assertThat(result.letters().getFirst().status()).isEqualTo("WRITING");
             assertThat(result.letters().getFirst().senderNickname()).isEqualTo("보낸이");
             assertThat(result.letters().getFirst().receiverNickname()).isEqualTo("받는이");
+            assertThat(result.letters().getFirst().latestAction()).isEqualTo("NOTE");
         }
 
         @Test
@@ -358,7 +374,7 @@ class LetterServiceTest {
             Page<Letter> page = new PageImpl<>(List.of(letter));
             given(letterPort.searchAdminLetters(null, null, false, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createDate"))))
                     .willReturn(page);
-            given(letterAdminActionLogRepository.findByLetterIdOrderByCreateDateDesc(35L))
+            given(letterAdminActionLogRepository.findLatestActionsByLetterIds(List.of(35L)))
                     .willThrow(new InvalidDataAccessResourceUsageException("relation \"letter_admin_action_logs\" does not exist"));
             given(letterRedisRepository.isWriting(35L)).willReturn(false);
 
@@ -449,6 +465,36 @@ class LetterServiceTest {
             assertThat(letter.getStatus()).isEqualTo(LetterStatus.SENT);
             verify(letterRedisRepository).deleteWritingStatus(61L);
             verify(letterAdminActionLogRepository).save(any(LetterAdminActionLog.class));
+        }
+
+        @Test
+        @DisplayName("실패: 답장을 작성 중인 편지는 재배정할 수 없다")
+        void givenWritingLetter_whenHandleReassign_thenThrowBadRequest() {
+            Member sender = createMember(1L, "보낸이");
+            Member oldReceiver = createMember(2L, "기존수신자");
+            Letter letter = Letter.builder()
+                    .title("재배정 대상")
+                    .content("내용")
+                    .sender(sender)
+                    .receiver(oldReceiver)
+                    .build();
+            letter.dispatch(oldReceiver);
+            ReflectionTestUtils.setField(letter, "id", 62L);
+            ReflectionTestUtils.setField(letter, "status", LetterStatus.ACCEPTED);
+
+            given(letterPort.findByIdForAdmin(62L)).willReturn(Optional.of(letter));
+            given(letterRedisRepository.isWriting(62L)).willReturn(true);
+
+            assertThatThrownBy(() -> letterService.handleAdminLetter(
+                    62L,
+                    new AdminLetterHandleReq(AdminLetterActionType.REASSIGN_RECEIVER, "작성 중 재배정 시도"),
+                    9L))
+                    .isInstanceOf(ServiceException.class)
+                    .hasMessageContaining("답장을 작성 중인 편지는 재배정할 수 없습니다.");
+
+            verify(letterPort, never()).findRandomMemberExceptMe(anyList());
+            verify(letterRedisRepository, never()).deleteWritingStatus(62L);
+            verify(letterAdminActionLogRepository, never()).save(any(LetterAdminActionLog.class));
         }
 
         @Test
