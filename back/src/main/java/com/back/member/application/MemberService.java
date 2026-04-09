@@ -26,6 +26,7 @@ import com.back.member.domain.MemberAdminActionLogRepository;
 import com.back.member.domain.MemberAdminActionType;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRole;
+import com.back.member.domain.MemberRepository.AdminMemberListRow;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
 import com.back.post.repository.PostRepository;
@@ -35,10 +36,8 @@ import java.util.ArrayList;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -119,25 +118,19 @@ public class MemberService {
     Pageable pageable =
         PageRequest.of(
             Math.max(page, 0),
-            Math.min(Math.max(size, 1), 50),
-            Sort.by(Sort.Direction.DESC, "createDate"));
+            Math.min(Math.max(size, 1), 50));
 
-    Page<Member> memberPage =
+    Page<AdminMemberListRow> memberPage =
         memberRepository.searchAdminMembers(
-            normalizedQuery, statusFilter, roleFilter, providerFilter, memberIdQuery, pageable);
-
-    Map<Long, OAuthAccountSnapshot> oauthSnapshots =
-        buildOAuthSnapshots(
-            memberPage.getContent().stream().map(Member::getId).toList());
+            normalizedQuery,
+            statusFilter == null ? null : statusFilter.name(),
+            roleFilter == null ? null : roleFilter.name(),
+            providerFilter,
+            memberIdQuery,
+            pageable);
 
     Page<AdminMemberListItem> mappedPage =
-        memberPage.map(
-            member -> {
-              OAuthAccountSnapshot snapshot =
-                  oauthSnapshots.getOrDefault(member.getId(), OAuthAccountSnapshot.empty());
-              return AdminMemberListItem.from(
-                  member, snapshot.socialAccount(), snapshot.lastLoginAt());
-            });
+        memberPage.map(AdminMemberListItem::from);
 
     return AdminMemberListResponse.from(mappedPage);
   }
@@ -426,26 +419,6 @@ public class MemberService {
         recentLetters);
   }
 
-  private Map<Long, OAuthAccountSnapshot> buildOAuthSnapshots(List<Long> memberIds) {
-    if (memberIds.isEmpty()) {
-      return Map.of();
-    }
-
-    List<OAuthAccount> oauthAccounts =
-        oAuthAccountRepository.findAllByMemberIdInOrderByMemberIdAscIdAsc(memberIds);
-    Map<Long, OAuthAccountSnapshotAccumulator> accumulators = new HashMap<>();
-
-    for (OAuthAccount oauthAccount : oauthAccounts) {
-      accumulators
-          .computeIfAbsent(oauthAccount.getMember().getId(), ignored -> new OAuthAccountSnapshotAccumulator())
-          .accumulate(oauthAccount);
-    }
-
-    Map<Long, OAuthAccountSnapshot> snapshots = new HashMap<>();
-    accumulators.forEach((memberId, accumulator) -> snapshots.put(memberId, accumulator.snapshot()));
-    return snapshots;
-  }
-
   private List<AdminMemberReportHistoryItem> buildReceivedReportHistory(
       Long memberId, Pageable pageable) {
     List<Report> receivedReports = new ArrayList<>();
@@ -597,26 +570,5 @@ public class MemberService {
 
   private MemberStatus safeStatus(Member member) {
     return member.getStatus() == null ? MemberStatus.ACTIVE : member.getStatus();
-  }
-
-  private record OAuthAccountSnapshot(boolean socialAccount, LocalDateTime lastLoginAt) {
-    private static OAuthAccountSnapshot empty() {
-      return new OAuthAccountSnapshot(false, null);
-    }
-  }
-
-  private static final class OAuthAccountSnapshotAccumulator {
-    private LocalDateTime lastLoginAt;
-
-    private void accumulate(OAuthAccount oauthAccount) {
-      LocalDateTime candidate = oauthAccount.getLastLoginAt();
-      if (candidate != null && (lastLoginAt == null || candidate.isAfter(lastLoginAt))) {
-        lastLoginAt = candidate;
-      }
-    }
-
-    private OAuthAccountSnapshot snapshot() {
-      return new OAuthAccountSnapshot(true, lastLoginAt);
-    }
   }
 }

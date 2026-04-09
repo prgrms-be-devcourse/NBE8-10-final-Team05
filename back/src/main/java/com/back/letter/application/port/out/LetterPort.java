@@ -14,6 +14,7 @@ public interface LetterPort {
     Letter save(Letter letter);
     Optional<Letter> findById(long id);
     Optional<Letter> findByIdForAdmin(long id);
+    Page<Letter> findAdminLetters(LetterStatus status, boolean onlyUnassigned, Pageable pageable);
     Page<Letter> searchAdminLetters(String query, LetterStatus status, boolean onlyUnassigned, Pageable pageable);
     Page<Letter> findByReceiverId(long memberId, Pageable pageable);
     Page<Letter> findBySenderId(long memberId, Pageable pageable);

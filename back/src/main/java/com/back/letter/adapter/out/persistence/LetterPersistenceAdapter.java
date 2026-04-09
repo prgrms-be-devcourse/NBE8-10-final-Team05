@@ -36,6 +36,11 @@ public class LetterPersistenceAdapter implements LetterPort {
     }
 
     @Override
+    public Page<Letter> findAdminLetters(LetterStatus status, boolean onlyUnassigned, Pageable pageable) {
+        return letterRepository.findAdminLetters(status, onlyUnassigned, pageable);
+    }
+
+    @Override
     public Page<Letter> searchAdminLetters(String query, LetterStatus status, boolean onlyUnassigned, Pageable pageable) {
         return letterRepository.searchAdminLetters(query, status, onlyUnassigned, pageable);
     }

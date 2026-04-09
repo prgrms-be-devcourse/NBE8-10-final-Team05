@@ -1060,6 +1060,7 @@ export default function AdminMembersPage() {
                   value={createEmail}
                   onChange={(event) => setCreateEmail(event.target.value)}
                   placeholder="이메일"
+                  autoComplete="email"
                   className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
                 />
                 <input
@@ -1067,12 +1068,14 @@ export default function AdminMembersPage() {
                   onChange={(event) => setCreatePassword(event.target.value)}
                   placeholder="비밀번호"
                   type="password"
+                  autoComplete="new-password"
                   className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
                 />
                 <input
                   value={createNickname}
                   onChange={(event) => setCreateNickname(event.target.value)}
                   placeholder="닉네임"
+                  autoComplete="nickname"
                   className="h-12 w-full rounded-[14px] border border-[#dce7f8] bg-[#f9fbff] px-4 text-sm text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
                 />
               </div>
