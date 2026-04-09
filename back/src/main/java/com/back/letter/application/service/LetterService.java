@@ -8,11 +8,14 @@ import com.back.censorship.application.service.AiService;
 import com.back.global.event.LetterEvents;
 import com.back.global.exception.ServiceException;
 import com.back.letter.adapter.out.persistence.repository.LetterRedisRepository;
+import com.back.letter.adapter.out.persistence.repository.LetterAdminActionLogRepository;
 import com.back.letter.application.port.in.*;
 import com.back.letter.application.port.in.dto.*;
 import com.back.letter.application.port.out.LetterPort;
+import com.back.letter.domain.AdminLetterActionType;
 import com.back.letter.domain.Letter;
 import com.back.letter.domain.LetterStatus;
+import com.back.member.application.MemberService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,14 +33,16 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
+public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, AdminLetterUseCase {
 
     private final LetterPort letterPort;
     private final MemberRepository memberRepository;
     private final AiService aiService;
     private final ApplicationEventPublisher eventPublisher;
     private final LetterRedisRepository letterRedisRepository;
+    private final LetterAdminActionLogRepository letterAdminActionLogRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final MemberService memberService;
 
     @Override
     @Transactional
@@ -157,6 +162,102 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public AdminLetterListRes getAdminLetters(String status, String query, int page, int size) {
+        String normalizedQuery = normalizeQuery(query);
+        boolean onlyUnassigned = "UNASSIGNED".equalsIgnoreCase(status);
+        LetterStatus statusFilter = resolveStatusFilter(status, onlyUnassigned);
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 50),
+                Sort.by(Sort.Direction.DESC, "createDate"));
+
+        Page<Letter> letterPage = letterPort.searchAdminLetters(
+                normalizedQuery,
+                statusFilter,
+                onlyUnassigned,
+                pageable);
+
+        Page<AdminLetterListItem> mappedPage = letterPage.map(letter -> {
+            String latestAction = letterAdminActionLogRepository
+                    .findByLetterIdOrderByCreateDateDesc(letter.getId())
+                    .stream()
+                    .findFirst()
+                    .map(log -> log.getActionType().name())
+                    .orElse(null);
+            return AdminLetterListItem.from(
+                    letter,
+                    letterRedisRepository.isWriting(letter.getId()),
+                    latestAction);
+        });
+
+        return AdminLetterListRes.from(mappedPage);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminLetterDetailRes getAdminLetter(long id) {
+        Letter letter = letterPort.findByIdForAdmin(id)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 편지입니다."));
+
+        List<AdminLetterActionLogItem> actionLogs = letterAdminActionLogRepository
+                .findByLetterIdOrderByCreateDateDesc(letter.getId())
+                .stream()
+                .map(AdminLetterActionLogItem::from)
+                .toList();
+
+        return AdminLetterDetailRes.from(
+                letter,
+                letterRedisRepository.isWriting(letter.getId()),
+                actionLogs);
+    }
+
+    @Override
+    @Transactional
+    public void handleAdminLetter(long id, AdminLetterHandleReq req, long adminMemberId) {
+        Letter letter = letterPort.findByIdForAdmin(id)
+                .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 편지입니다."));
+
+        AdminLetterActionType action = req.action();
+        if (action == null) {
+            throw new ServiceException("400-1", "관리자 조치가 필요합니다.");
+        }
+
+        String memo = normalizeMemo(req.memo());
+        if (action == AdminLetterActionType.NOTE && memo == null) {
+            throw new ServiceException("400-1", "운영 메모를 입력해 주세요.");
+        }
+
+        switch (action) {
+            case NOTE -> {
+            }
+            case REASSIGN_RECEIVER -> {
+                List<Long> excludeIds = buildExcludedMemberIds(letter);
+                Member newReceiver = letterPort.findRandomMemberExceptMe(excludeIds)
+                        .orElseThrow(() -> new ServiceException("404-2", "편지를 전달할 수 있는 다른 유저가 없습니다."));
+                letter.adminReassign(newReceiver);
+                letterRedisRepository.deleteWritingStatus(letter.getId());
+            }
+            case BLOCK_SENDER -> {
+                Member sender = letter.getSender();
+                memberService.blockMemberByAdminAction(
+                        sender.getId(),
+                        adminMemberId,
+                        memo,
+                        true);
+            }
+        }
+
+        letterAdminActionLogRepository.save(
+                com.back.letter.domain.LetterAdminActionLog.create(
+                        letter,
+                        adminMemberId,
+                        resolveAdminNickname(adminMemberId),
+                        action,
+                        memo));
+    }
+
+    @Override
     public LetterListRes getMyInbox(long memberId, int page, int size) {
         Page<Letter> letterPage = letterPort.findByReceiverId(memberId, PageRequest.of(page, size, Sort.by("id").descending()));
         return LetterListRes.from(letterPage.map(l -> LetterItem.from(l, letterRedisRepository.isWriting(l.getId()))));
@@ -207,5 +308,46 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase {
         }
         return letterPort.findRandomMemberExceptMe(List.of(senderId))
                 .orElseThrow(() -> new ServiceException("404-1", "수신 가능한 사용자가 없습니다."));
+    }
+
+    private List<Long> buildExcludedMemberIds(Letter letter) {
+        Long senderId = letter.getSender().getId();
+        Long receiverId = letter.getReceiver() != null ? letter.getReceiver().getId() : null;
+        if (receiverId == null) {
+            return List.of(senderId);
+        }
+        return List.of(senderId, receiverId);
+    }
+
+    private String resolveAdminNickname(long adminMemberId) {
+        return memberRepository.findById(adminMemberId)
+                .map(Member::getNickname)
+                .orElse("관리자#" + adminMemberId);
+    }
+
+    private String normalizeQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        return query.trim();
+    }
+
+    private String normalizeMemo(String memo) {
+        if (memo == null || memo.isBlank()) {
+            return null;
+        }
+        return memo.trim();
+    }
+
+    private LetterStatus resolveStatusFilter(String status, boolean onlyUnassigned) {
+        if (onlyUnassigned || status == null || status.isBlank()) {
+            return null;
+        }
+
+        try {
+            return LetterStatus.valueOf(status.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new ServiceException("400-1", "지원하지 않는 편지 상태입니다.");
+        }
     }
 }

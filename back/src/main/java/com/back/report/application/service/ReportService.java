@@ -13,6 +13,7 @@ import com.back.member.domain.Member;
 import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberStatus;
+import com.back.member.application.MemberService;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
@@ -43,6 +44,7 @@ public class ReportService {
     private final DiaryRepository diaryRepository;
     private final CommentRepository commentRepository;
     private final NotificationService notificationService;
+    private final MemberService memberService;
     private final Clock clock;
 
     @Transactional
@@ -154,7 +156,7 @@ public class ReportService {
 
     // 관리자용 신고 처리 로직
     @Transactional
-    public void handleReport(Long id, ReportHandleRequest request) {
+    public void handleReport(Long id, ReportHandleRequest request, Long adminMemberId) {
         Report report = reportPersistencePort.findById(id)
                 .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 신고입니다."));
 
@@ -179,8 +181,11 @@ public class ReportService {
         // 작성자 계정 정지 (POST, LETTER, COMMENT)
         else if ("BLOCK_USER".equals(request.action())) {
             if (reportedUserId != null) {
-                memberRepository.findById(reportedUserId)
-                        .ifPresent(member -> member.updateStatus(MemberStatus.BLOCKED));
+                memberService.blockMemberByAdminAction(
+                        reportedUserId,
+                        adminMemberId,
+                        request.adminComment(),
+                        true);
             }
         }
         report.markAsProcessed(request.action());

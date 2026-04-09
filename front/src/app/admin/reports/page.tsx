@@ -2,21 +2,53 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Flag, FileWarning, Inbox, ShieldAlert } from "lucide-react";
 import {
+  ArrowUpDown,
+  ChevronRight,
+  FileWarning,
+  Flag,
+  Inbox,
+  Mail,
+  MessageSquare,
+  Search,
+  ShieldAlert,
+} from "lucide-react";
+import {
+  formatAdminReportActionLabel,
   formatAdminReportDateTime,
+  getAdminReportActionExecutionNote,
   formatAdminReportStatusLabel,
   formatAdminReportTargetTypeLabel,
-  sortAdminReportsByCreatedAtDesc,
+  getAdminReportActionDescription,
+  isAdminReportActionSupported,
+  matchesAdminReportQuery,
+  sortAdminReports,
 } from "@/lib/admin/report-presenter";
-import { getAdminReports } from "@/lib/admin/report-service";
-import type { AdminReportListItem, AdminReportStatus } from "@/lib/admin/report-types";
+import { getAdminReports, handleAdminReport } from "@/lib/admin/report-service";
+import type {
+  AdminReportAction,
+  AdminReportListItem,
+  AdminReportSortOption,
+  AdminReportStatus,
+} from "@/lib/admin/report-types";
 import { toErrorMessage } from "@/lib/api/rs-data";
 
 const REPORT_FILTERS = ["전체", "RECEIVED", "PROCESSED"] as const;
+const REPORT_TARGET_FILTERS = ["ALL", "POST", "COMMENT", "LETTER"] as const;
+const REPORT_SORT_OPTIONS: { value: AdminReportSortOption; label: string }[] = [
+  { value: "LATEST", label: "최신순" },
+  { value: "PENDING_FIRST", label: "미처리 우선" },
+];
+const QUICK_ACTIONS: AdminReportAction[] = ["REJECT", "DELETE", "BLOCK_USER"];
 const TREND_DAYS = 7;
 
 type ReportFilter = (typeof REPORT_FILTERS)[number];
+type ReportTargetFilter = (typeof REPORT_TARGET_FILTERS)[number];
+
+interface PendingQuickAction {
+  reportId: number;
+  action: AdminReportAction;
+}
 
 function getStatusTone(status: AdminReportStatus): string {
   if (status === "PROCESSED") {
@@ -31,6 +63,13 @@ export default function AdminReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<ReportFilter>("전체");
+  const [activeTargetFilter, setActiveTargetFilter] = useState<ReportTargetFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOption, setSortOption] = useState<AdminReportSortOption>("PENDING_FIRST");
+  const [pendingQuickAction, setPendingQuickAction] = useState<PendingQuickAction | null>(null);
+  const [isQuickHandling, setIsQuickHandling] = useState(false);
+  const [quickActionNoticeMessage, setQuickActionNoticeMessage] = useState<string | null>(null);
+  const [quickActionErrorMessage, setQuickActionErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +81,7 @@ export default function AdminReportsPage() {
       try {
         const data = await getAdminReports();
         if (!cancelled) {
-          setReports(sortAdminReportsByCreatedAtDesc(data));
+          setReports(data);
         }
       } catch (error: unknown) {
         if (!cancelled) {
@@ -63,18 +102,34 @@ export default function AdminReportsPage() {
     };
   }, []);
 
-  const visibleReports = useMemo(() => {
-    if (activeFilter === "전체") {
-      return reports;
-    }
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      if (activeFilter !== "전체" && report.status !== activeFilter) {
+        return false;
+      }
 
-    return reports.filter((report) => report.status === activeFilter);
-  }, [activeFilter, reports]);
+      if (activeTargetFilter !== "ALL" && report.targetType !== activeTargetFilter) {
+        return false;
+      }
+
+      return matchesAdminReportQuery(report, searchQuery);
+    });
+  }, [activeFilter, activeTargetFilter, reports, searchQuery]);
+
+  const visibleReports = useMemo(() => {
+    return sortAdminReports(filteredReports, sortOption);
+  }, [filteredReports, sortOption]);
+
+  useEffect(() => {
+    if (pendingQuickAction && !visibleReports.some((report) => report.reportId === pendingQuickAction.reportId)) {
+      setPendingQuickAction(null);
+    }
+  }, [pendingQuickAction, visibleReports]);
 
   const summaryCards = useMemo(() => {
     const receivedCount = reports.filter((report) => report.status === "RECEIVED").length;
-    const processedCount = reports.filter((report) => report.status === "PROCESSED").length;
     const postCount = reports.filter((report) => report.targetType === "POST").length;
+    const commentCount = reports.filter((report) => report.targetType === "COMMENT").length;
     const letterCount = reports.filter((report) => report.targetType === "LETTER").length;
 
     return [
@@ -100,10 +155,17 @@ export default function AdminReportsPage() {
         iconTone: "bg-[#fff6eb] text-[#f2a34b]",
       },
       {
+        label: "댓글 신고",
+        value: commentCount,
+        helper: "대화 흐름 확인 필요",
+        icon: MessageSquare,
+        iconTone: "bg-[#f3f0ff] text-[#7758d1]",
+      },
+      {
         label: "비밀편지 신고",
         value: letterCount,
-        helper: processedCount > 0 ? `처리 완료 ${processedCount}건` : "아직 처리 완료 없음",
-        icon: ShieldAlert,
+        helper: "개인 메시지 검토",
+        icon: Mail,
         iconTone: "bg-[#fff1f1] text-[#e17272]",
       },
     ];
@@ -111,6 +173,38 @@ export default function AdminReportsPage() {
 
   const trendItems = useMemo(() => buildTrendItems(reports), [reports]);
   const reasonKeywords = useMemo(() => buildReasonKeywords(reports), [reports]);
+
+  function selectQuickAction(reportId: number, action: AdminReportAction): void {
+    setPendingQuickAction({ reportId, action });
+    setQuickActionErrorMessage(null);
+  }
+
+  async function executeQuickAction(report: AdminReportListItem): Promise<void> {
+    if (!pendingQuickAction || pendingQuickAction.reportId !== report.reportId || isQuickHandling) {
+      return;
+    }
+
+    setIsQuickHandling(true);
+    setQuickActionErrorMessage(null);
+    setQuickActionNoticeMessage(null);
+
+    try {
+      await handleAdminReport(report.reportId, pendingQuickAction.action);
+      setReports((current) =>
+        current.map((item) =>
+          item.reportId === report.reportId ? { ...item, status: "PROCESSED" } : item,
+        ),
+      );
+      setPendingQuickAction(null);
+      setQuickActionNoticeMessage(
+        `${formatAdminReportActionLabel(pendingQuickAction.action, report.targetType)} 처리가 완료되었습니다.`,
+      );
+    } catch (error: unknown) {
+      setQuickActionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIsQuickHandling(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -151,7 +245,7 @@ export default function AdminReportsPage() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-4">
+        <div className="mt-6 grid gap-4 xl:grid-cols-5">
           {summaryCards.map((card) => (
             <SummaryCard
               key={card.label}
@@ -250,9 +344,64 @@ export default function AdminReportsPage() {
           </div>
         </div>
 
+        <div className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_200px_180px]">
+          <label className="flex items-center gap-3 rounded-[22px] border border-[#dce7f8] bg-[#f8fbff] px-4 py-3 text-[#7f97ba]">
+            <Search size={18} />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="신고자, 사유, 대상 ID로 검색"
+              className="w-full bg-transparent text-sm text-[#314969] outline-none placeholder:text-[#9cb1cc]"
+            />
+          </label>
+
+          <label className="flex items-center gap-3 rounded-[22px] border border-[#dce7f8] bg-[#f8fbff] px-4 py-3 text-[#7f97ba]">
+            <ShieldAlert size={18} />
+            <select
+              value={activeTargetFilter}
+              onChange={(event) => setActiveTargetFilter(event.target.value as ReportTargetFilter)}
+              className="w-full bg-transparent text-sm font-semibold text-[#314969] outline-none"
+            >
+              {REPORT_TARGET_FILTERS.map((filter) => (
+                <option key={filter} value={filter}>
+                  {filter === "ALL" ? "전체 대상" : formatAdminReportTargetTypeLabel(filter)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-3 rounded-[22px] border border-[#dce7f8] bg-[#f8fbff] px-4 py-3 text-[#7f97ba]">
+            <ArrowUpDown size={18} />
+            <select
+              value={sortOption}
+              onChange={(event) => setSortOption(event.target.value as AdminReportSortOption)}
+              className="w-full bg-transparent text-sm font-semibold text-[#314969] outline-none"
+            >
+              {REPORT_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         {isLoading ? (
           <div className="mt-6 rounded-[24px] bg-[#f7fbff] px-6 py-14 text-center text-[#5f7598]">
             신고 목록을 불러오는 중입니다.
+          </div>
+        ) : null}
+
+        {!isLoading && !errorMessage && quickActionNoticeMessage ? (
+          <div className="mt-6 rounded-[20px] border border-[#d5ead8] bg-[#f1fbf2] px-5 py-4 text-sm text-[#3e6f49]">
+            {quickActionNoticeMessage}
+          </div>
+        ) : null}
+
+        {!isLoading && !errorMessage && quickActionErrorMessage ? (
+          <div className="mt-6 rounded-[20px] border border-[#f3d0d0] bg-[#fff8f8] px-5 py-4 text-sm text-[#9a4b4b]">
+            {quickActionErrorMessage}
           </div>
         ) : null}
 
@@ -276,7 +425,7 @@ export default function AdminReportsPage() {
 
         {!isLoading && !errorMessage && visibleReports.length > 0 ? (
           <div className="mt-6 overflow-hidden rounded-[24px] border border-[#e6eef9]">
-            <div className="hidden grid-cols-[110px_140px_130px_120px_minmax(0,1fr)_120px_180px_30px] items-center gap-4 bg-[#f7fbff] px-6 py-4 text-sm font-semibold text-[#6d82a5] lg:grid">
+            <div className="hidden grid-cols-[110px_140px_130px_120px_minmax(0,1fr)_120px_160px_220px] items-center gap-4 bg-[#f7fbff] px-6 py-4 text-sm font-semibold text-[#6d82a5] lg:grid">
               <span>신고 ID</span>
               <span>신고자</span>
               <span>대상 타입</span>
@@ -284,56 +433,159 @@ export default function AdminReportsPage() {
               <span>사유</span>
               <span>상태</span>
               <span>생성일</span>
-              <span />
+              <span className="text-right">빠른 처리</span>
             </div>
 
             <div className="divide-y divide-[#edf3fe]">
-              {visibleReports.map((report) => (
-                <Link
-                  key={report.reportId}
-                  href={`/admin/reports/${report.reportId}`}
-                  className="block px-6 py-5 transition hover:bg-[#f9fbff]"
-                >
-                  <div className="hidden grid-cols-[110px_140px_130px_120px_minmax(0,1fr)_120px_180px_30px] items-center gap-4 lg:grid">
-                    <span className="font-semibold text-[#29405f]">#{report.reportId}</span>
-                    <span className="truncate text-[#516885]">{report.reporterNickname}</span>
-                    <span className="text-[#516885]">
-                      {formatAdminReportTargetTypeLabel(report.targetType)}
-                    </span>
-                    <span className="text-[#516885]">{report.targetId}</span>
-                    <span className="truncate text-[#314969]">{report.reason}</span>
-                    <span
-                      className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(report.status)}`}
-                    >
-                      {formatAdminReportStatusLabel(report.status)}
-                    </span>
-                    <span className="text-sm text-[#6b81a2]">
-                      {formatAdminReportDateTime(report.createdAt)}
-                    </span>
-                    <span className="text-[#9ab1d4]">
-                      <ChevronRight size={18} />
-                    </span>
-                  </div>
+              {visibleReports.map((report) => {
+                const activeQuickAction =
+                  pendingQuickAction?.reportId === report.reportId ? pendingQuickAction.action : null;
+                const quickActions = QUICK_ACTIONS.filter((action) =>
+                  isAdminReportActionSupported(action, report.targetType),
+                );
 
-                  <div className="space-y-3 lg:hidden">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold text-[#29405f]">#{report.reportId}</span>
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(report.status)}`}
-                      >
-                        {formatAdminReportStatusLabel(report.status)}
-                      </span>
+                return (
+                  <div key={report.reportId} className="px-6 py-5 transition hover:bg-[#f9fbff]">
+                    <div className="hidden grid-cols-[110px_140px_130px_120px_minmax(0,1fr)_120px_160px_220px] items-center gap-4 lg:grid">
+                      <Link href={`/admin/reports/${report.reportId}`} className="contents">
+                        <span className="font-semibold text-[#29405f]">#{report.reportId}</span>
+                        <span className="truncate text-[#516885]">{report.reporterNickname}</span>
+                        <span className="text-[#516885]">
+                          {formatAdminReportTargetTypeLabel(report.targetType)}
+                        </span>
+                        <span className="text-[#516885]">{report.targetId}</span>
+                        <span className="truncate text-[#314969]">{report.reason}</span>
+                        <span
+                          className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(report.status)}`}
+                        >
+                          {formatAdminReportStatusLabel(report.status)}
+                        </span>
+                        <span className="text-sm text-[#6b81a2]">
+                          {formatAdminReportDateTime(report.createdAt)}
+                        </span>
+                      </Link>
+
+                      <div className="flex items-center justify-end gap-2">
+                        {report.status === "RECEIVED"
+                          ? quickActions.map((action) => {
+                              const selected = activeQuickAction === action;
+
+                              return (
+                                <button
+                                  key={action}
+                                  type="button"
+                                  onClick={() => selectQuickAction(report.reportId, action)}
+                                  disabled={isQuickHandling}
+                                  className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                                    selected
+                                      ? "bg-[#4f8cf0] text-white"
+                                      : "bg-white text-[#5f7598] ring-1 ring-[#dce7f8] hover:text-[#35527e]"
+                                  } disabled:cursor-not-allowed disabled:opacity-70`}
+                                >
+                                  {formatAdminReportActionLabel(action, report.targetType)}
+                                </button>
+                              );
+                            })
+                          : null}
+                        <Link
+                          href={`/admin/reports/${report.reportId}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#edf5ff] px-3 py-2 text-xs font-semibold text-[#3d7fe1] transition hover:bg-[#e3efff]"
+                        >
+                          상세
+                          <ChevronRight size={14} />
+                        </Link>
+                      </div>
                     </div>
-                    <div className="grid gap-2 text-sm text-[#526987] sm:grid-cols-2">
-                      <p>신고자 {report.reporterNickname}</p>
-                      <p>대상 {formatAdminReportTargetTypeLabel(report.targetType)}</p>
-                      <p>대상 ID {report.targetId}</p>
-                      <p>{formatAdminReportDateTime(report.createdAt)}</p>
+
+                    <div className="space-y-3 lg:hidden">
+                      <Link href={`/admin/reports/${report.reportId}`} className="block">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-semibold text-[#29405f]">#{report.reportId}</span>
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(report.status)}`}
+                          >
+                            {formatAdminReportStatusLabel(report.status)}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-sm text-[#526987] sm:grid-cols-2">
+                          <p>신고자 {report.reporterNickname}</p>
+                          <p>대상 {formatAdminReportTargetTypeLabel(report.targetType)}</p>
+                          <p>대상 ID {report.targetId}</p>
+                          <p>{formatAdminReportDateTime(report.createdAt)}</p>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-[#314969]">{report.reason}</p>
+                      </Link>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {report.status === "RECEIVED"
+                          ? quickActions.map((action) => {
+                              const selected = activeQuickAction === action;
+
+                              return (
+                                <button
+                                  key={action}
+                                  type="button"
+                                  onClick={() => selectQuickAction(report.reportId, action)}
+                                  disabled={isQuickHandling}
+                                  className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                                    selected
+                                      ? "bg-[#4f8cf0] text-white"
+                                      : "bg-white text-[#5f7598] ring-1 ring-[#dce7f8] hover:text-[#35527e]"
+                                  } disabled:cursor-not-allowed disabled:opacity-70`}
+                                >
+                                  {formatAdminReportActionLabel(action, report.targetType)}
+                                </button>
+                              );
+                            })
+                          : null}
+                        <Link
+                          href={`/admin/reports/${report.reportId}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#edf5ff] px-3 py-2 text-xs font-semibold text-[#3d7fe1] transition hover:bg-[#e3efff]"
+                        >
+                          상세 보기
+                          <ChevronRight size={14} />
+                        </Link>
+                      </div>
                     </div>
-                    <p className="text-sm leading-6 text-[#314969]">{report.reason}</p>
+
+                    {activeQuickAction ? (
+                      <div className="mt-4 rounded-[20px] border border-[#dce7f8] bg-[#f8fbff] px-4 py-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-[#5f7598]">
+                              {formatAdminReportActionLabel(activeQuickAction, report.targetType)}
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-[#6d83a5]">
+                              {getAdminReportActionDescription(activeQuickAction, report.targetType)}
+                            </p>
+                            <p className="mt-2 text-xs leading-5 text-[#8ea3c0]">
+                              {getAdminReportActionExecutionNote(activeQuickAction, report.targetType)}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPendingQuickAction(null)}
+                              disabled={isQuickHandling}
+                              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#5f7598] ring-1 ring-[#dce7f8] disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void executeQuickAction(report)}
+                              disabled={isQuickHandling}
+                              className="rounded-full bg-[#4f8cf0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3f80eb] disabled:cursor-not-allowed disabled:bg-[#b6c9e7]"
+                            >
+                              {isQuickHandling ? "처리 중..." : "이 행에서 바로 처리"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -370,6 +622,7 @@ function SummaryCard({
     </div>
   );
 }
+
 
 function buildTrendItems(reports: AdminReportListItem[]) {
   const today = new Date();

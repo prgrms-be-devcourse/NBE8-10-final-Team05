@@ -29,9 +29,9 @@ type AdminNavItem = {
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: "대시보드", icon: LayoutDashboard, href: "/admin", matchMode: "exact" },
   { label: "회원 관리", icon: Users, href: "/admin/members", matchMode: "prefix" },
-  { label: "비밀편지 관리", icon: BookHeart },
+  { label: "비밀편지 관리", icon: BookHeart, href: "/admin/letters", matchMode: "prefix" },
   { label: "신고 관리", icon: ShieldAlert, href: "/admin/reports", matchMode: "prefix" },
-  { label: "설정", icon: Settings },
+  { label: "설정", icon: Settings, href: "/admin/settings", matchMode: "prefix" },
 ];
 
 export default function AdminShell({ children }: AdminShellProps) {
@@ -102,7 +102,7 @@ export default function AdminShell({ children }: AdminShellProps) {
                   type="text"
                   readOnly
                   value=""
-                  placeholder="신고자 닉네임, 신고 사유 키워드를 확인하세요"
+                  placeholder="회원, 비밀편지, 신고 키워드를 관리 화면에서 확인하세요"
                   className="w-full bg-transparent text-sm outline-none placeholder:text-[#9aaec9]"
                 />
               </label>

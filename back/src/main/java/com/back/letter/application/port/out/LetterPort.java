@@ -1,6 +1,7 @@
 package com.back.letter.application.port.out;
 
 import com.back.letter.domain.Letter;
+import com.back.letter.domain.LetterStatus;
 import com.back.member.domain.Member;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,6 +13,8 @@ import java.util.Optional;
 public interface LetterPort {
     Letter save(Letter letter);
     Optional<Letter> findById(long id);
+    Optional<Letter> findByIdForAdmin(long id);
+    Page<Letter> searchAdminLetters(String query, LetterStatus status, boolean onlyUnassigned, Pageable pageable);
     Page<Letter> findByReceiverId(long memberId, Pageable pageable);
     Page<Letter> findBySenderId(long memberId, Pageable pageable);
     Optional<Member> findRandomMemberExceptMe(List<Long> excludeIds);

@@ -9,6 +9,7 @@ import com.back.global.time.KstDateRanges;
 import com.back.letter.domain.Letter;
 import com.back.notification.application.service.NotificationService;
 import com.back.letter.adapter.out.persistence.repository.LetterRepository;
+import com.back.member.application.MemberService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberRepository;
@@ -64,6 +65,8 @@ class ReportServiceTest {
     private CommentRepository commentRepository;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private MemberService memberService;
     @Mock
     private Clock clock;
     @InjectMocks
@@ -232,7 +235,7 @@ class ReportServiceTest {
 
         ReportHandleRequest request = new ReportHandleRequest("REJECT", "사유없음", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 1L);
 
         assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
     }
@@ -258,7 +261,7 @@ class ReportServiceTest {
 
         ReportHandleRequest request = new ReportHandleRequest("DELETE", "게시글 삭제", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 1L);
 
         assertThat(post.getStatus()).isEqualTo(PostStatus.HIDDEN);
         assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
@@ -281,7 +284,7 @@ class ReportServiceTest {
 
         ReportHandleRequest request = new ReportHandleRequest("DELETE", "댓글 삭제", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 1L);
 
         verify(comment).markAsDelete(); // markAsDelete 호출 여부 검증
         assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
@@ -301,13 +304,11 @@ class ReportServiceTest {
 
         given(reportPersistencePort.findById(reportId)).willReturn(Optional.of(report));
         given(postRepository.findById(postId)).willReturn(Optional.of(post));
-        given(memberRepository.findById(100L)).willReturn(Optional.of(author));
-
         ReportHandleRequest request = new ReportHandleRequest("BLOCK_USER", "유저 정지", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 9L);
 
-        assertThat(author.getStatus()).isEqualTo(MemberStatus.BLOCKED);
+        verify(memberService).blockMemberByAdminAction(100L, 9L, "유저 정지", true);
         assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
     }
 
@@ -327,13 +328,11 @@ class ReportServiceTest {
 
         given(reportPersistencePort.findById(reportId)).willReturn(Optional.of(report));
         given(letterRepository.findById(letterId)).willReturn(Optional.of(letter));
-        given(memberRepository.findById(senderId)).willReturn(Optional.of(sender));
-
         ReportHandleRequest request = new ReportHandleRequest("BLOCK_USER", "유저 정지", false, "운영 정책 위반");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 9L);
 
-        assertThat(sender.getStatus()).isEqualTo(MemberStatus.BLOCKED); // 상태 변경 확인
+        verify(memberService).blockMemberByAdminAction(senderId, 9L, "유저 정지", true);
         verify(notificationService).send(eq(senderId), anyString(), eq("운영 정책 위반")); // 커스텀 메시지 확인
     }
 
@@ -375,7 +374,7 @@ class ReportServiceTest {
 
         ReportHandleRequest request = new ReportHandleRequest("DELETE", "삭제", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 1L);
 
         assertThat(post.getStatus()).isEqualTo(PostStatus.HIDDEN);
         assertThat(report.getProcessingAction()).isEqualTo("DELETE");
@@ -398,13 +397,11 @@ class ReportServiceTest {
 
         given(reportPersistencePort.findById(reportId)).willReturn(Optional.of(report));
         given(postRepository.findById(10L)).willReturn(Optional.of(post));
-        given(memberRepository.findById(authorId)).willReturn(Optional.of(author));
-
         ReportHandleRequest request = new ReportHandleRequest("BLOCK_USER", "정지", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 9L);
 
-        assertThat(author.getStatus()).isEqualTo(MemberStatus.BLOCKED);
+        verify(memberService).blockMemberByAdminAction(authorId, 9L, "정지", true);
 
         // SSE 알림 발송 검증
         verify(notificationService).send(eq(authorId), eq("REPORT_RESULT"), contains("정지"));
@@ -420,7 +417,7 @@ class ReportServiceTest {
 
         ReportHandleRequest request = new ReportHandleRequest("REJECT", "반려", false, "");
 
-        reportService.handleReport(reportId, request);
+        reportService.handleReport(reportId, request, 1L);
 
         assertThat(report.getStatus()).isEqualTo(ReportStatus.PROCESSED);
         // 알림 서비스가 호출되지 않았음을 검증

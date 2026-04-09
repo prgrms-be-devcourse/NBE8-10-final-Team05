@@ -37,4 +37,13 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Post p set p.viewCount = p.viewCount + :delta where p.id = :postId")
     int incrementViewCount(@Param("postId") Long postId, @Param("delta") int delta);
+
+    @Query("""
+        SELECT p
+        FROM Post p
+        JOIN FETCH p.member m
+        WHERE m.id = :memberId
+        ORDER BY p.createDate DESC
+        """)
+    java.util.List<Post> findRecentByMemberId(@Param("memberId") Long memberId, Pageable pageable);
 }
