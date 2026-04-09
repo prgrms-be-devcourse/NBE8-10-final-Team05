@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { restoreSession } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
 import SessionRevisionBoundary from "@/components/auth/SessionRevisionBoundary";
 
@@ -14,7 +15,25 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const syncedPathRef = useRef<string | null>(null);
   const { isRestoring, hasRestored, isAuthenticated } = useAuthStore();
+
+  useLayoutEffect(() => {
+    const normalizedPath = pathname || "/";
+    if (isRestoring || !hasRestored || !isAuthenticated) {
+      if (!isAuthenticated) {
+        syncedPathRef.current = null;
+      }
+      return;
+    }
+
+    if (syncedPathRef.current === normalizedPath) {
+      return;
+    }
+
+    syncedPathRef.current = normalizedPath;
+    void restoreSession({ force: true });
+  }, [hasRestored, isAuthenticated, isRestoring, pathname]);
 
   useEffect(() => {
     if (!isRestoring && hasRestored && !isAuthenticated) {

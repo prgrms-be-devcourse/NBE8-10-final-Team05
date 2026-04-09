@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import SessionRevisionBoundary from "@/components/auth/SessionRevisionBoundary";
+import { restoreSession } from "@/lib/auth/auth-service";
 import { useAuthStore } from "@/lib/auth/auth-store";
 
 interface AdminRouteProps {
@@ -14,8 +15,26 @@ interface AdminRouteProps {
 export default function AdminRoute({ children }: AdminRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const syncedPathRef = useRef<string | null>(null);
   const { isRestoring, hasRestored, isAuthenticated, member } = useAuthStore();
   const isAdmin = member?.role === "ADMIN";
+
+  useLayoutEffect(() => {
+    const normalizedPath = pathname || "/admin/reports";
+    if (isRestoring || !hasRestored || !isAuthenticated) {
+      if (!isAuthenticated) {
+        syncedPathRef.current = null;
+      }
+      return;
+    }
+
+    if (syncedPathRef.current === normalizedPath) {
+      return;
+    }
+
+    syncedPathRef.current = normalizedPath;
+    void restoreSession({ force: true });
+  }, [hasRestored, isAuthenticated, isRestoring, pathname]);
 
   useEffect(() => {
     if (isRestoring || !hasRestored) {
