@@ -151,7 +151,7 @@ export default function AdminLetterDetailPage() {
   if (isLoading) {
     return (
       <div className="rounded-[28px] bg-white px-6 py-14 text-center text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
-        비밀편지 상세를 불러오는 중입니다.
+        상세 로딩 중
       </div>
     );
   }
@@ -162,10 +162,8 @@ export default function AdminLetterDetailPage() {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff0f0] text-[#c46464]">
           <BookHeart size={22} />
         </div>
-        <p className="mt-4 text-[18px] font-semibold text-[#7a3d3d]">
-          비밀편지 상세를 확인할 수 없습니다.
-        </p>
-        <p className="mt-2 text-sm text-[#9a4b4b]">{errorMessage ?? "편지 정보를 찾을 수 없습니다."}</p>
+        <p className="mt-4 text-[18px] font-semibold text-[#7a3d3d]">조회 실패</p>
+        <p className="mt-2 text-sm text-[#9a4b4b]">{errorMessage ?? "데이터 없음"}</p>
         <Link
           href="/admin/letters"
           className="mt-5 inline-flex text-sm font-semibold text-[#7a3d3d] underline decoration-[#e4a6a6] underline-offset-4"
@@ -176,7 +174,7 @@ export default function AdminLetterDetailPage() {
     );
   }
 
-  const disableReassign = letter.status === "REPLIED";
+  const disableReassign = letter.status === "REPLIED" || letter.status === "WRITING";
   const disableBlockSender = letter.sender?.status === "BLOCKED";
 
   return (
@@ -192,15 +190,9 @@ export default function AdminLetterDetailPage() {
 
         <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-sm font-semibold tracking-[0.18em] text-[#86a2c7] uppercase">
-              Letter Detail
-            </p>
-            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
+            <h1 className="text-[32px] font-semibold tracking-[-0.04em] text-[#223552]">
               편지 #{letter.letterId}
             </h1>
-            <p className="mt-2 text-[15px] leading-7 text-[#6e83a5]">
-              실무 운영 기준으로 메모, 재배정, 발신자 차단, 조치 이력을 한 화면에서 처리합니다.
-            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -244,14 +236,14 @@ export default function AdminLetterDetailPage() {
               </div>
               <div>
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-                  원본 편지
+                  원문
                 </h2>
                 <p className="mt-1 text-sm text-[#8ba0bf]">{letter.title}</p>
               </div>
             </div>
 
             <div className="mt-5 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 whitespace-pre-wrap text-[#405a7f]">
-              {hasText(letter.content) ? letter.content : "원문 내용을 확인할 수 없습니다."}
+              {hasText(letter.content) ? letter.content : "내용 없음"}
             </div>
           </div>
 
@@ -262,26 +254,20 @@ export default function AdminLetterDetailPage() {
               </div>
               <div>
                 <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-                  답장 내용
+                  답장
                 </h2>
-                <p className="mt-1 text-sm text-[#8ba0bf]">
-                  {hasText(letter.replyContent) ? "답장 전문을 확인합니다." : "아직 등록된 답장이 없습니다."}
-                </p>
               </div>
             </div>
 
             <div className="mt-5 rounded-[24px] bg-[#f8fbff] px-5 py-5 text-[15px] leading-7 whitespace-pre-wrap text-[#405a7f]">
-              {hasText(letter.replyContent) ? letter.replyContent : "아직 답장이 등록되지 않았습니다."}
+              {hasText(letter.replyContent) ? letter.replyContent : "답장 없음"}
             </div>
           </div>
 
           <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
             <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-              조치 이력
+              이력
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
-              운영 메모와 실행된 조치가 시간 역순으로 남습니다.
-            </p>
 
             <div className="mt-5 space-y-4">
               {letter.actionLogs.length > 0 ? (
@@ -299,13 +285,13 @@ export default function AdminLetterDetailPage() {
                       </span>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-[#405a7f]">
-                      {hasText(log.memo) ? log.memo : "메모 없이 기록된 조치입니다."}
+                      {hasText(log.memo) ? log.memo : "메모 없음"}
                     </p>
                   </div>
                 ))
               ) : (
                 <div className="rounded-[22px] bg-[#f7fbff] px-4 py-6 text-sm text-[#6c82a5]">
-                  아직 기록된 운영 조치가 없습니다.
+                  이력 없음
                 </div>
               )}
             </div>
@@ -315,17 +301,14 @@ export default function AdminLetterDetailPage() {
         <div className="space-y-6">
           <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
             <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-              운영 조치
+              조치
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
-              메모 기록, 새 수신자 재배정, 발신자 차단을 바로 실행할 수 있습니다.
-            </p>
 
             <textarea
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               rows={5}
-              placeholder="운영 판단 근거를 남겨 두세요."
+              placeholder="메모 입력"
               className="mt-5 w-full rounded-[20px] border border-[#dce7f8] bg-[#f9fbff] px-4 py-4 text-sm leading-6 text-[#2b4162] outline-none focus:border-[#8ab6ef] focus:ring-2 focus:ring-[#8ab6ef]/20"
             />
 
@@ -333,21 +316,18 @@ export default function AdminLetterDetailPage() {
               <ActionButton
                 icon={<StickyNote size={16} />}
                 label="운영 메모 기록"
-                description="판단 근거만 남기고 상태는 변경하지 않습니다."
                 disabled={isHandling || !memo.trim()}
                 onClick={() => void applyAction("NOTE")}
               />
               <ActionButton
                 icon={<RefreshCcw size={16} />}
                 label="새 수신자 재배정"
-                description="답장 전 단계 편지를 다른 수신자에게 넘깁니다."
                 disabled={isHandling || disableReassign}
                 onClick={() => void applyAction("REASSIGN_RECEIVER")}
               />
               <ActionButton
                 icon={<Ban size={16} />}
                 label="발신자 차단"
-                description="악성/위험 발신자를 차단 상태로 전환합니다."
                 disabled={isHandling || disableBlockSender}
                 onClick={() => void applyAction("BLOCK_SENDER")}
               />
@@ -356,11 +336,8 @@ export default function AdminLetterDetailPage() {
 
           <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
             <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-              회원 바로가기
+              회원
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
-              발신자와 수신자를 회원 관리 화면으로 바로 조회합니다.
-            </p>
 
             <div className="mt-5 space-y-4">
               <MemberCard label="발신자" member={letter.sender} />
@@ -370,11 +347,8 @@ export default function AdminLetterDetailPage() {
 
           <div className="rounded-[30px] bg-white px-6 py-6 shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
             <h2 className="text-[24px] font-semibold tracking-[-0.04em] text-[#223552]">
-              요약 메모
+              요약
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[#6c82a5]">
-              AI 요약본이 있으면 운영 확인용으로 함께 표시합니다.
-            </p>
 
             <div className="mt-5 space-y-4">
               <SummaryBox label="원문 요약" icon={<UserRound size={16} />} value={letter.summary} />
@@ -399,13 +373,11 @@ function InfoStat({ label, value }: { label: string; value: string }) {
 function ActionButton({
   icon,
   label,
-  description,
   disabled,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
-  description: string;
   disabled: boolean;
   onClick: () => void;
 }) {
@@ -424,7 +396,6 @@ function ActionButton({
         {icon}
         {label}
       </div>
-      <p className="mt-2 text-sm leading-6">{description}</p>
     </button>
   );
 }
@@ -472,7 +443,7 @@ function SummaryBox({
         {label}
       </div>
       <p className="mt-3 text-sm leading-6 text-[#405a7f]">
-        {hasText(value) ? value : "등록된 요약이 없습니다."}
+        {hasText(value) ? value : "요약 없음"}
       </p>
     </div>
   );

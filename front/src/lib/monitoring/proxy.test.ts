@@ -31,7 +31,7 @@ describe("monitoring proxy", () => {
 
     const request = new NextRequest("https://www.maum-on.parksuyeon.site/grafana/api/user", {
       headers: new Headers({
-        cookie: "maumOnAuthHint=admin",
+        "x-maum-on-server-auth": "admin",
       }),
     });
 

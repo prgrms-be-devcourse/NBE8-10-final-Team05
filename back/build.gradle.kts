@@ -59,6 +59,8 @@ dependencies {
 
     // DB 드라이버
     runtimeOnly("org.postgresql:postgresql:$postgresqlVersion")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
 
     // 테스트: 스프링
     testImplementation("org.springframework.boot:spring-boot-starter-test")

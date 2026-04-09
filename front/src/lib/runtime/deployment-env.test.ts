@@ -95,6 +95,24 @@ describe("deployment-env", () => {
     );
   });
 
+  it("절대 monitoring URL이 공개 env에 있으면 브라우저와 서버 모두 그 값을 사용한다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(
+      "NEXT_PUBLIC_MONITORING_PROXY_URL",
+      "https://monitor.maum-on.parksuyeon.site/",
+    );
+
+    const { getMonitoringProxyBaseUrl, getMonitoringProxyInternalUrl } =
+      await import("./deployment-env");
+
+    expect(getMonitoringProxyBaseUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site",
+    );
+    expect(getMonitoringProxyInternalUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site",
+    );
+  });
+
   it("경로 조합 유틸은 슬래시를 중복하지 않는다", async () => {
     const { joinBasePath, joinUrl } = await import("./deployment-env");
 

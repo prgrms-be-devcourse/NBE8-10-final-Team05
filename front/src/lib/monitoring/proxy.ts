@@ -1,24 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  AUTH_HINT_COOKIE_NAME,
-  parseAuthHintCookieValue,
-} from "@/lib/auth/auth-hint-cookie";
+import { SERVER_AUTH_HINT_HEADER } from "@/lib/auth/server-auth-payload";
 import { getMonitoringProxyInternalUrl, joinUrl } from "@/lib/runtime/deployment-env";
 
 const MONITORING_PROXY_INTERNAL_URL = getMonitoringProxyInternalUrl();
 const GRAFANA_AUTH_PROXY_USER = "maum-on-admin";
 const MONITORING_STATUS_HEADER = "x-maum-on-monitoring-status";
 const MONITORING_STATUS_DISABLED = "disabled";
+const SERVER_AUTH_HINT_ADMIN = "admin";
 
 export async function proxyMonitoringRequest(
   request: NextRequest,
   prefix: "/grafana" | "/prometheus",
 ): Promise<Response> {
-  const authHint = parseAuthHintCookieValue(
-    request.cookies.get(AUTH_HINT_COOKIE_NAME)?.value,
-  );
+  const serverAuthHint = request.headers.get(SERVER_AUTH_HINT_HEADER);
 
-  if (!authHint.isAuthenticated) {
+  if (!serverAuthHint) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set(
       "next",
@@ -27,7 +23,7 @@ export async function proxyMonitoringRequest(
     return NextResponse.redirect(loginUrl);
   }
 
-  if (!authHint.isAdmin) {
+  if (serverAuthHint !== SERVER_AUTH_HINT_ADMIN) {
     const forbiddenUrl = new URL("/forbidden", request.url);
     forbiddenUrl.searchParams.set(
       "from",

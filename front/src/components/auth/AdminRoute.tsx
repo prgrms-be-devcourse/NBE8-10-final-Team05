@@ -57,28 +57,8 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     }
   }, [hasRestored, isAdmin, isAuthenticated, isRestoring, normalizedPath, router]);
 
-  if (isRestoring || !hasRestored || needsSessionSync) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        세션을 복원하고 있습니다...
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        관리자 인증이 필요해 로그인 페이지로 이동합니다...
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        권한이 없어 접근할 수 없는 화면입니다...
-      </div>
-    );
+  if (!hasRestored || !isAuthenticated || !isAdmin) {
+    return null;
   }
 
   return <SessionRevisionBoundary>{children}</SessionRevisionBoundary>;

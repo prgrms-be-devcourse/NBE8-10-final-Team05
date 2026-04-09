@@ -102,7 +102,7 @@ export default function AdminShell({ children }: AdminShellProps) {
                   type="text"
                   readOnly
                   value=""
-                  placeholder="회원, 비밀편지, 신고 키워드를 관리 화면에서 확인하세요"
+                  placeholder="검색"
                   className="w-full bg-transparent text-sm outline-none placeholder:text-[#9aaec9]"
                 />
               </label>

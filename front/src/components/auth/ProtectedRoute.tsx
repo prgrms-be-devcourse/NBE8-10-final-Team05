@@ -47,20 +47,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     }
   }, [hasRestored, isAuthenticated, isRestoring, normalizedPath, router]);
 
-  if (isRestoring || !hasRestored || needsSessionSync) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        세션을 복원하고 있습니다...
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
-        인증이 필요해 로그인 페이지로 이동합니다...
-      </div>
-    );
+  if (!hasRestored || !isAuthenticated) {
+    return null;
   }
 
   return <SessionRevisionBoundary>{children}</SessionRevisionBoundary>;
