@@ -150,19 +150,6 @@ class SecurityIntegrationTest {
     LocalDateTime todayMorning = KstDateRanges.today(clock).startInclusive().plusHours(9);
     LocalDateTime yesterdayMorning = KstDateRanges.today(clock).startInclusive().minusDays(1).plusHours(9);
     var todayRange = KstDateRanges.today(clock);
-    long baselineTodayWorryCount =
-        postRepository.countByCategoryAndCreateDateGreaterThanEqualAndCreateDateLessThan(
-            PostCategory.WORRY,
-            todayRange.startInclusive(),
-            todayRange.endExclusive());
-    long baselineTodayLetterCount =
-        letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
-            todayRange.startInclusive(),
-            todayRange.endExclusive());
-    long baselineTodayDiaryCount =
-        diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
-            todayRange.startInclusive(),
-            todayRange.endExclusive());
 
     Member sender = createMember(MemberRole.USER, MemberStatus.ACTIVE);
     Member receiver = createMember(MemberRole.USER, MemberStatus.ACTIVE);
@@ -222,13 +209,27 @@ class SecurityIntegrationTest {
     todayDiary.setCreateDate(todayMorning);
     diaryRepository.saveAndFlush(todayDiary);
 
+    long expectedTodayWorryCount =
+        postRepository.countByCategoryAndCreateDateGreaterThanEqualAndCreateDateLessThan(
+            PostCategory.WORRY,
+            todayRange.startInclusive(),
+            todayRange.endExclusive());
+    long expectedTodayLetterCount =
+        letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            todayRange.startInclusive(),
+            todayRange.endExclusive());
+    long expectedTodayDiaryCount =
+        diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            todayRange.startInclusive(),
+            todayRange.endExclusive());
+
     mockMvc
         .perform(get("/api/v1/home/stats"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.resultCode").value("200-1"))
-        .andExpect(jsonPath("$.data.todayWorryCount").value(baselineTodayWorryCount + 1))
-        .andExpect(jsonPath("$.data.todayLetterCount").value(baselineTodayLetterCount + 1))
-        .andExpect(jsonPath("$.data.todayDiaryCount").value(baselineTodayDiaryCount + 1));
+        .andExpect(jsonPath("$.data.todayWorryCount").value(expectedTodayWorryCount))
+        .andExpect(jsonPath("$.data.todayLetterCount").value(expectedTodayLetterCount))
+        .andExpect(jsonPath("$.data.todayDiaryCount").value(expectedTodayDiaryCount));
   }
 
   @Test
