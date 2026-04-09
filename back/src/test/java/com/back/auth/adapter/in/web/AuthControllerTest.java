@@ -151,6 +151,32 @@ class AuthControllerTest {
   }
 
   @Test
+  @DisplayName("session API는 refresh 쿠키를 회전시키지 않고 현재 세션 payload를 반환한다")
+  void sessionReturnsCurrentSessionPayloadWithoutRotatingRefreshToken() throws Exception {
+    AuthTokenResponse response =
+        new AuthTokenResponse(
+            "session-access",
+            "Bearer",
+            3600L,
+            new AuthMemberResponse(3L, "admin@test.com", "admin", "ADMIN", "ACTIVE"));
+    given(refreshTokenCookieService.resolveRefreshToken(any()))
+        .willReturn(Optional.of("raw-refresh-token"));
+    given(authService.issueSessionToken("raw-refresh-token")).willReturn(response);
+
+    mockMvc
+        .perform(get("/api/v1/auth/session"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.resultCode").value("200-7"))
+        .andExpect(jsonPath("$.data.accessToken").value("session-access"))
+        .andExpect(jsonPath("$.data.member.role").value("ADMIN"));
+
+    then(refreshTokenCookieService).should().resolveRefreshToken(any());
+    then(authService).should().issueSessionToken("raw-refresh-token");
+    then(refreshTokenCookieService).shouldHaveNoMoreInteractions();
+    then(authHintCookieService).shouldHaveNoInteractions();
+  }
+
+  @Test
   @DisplayName("로그아웃 API는 refresh 폐기 시도 후 쿠키 만료 메서드를 호출한다")
   void logoutExpiresCookie() throws Exception {
     given(refreshTokenCookieService.resolveRefreshToken(any()))
