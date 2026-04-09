@@ -199,16 +199,44 @@ function readAdminReports(token) {
   check(response, {
     "admin reports list status 200": (res) => res.status === 200,
   });
-  return asArray(dataOf(response));
+  return asArray(dataOf(response)).sort((left, right) => {
+    const leftId = Number(left?.reportId ?? Number.NEGATIVE_INFINITY);
+    const rightId = Number(right?.reportId ?? Number.NEGATIVE_INFINITY);
+    return rightId - leftId;
+  });
 }
 
-function readAdminReportDetail(token, reportId) {
-  const response = http.get(`${BASE_URL}/api/v1/admin/reports/${reportId}`, {
+function requestAdminReportDetail(token, reportId) {
+  return http.get(`${BASE_URL}/api/v1/admin/reports/${reportId}`, {
     headers: bearerHeaders(token),
   });
-  check(response, {
-    "admin report detail status 200": (res) => res.status === 200,
-  });
+}
+
+function buildAdminReportCandidates(reports, preferredReportId) {
+  const candidates = [];
+  const seen = new Set();
+
+  if (Number.isFinite(Number(preferredReportId))) {
+    const normalizedPreferredId = Number(preferredReportId);
+    candidates.push(normalizedPreferredId);
+    seen.add(normalizedPreferredId);
+  }
+
+  for (const report of reports) {
+    const reportId = Number(report?.reportId ?? null);
+    if (!Number.isFinite(reportId) || seen.has(reportId)) {
+      continue;
+    }
+
+    candidates.push(reportId);
+    seen.add(reportId);
+
+    if (candidates.length >= 5) {
+      break;
+    }
+  }
+
+  return candidates;
 }
 
 function handleReport(token, reportId) {
@@ -268,12 +296,28 @@ function reportsAdminReadCore(admin, preferredReportId = null, withHandle = fals
   group("reports admin read", () => {
     readAdminStats(admin);
     const reports = readAdminReports(admin);
-    const reportId = preferredReportId ?? Number(reports[0]?.reportId ?? null);
-    if (Number.isFinite(reportId)) {
-      readAdminReportDetail(admin, reportId);
-      if (withHandle) {
-        handleReport(admin, reportId);
+    const candidateIds = buildAdminReportCandidates(reports, preferredReportId);
+    if (candidateIds.length === 0) {
+      return;
+    }
+
+    let selectedReportId = null;
+    let detailResponse = null;
+    for (const candidateId of candidateIds) {
+      const response = requestAdminReportDetail(admin, candidateId);
+      detailResponse = response;
+      if (response.status === 200) {
+        selectedReportId = candidateId;
+        break;
       }
+    }
+
+    check(detailResponse, {
+      "admin report detail status 200": (res) => res?.status === 200,
+    });
+
+    if (withHandle && Number.isFinite(selectedReportId)) {
+      handleReport(admin, selectedReportId);
     }
   });
 }

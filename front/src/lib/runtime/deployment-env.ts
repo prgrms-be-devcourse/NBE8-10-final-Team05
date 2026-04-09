@@ -45,8 +45,44 @@ function getConfiguredAuthCookieDomain(): string | null {
   return trimmed ? trimmed : null;
 }
 
+function normalizeConfiguredCookieDomain(
+  configuredDomain: string,
+  frontendHostname: string,
+): string | null {
+  const trimmed = configuredDomain.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const prefersSharedCookieDomain = trimmed.startsWith(".");
+  const candidate = trimTrailingSlash(trimmed.replace(/^\.+/, ""));
+  const configuredHostname = parseConfiguredCookieHostname(candidate);
+  if (!configuredHostname || isLocalOrIpHostname(configuredHostname)) {
+    return null;
+  }
+
+  if (prefersSharedCookieDomain) {
+    return `.${configuredHostname}`;
+  }
+
+  const sharedCookieDomain = findSharedCookieDomain(frontendHostname, configuredHostname);
+  if (sharedCookieDomain) {
+    return sharedCookieDomain;
+  }
+
+  return configuredHostname;
+}
+
 function normalizeHostname(hostname: string): string {
   return hostname.trim().replace(/^\.+/, "").toLowerCase();
+}
+
+function parseConfiguredCookieHostname(value: string): string | null {
+  try {
+    return normalizeHostname(new URL(value).hostname);
+  } catch {
+    return normalizeHostname(value.replace(/\/.*$/, "").replace(/:\d+$/, ""));
+  }
 }
 
 function isLocalOrIpHostname(hostname: string): boolean {
@@ -98,7 +134,7 @@ function findSharedCookieDomain(hostA: string, hostB: string): string | null {
 export function resolveSharedAuthCookieDomain(frontendHostname: string): string | null {
   const configured = getConfiguredAuthCookieDomain();
   if (configured) {
-    return configured;
+    return normalizeConfiguredCookieDomain(configured, frontendHostname);
   }
 
   try {

@@ -165,7 +165,12 @@ describe("auth-service", () => {
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe("https://maum-on.parksuyeon.site/letters/mailbox");
   });
 
-  it("Google OIDC 팝업 로그인은 callback 페이지를 redirect_uri로 사용한다", async () => {
+  it.each([
+    ["maum-on-oidc", "/api/v1/auth/oidc/authorize/maum-on-oidc"],
+    ["kakao", "/api/v1/auth/oidc/authorize/kakao"],
+  ] as const)(
+    "%s OIDC 팝업 로그인은 callback 페이지를 redirect_uri로 사용한다",
+    async (provider, expectedPathname) => {
     const popupWindow = {
       focus: vi.fn(),
     };
@@ -188,7 +193,7 @@ describe("auth-service", () => {
 
     const authService = await import("./auth-service");
 
-    const result = authService.startOidcLogin("maum-on-oidc", "/letters/mailbox", {
+    const result = authService.startOidcLogin(provider, "/letters/mailbox", {
       popup: true,
     });
 
@@ -198,15 +203,21 @@ describe("auth-service", () => {
 
     const authorizeUrl = new URL(open.mock.calls[0][0]);
     const redirectUrl = new URL(authorizeUrl.searchParams.get("redirect_uri")!);
-    expect(authorizeUrl.pathname).toBe("/api/v1/auth/oidc/authorize/maum-on-oidc");
+    expect(authorizeUrl.pathname).toBe(expectedPathname);
     expect(redirectUrl.origin).toBe("https://maum-on.parksuyeon.site");
     expect(redirectUrl.pathname).toBe("/login/callback");
     expect(redirectUrl.searchParams.get("mode")).toBe("popup");
     expect(redirectUrl.searchParams.get("next")).toBe("/letters/mailbox");
     expect(assign).not.toHaveBeenCalled();
-  });
+    },
+  );
 
-  it("Google OIDC 팝업이 차단되면 direct redirect 흐름으로 폴백한다", async () => {
+  it.each([
+    ["maum-on-oidc", "/api/v1/auth/oidc/authorize/maum-on-oidc"],
+    ["kakao", "/api/v1/auth/oidc/authorize/kakao"],
+  ] as const)(
+    "%s OIDC 팝업이 차단되면 direct redirect 흐름으로 폴백한다",
+    async (provider, expectedPathname) => {
     const open = vi.fn().mockReturnValue(null);
     const assign = vi.fn();
     vi.stubGlobal(
@@ -226,7 +237,7 @@ describe("auth-service", () => {
 
     const authService = await import("./auth-service");
 
-    authService.startOidcLogin("maum-on-oidc", "/letters/mailbox", {
+    authService.startOidcLogin(provider, "/letters/mailbox", {
       popup: true,
     });
 
@@ -234,10 +245,12 @@ describe("auth-service", () => {
     expect(assign).toHaveBeenCalledTimes(1);
 
     const authorizeUrl = new URL(assign.mock.calls[0][0]);
+    expect(authorizeUrl.pathname).toBe(expectedPathname);
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
       "https://maum-on.parksuyeon.site/letters/mailbox",
     );
-  });
+    },
+  );
 
   it("OIDC 팝업 메시지는 부모 창에서 판별 가능한 형식으로 생성된다", async () => {
     const authService = await import("./auth-service");
