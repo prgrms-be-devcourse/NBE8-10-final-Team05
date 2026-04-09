@@ -149,6 +149,20 @@ class SecurityIntegrationTest {
   void homeStatsEndpointRemainsPublic() throws Exception {
     LocalDateTime todayMorning = KstDateRanges.today(clock).startInclusive().plusHours(9);
     LocalDateTime yesterdayMorning = KstDateRanges.today(clock).startInclusive().minusDays(1).plusHours(9);
+    var todayRange = KstDateRanges.today(clock);
+    long baselineTodayWorryCount =
+        postRepository.countByCategoryAndCreateDateGreaterThanEqualAndCreateDateLessThan(
+            PostCategory.WORRY,
+            todayRange.startInclusive(),
+            todayRange.endExclusive());
+    long baselineTodayLetterCount =
+        letterRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            todayRange.startInclusive(),
+            todayRange.endExclusive());
+    long baselineTodayDiaryCount =
+        diaryRepository.countByCreateDateGreaterThanEqualAndCreateDateLessThan(
+            todayRange.startInclusive(),
+            todayRange.endExclusive());
 
     Member sender = createMember(MemberRole.USER, MemberStatus.ACTIVE);
     Member receiver = createMember(MemberRole.USER, MemberStatus.ACTIVE);
@@ -212,9 +226,9 @@ class SecurityIntegrationTest {
         .perform(get("/api/v1/home/stats"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.resultCode").value("200-1"))
-        .andExpect(jsonPath("$.data.todayWorryCount").value(1))
-        .andExpect(jsonPath("$.data.todayLetterCount").value(1))
-        .andExpect(jsonPath("$.data.todayDiaryCount").value(1));
+        .andExpect(jsonPath("$.data.todayWorryCount").value(baselineTodayWorryCount + 1))
+        .andExpect(jsonPath("$.data.todayLetterCount").value(baselineTodayLetterCount + 1))
+        .andExpect(jsonPath("$.data.todayDiaryCount").value(baselineTodayDiaryCount + 1));
   }
 
   @Test
