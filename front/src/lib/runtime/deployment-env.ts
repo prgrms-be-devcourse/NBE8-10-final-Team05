@@ -205,11 +205,7 @@ export function getMonitoringProxyBaseUrl(): string {
   );
 
   if (!trimmed || trimmed === "/") {
-    if (process.env.NODE_ENV === "development") {
-      return "";
-    }
-
-    return inferMonitoringBaseUrlFromPublicApiBaseUrl() ?? "";
+    return "";
   }
 
   if (/^https?:\/\//i.test(trimmed)) {

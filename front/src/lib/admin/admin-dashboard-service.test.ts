@@ -62,16 +62,31 @@ describe("admin-dashboard-service", () => {
     await expect(getGrafanaSessionState()).resolves.toBe("ready");
   });
 
-  it("cross-origin monitor 임베드 모드에서는 same-origin probe 없이 ready를 반환한다", async () => {
+  it("명시적인 외부 monitoring URL이 있어도 same-origin probe 결과로 세션을 확인한다", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
-    const fetchMock = vi.fn();
+    vi.stubEnv(
+      "NEXT_PUBLIC_MONITORING_PROXY_URL",
+      "https://monitor.maum-on.parksuyeon.site",
+    );
+    const fetchMock = vi.fn().mockResolvedValue(
+      createJsonResponse({
+        id: 1,
+        login: "admin",
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const { getGrafanaSessionState } = await import("./admin-dashboard-service");
 
     await expect(getGrafanaSessionState()).resolves.toBe("ready");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/grafana/api/user",
+      expect.objectContaining({
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+      }),
+    );
   });
 
   it("Grafana 로그인 HTML이 반환되면 login-required를 반환한다", async () => {
