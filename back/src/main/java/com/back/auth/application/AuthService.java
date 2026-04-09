@@ -183,6 +183,35 @@ public class AuthService {
     return AuthMemberResponse.from(member);
   }
 
+  /** refresh 쿠키만으로 현재 인증된 회원을 검증한다(auth_request 전용). */
+  public Member authenticateByRefreshToken(String rawRefreshToken) {
+    if (!StringUtils.hasText(rawRefreshToken)) {
+      throw AuthErrorCode.AUTHENTICATION_REQUIRED.toException();
+    }
+    if (!jwtTokenService.validate(rawRefreshToken)) {
+      throw AuthErrorCode.REFRESH_TOKEN_INVALID.toException();
+    }
+
+    JwtRefreshSubject refreshSubject = parseRefreshSubject(rawRefreshToken);
+    LocalDateTime now = currentDateTime();
+    RefreshToken current =
+        refreshTokenDomainService
+            .findActiveByJti(refreshSubject.jti(), now)
+            .orElseThrow(AuthErrorCode.REFRESH_TOKEN_INVALID::toException);
+
+    if (!matchesRefreshToken(rawRefreshToken, current.getTokenHash())) {
+      throw AuthErrorCode.REFRESH_TOKEN_INVALID.toException();
+    }
+
+    Member member = current.getMember();
+    if (!Objects.equals(member.getId(), refreshSubject.memberId())) {
+      throw AuthErrorCode.REFRESH_TOKEN_INVALID.toException();
+    }
+
+    assertMemberCanAuthenticate(member);
+    return member;
+  }
+
   private JwtRefreshSubject parseRefreshSubject(String rawRefreshToken) {
     try {
       return jwtTokenService.parseRefreshToken(rawRefreshToken);
