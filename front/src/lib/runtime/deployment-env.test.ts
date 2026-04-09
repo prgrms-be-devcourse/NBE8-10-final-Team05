@@ -80,28 +80,16 @@ describe("deployment-env", () => {
     expect(getMonitoringProxyBaseUrl()).toBe("");
   });
 
-  it("개발 환경에서는 내부 모니터링 프록시 기본값으로 localhost를 사용한다", async () => {
-    vi.stubEnv("NODE_ENV", "development");
-
-    const { getMonitoringProxyInternalUrl } = await import("./deployment-env");
-
-    expect(getMonitoringProxyInternalUrl()).toBe("http://localhost:3400");
-  });
-
-  it("프로덕션 환경에서 내부 모니터링 프록시가 비어 있으면 null을 반환한다", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-
-    const { getMonitoringProxyInternalUrl } = await import("./deployment-env");
-
-    expect(getMonitoringProxyInternalUrl()).toBeNull();
-  });
-
-  it("프로덕션 환경에서 monitoring URL이 없으면 API 도메인 규칙으로 monitor 서브도메인을 유추한다", async () => {
+  it("운영에서는 API 도메인 규칙으로 monitor ingress를 추론한다", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.maum-on.parksuyeon.site");
 
-    const { getMonitoringProxyInternalUrl } = await import("./deployment-env");
+    const { getMonitoringProxyBaseUrl, getMonitoringProxyInternalUrl } =
+      await import("./deployment-env");
 
+    expect(getMonitoringProxyBaseUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site",
+    );
     expect(getMonitoringProxyInternalUrl()).toBe(
       "https://monitor.maum-on.parksuyeon.site",
     );

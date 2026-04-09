@@ -56,6 +56,10 @@ function withBasePath(path: string): string {
   return joinBasePath(getMonitoringProxyBaseUrl(), path);
 }
 
+function withSameOriginPath(path: string): string {
+  return joinBasePath("", path);
+}
+
 function buildGrafanaDashboardUrl(
   dashboard: { uid: string; slug: string },
   view: "d" | "d-solo",
@@ -96,5 +100,5 @@ export function getPrometheusHomeUrl(): string {
 }
 
 export function getGrafanaSessionProbeUrl(): string {
-  return withBasePath(`${GRAFANA_BASE_PATH}/api/user`);
+  return withSameOriginPath(`${GRAFANA_BASE_PATH}/api/user`);
 }

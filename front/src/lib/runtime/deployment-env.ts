@@ -167,7 +167,7 @@ export function getServerApiBaseUrl(): string {
   );
 }
 
-function inferMonitoringProxyUrlFromApiBaseUrl(): string | null {
+function inferMonitoringBaseUrlFromPublicApiBaseUrl(): string | null {
   const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (!publicApiBaseUrl) {
     return null;
@@ -190,31 +190,38 @@ function inferMonitoringProxyUrlFromApiBaseUrl(): string | null {
   }
 }
 
-export function getMonitoringProxyInternalUrl(): string | null {
-  const configuredUrl = process.env.MONITORING_PROXY_INTERNAL_URL?.trim();
-  if (configuredUrl) {
-    return trimTrailingSlash(configuredUrl);
+export function getMonitoringProxyBaseUrl(): string {
+  const trimmed = trimTrailingSlash(
+    process.env.NEXT_PUBLIC_MONITORING_PROXY_URL?.trim() ?? "",
+  );
+
+  if (trimmed && trimmed !== "/") {
+    return trimmed;
   }
 
-  const publicMonitoringProxyUrl =
-    process.env.NEXT_PUBLIC_MONITORING_PROXY_URL?.trim();
-  if (publicMonitoringProxyUrl) {
-    return trimTrailingSlash(publicMonitoringProxyUrl);
+  if (process.env.NODE_ENV === "development") {
+    return "";
+  }
+
+  return inferMonitoringBaseUrlFromPublicApiBaseUrl() ?? "";
+}
+
+export function getMonitoringProxyInternalUrl(): string | null {
+  const configuredInternalUrl = process.env.MONITORING_PROXY_INTERNAL_URL?.trim();
+  if (configuredInternalUrl) {
+    return trimTrailingSlash(configuredInternalUrl);
+  }
+
+  const publicMonitoringBaseUrl = getMonitoringProxyBaseUrl();
+  if (publicMonitoringBaseUrl) {
+    return publicMonitoringBaseUrl;
   }
 
   if (process.env.NODE_ENV === "development") {
     return DEFAULT_MONITORING_PROXY_INTERNAL_URL;
   }
 
-  return inferMonitoringProxyUrlFromApiBaseUrl();
-}
-
-export function getMonitoringProxyBaseUrl(): string {
-  const trimmed = trimTrailingSlash(
-    process.env.NEXT_PUBLIC_MONITORING_PROXY_URL?.trim() ?? "",
-  );
-
-  return trimmed === "/" ? "" : trimmed;
+  return null;
 }
 
 export function joinUrl(baseUrl: string, path: string): string {

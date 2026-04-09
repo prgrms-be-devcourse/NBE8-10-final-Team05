@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 import MainHeader from "@/components/layout/MainHeader";
 import { requestData, requestVoid } from "@/lib/api/http-client";
+import {
+  resolvePageContent,
+  resolveTotalElements,
+} from "@/lib/api/page-response";
 import { toErrorMessage } from "@/lib/api/rs-data";
 import { useAuthStore } from "@/lib/auth/auth-store";
 import { getPublicApiBaseUrl, joinUrl } from "@/lib/runtime/deployment-env";
@@ -76,13 +80,14 @@ type DiaryItem = {
 };
 
 type PageResponse<T> = {
-  content: T[];
-  number: number;
-  totalPages: number;
-  totalElements: number;
-  size: number;
-  first: boolean;
-  last: boolean;
+  content?: T[];
+  number?: number;
+  totalPages?: number;
+  totalElements?: number | null;
+  numberOfElements?: number | null;
+  size?: number;
+  first?: boolean;
+  last?: boolean;
 };
 
 // --- 유틸리티 함수 ---
@@ -212,13 +217,14 @@ export default function DashboardPage() {
         const resp = await requestData<PageResponse<DiaryItem>>(
           `/api/v1/diaries?page=0&size=${CALENDAR_PAGE_SIZE}`,
         );
-        const filtered = resp.content.filter(
+        const diaries = resolvePageContent(resp);
+        const filtered = diaries.filter(
           (d) =>
             toMonthKeyFromDateKey(toDateKeyFromDateTime(d.createDate)) ===
             monthKey,
         );
         setMonthDiaries(filtered);
-        setTotalElements(resp.totalElements);
+        setTotalElements(resolveTotalElements(resp));
         monthDiaryCacheRef.current.set(monthKey, filtered);
       } catch (e) {
         setErrorMessage(toErrorMessage(e));

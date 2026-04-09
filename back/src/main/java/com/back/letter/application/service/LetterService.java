@@ -18,7 +18,9 @@ import com.back.letter.domain.LetterStatus;
 import com.back.member.application.MemberService;
 import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
@@ -31,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, AdminLetterUseCase {
@@ -178,18 +181,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
                 onlyUnassigned,
                 pageable);
 
-        Page<AdminLetterListItem> mappedPage = letterPage.map(letter -> {
-            String latestAction = letterAdminActionLogRepository
-                    .findByLetterIdOrderByCreateDateDesc(letter.getId())
-                    .stream()
-                    .findFirst()
-                    .map(log -> log.getActionType().name())
-                    .orElse(null);
-            return AdminLetterListItem.from(
-                    letter,
-                    letterRedisRepository.isWriting(letter.getId()),
-                    latestAction);
-        });
+        Page<AdminLetterListItem> mappedPage = letterPage.map(letter ->
+                AdminLetterListItem.from(
+                        letter,
+                        isWritingStatusAvailable(letter.getId()),
+                        getLatestAdminActionSafely(letter.getId())));
 
         return AdminLetterListRes.from(mappedPage);
     }
@@ -200,15 +196,11 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
         Letter letter = letterPort.findByIdForAdmin(id)
                 .orElseThrow(() -> new ServiceException("404-1", "존재하지 않는 편지입니다."));
 
-        List<AdminLetterActionLogItem> actionLogs = letterAdminActionLogRepository
-                .findByLetterIdOrderByCreateDateDesc(letter.getId())
-                .stream()
-                .map(AdminLetterActionLogItem::from)
-                .toList();
+        List<AdminLetterActionLogItem> actionLogs = getAdminActionLogsSafely(letter.getId());
 
         return AdminLetterDetailRes.from(
                 letter,
-                letterRedisRepository.isWriting(letter.getId()),
+                isWritingStatusAvailable(letter.getId()),
                 actionLogs);
     }
 
@@ -323,6 +315,42 @@ public class LetterService implements SendLetterUseCase, InquiryLetterUseCase, A
         return memberRepository.findById(adminMemberId)
                 .map(Member::getNickname)
                 .orElse("관리자#" + adminMemberId);
+    }
+
+    private String getLatestAdminActionSafely(long letterId) {
+        try {
+            return letterAdminActionLogRepository
+                    .findByLetterIdOrderByCreateDateDesc(letterId)
+                    .stream()
+                    .findFirst()
+                    .map(log -> log.getActionType().name())
+                    .orElse(null);
+        } catch (DataAccessException exception) {
+            log.warn("관리자 편지 최신 조치를 불러오지 못해 기본값으로 대체합니다. letterId={}", letterId, exception);
+            return null;
+        }
+    }
+
+    private List<AdminLetterActionLogItem> getAdminActionLogsSafely(long letterId) {
+        try {
+            return letterAdminActionLogRepository
+                    .findByLetterIdOrderByCreateDateDesc(letterId)
+                    .stream()
+                    .map(AdminLetterActionLogItem::from)
+                    .toList();
+        } catch (DataAccessException exception) {
+            log.warn("관리자 편지 조치 이력을 불러오지 못해 빈 목록으로 대체합니다. letterId={}", letterId, exception);
+            return List.of();
+        }
+    }
+
+    private boolean isWritingStatusAvailable(long letterId) {
+        try {
+            return letterRedisRepository.isWriting(letterId);
+        } catch (DataAccessException exception) {
+            log.warn("관리자 편지 작성 중 상태를 불러오지 못해 false로 대체합니다. letterId={}", letterId, exception);
+            return false;
+        }
     }
 
     private String normalizeQuery(String query) {

@@ -46,7 +46,7 @@ services:
       GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-http://127.0.0.1:3000/grafana/}
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-https://monitor.maum-on.parksuyeon.site/grafana/}
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

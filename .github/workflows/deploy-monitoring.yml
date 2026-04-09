@@ -181,7 +181,7 @@ jobs:
           if [[ -n "${RAW_GF_SERVER_ROOT_URL}" ]]; then
             NORMALIZED_GF_SERVER_ROOT_URL="${RAW_GF_SERVER_ROOT_URL%/}"
           else
-            NORMALIZED_GF_SERVER_ROOT_URL="http://127.0.0.1:3000"
+            NORMALIZED_GF_SERVER_ROOT_URL="https://monitor.maum-on.parksuyeon.site"
           fi
           case "${NORMALIZED_GF_SERVER_ROOT_URL}" in
             */grafana)

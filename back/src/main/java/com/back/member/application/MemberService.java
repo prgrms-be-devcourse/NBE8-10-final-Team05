@@ -493,14 +493,14 @@ public class MemberService {
     if (adminMemberId != null && adminMemberId.equals(member.getId())) {
       throw new ServiceException(ERROR_CODE_CONFLICT, ERROR_MSG_CANNOT_BLOCK_SELF);
     }
-    if (member.getStatus() == MemberStatus.WITHDRAWN) {
+    if (safeStatus(member) == MemberStatus.WITHDRAWN) {
       throw new ServiceException(
           ERROR_CODE_CONFLICT, ERROR_MSG_WITHDRAWN_MEMBER_MODERATION_UNSUPPORTED);
     }
 
     validateAdminCapabilityReduction(member, adminMemberId, MemberStatus.BLOCKED, null);
 
-    String beforeValue = "status:" + member.getStatus().name();
+    String beforeValue = "status:" + safeStatus(member).name();
     member.updateStatus(MemberStatus.BLOCKED);
     member.updateRandomReceiveAllowed(false);
     if (revokeSessions) {
@@ -518,12 +518,12 @@ public class MemberService {
 
   private void unblockMember(
       Member member, Long adminMemberId, String reason, boolean revokeSessions) {
-    if (member.getStatus() == MemberStatus.WITHDRAWN) {
+    if (safeStatus(member) == MemberStatus.WITHDRAWN) {
       throw new ServiceException(
           ERROR_CODE_CONFLICT, ERROR_MSG_WITHDRAWN_MEMBER_MODERATION_UNSUPPORTED);
     }
 
-    String beforeValue = "status:" + member.getStatus().name();
+    String beforeValue = "status:" + safeStatus(member).name();
     member.updateStatus(MemberStatus.ACTIVE);
     if (revokeSessions) {
       refreshTokenDomainService.revokeAllByMemberId(member.getId(), LocalDateTime.now(clock));
@@ -540,17 +540,19 @@ public class MemberService {
 
   private void validateAdminCapabilityReduction(
       Member member, Long adminMemberId, MemberStatus nextStatus, MemberRole nextRole) {
+    MemberRole currentRole = safeRole(member);
+    MemberStatus currentStatus = safeStatus(member);
     if (adminMemberId != null
         && adminMemberId.equals(member.getId())
         && nextRole != null
-        && member.getRole() == MemberRole.ADMIN
+        && currentRole == MemberRole.ADMIN
         && nextRole != MemberRole.ADMIN) {
       throw new ServiceException(ERROR_CODE_CONFLICT, ERROR_MSG_CANNOT_CHANGE_OWN_ROLE);
     }
 
     boolean removesActiveAdminCapability =
-        member.getRole() == MemberRole.ADMIN
-            && member.getStatus() == MemberStatus.ACTIVE
+        currentRole == MemberRole.ADMIN
+            && currentStatus == MemberStatus.ACTIVE
             && ((nextStatus != null && nextStatus != MemberStatus.ACTIVE)
                 || (nextRole != null && nextRole != MemberRole.ADMIN));
 
@@ -587,6 +589,14 @@ public class MemberService {
         .findById(adminMemberId)
         .map(Member::getNickname)
         .orElse("admin#" + adminMemberId);
+  }
+
+  private MemberRole safeRole(Member member) {
+    return member.getRole() == null ? MemberRole.USER : member.getRole();
+  }
+
+  private MemberStatus safeStatus(Member member) {
+    return member.getStatus() == null ? MemberStatus.ACTIVE : member.getStatus();
   }
 
   private record OAuthAccountSnapshot(boolean socialAccount, LocalDateTime lastLoginAt) {

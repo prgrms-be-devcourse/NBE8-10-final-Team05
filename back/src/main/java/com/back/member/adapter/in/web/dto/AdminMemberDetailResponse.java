@@ -2,6 +2,8 @@ package com.back.member.adapter.in.web.dto;
 
 import com.back.auth.domain.OAuthAccount;
 import com.back.member.domain.Member;
+import com.back.member.domain.MemberRole;
+import com.back.member.domain.MemberStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -31,6 +33,8 @@ public record AdminMemberDetailResponse(
       List<AdminMemberReportHistoryItem> receivedReports,
       List<AdminMemberPostHistoryItem> recentPosts,
       List<AdminMemberLetterHistoryItem> recentLetters) {
+    MemberRole role = member.getRole() == null ? MemberRole.USER : member.getRole();
+    MemberStatus status = member.getStatus() == null ? MemberStatus.ACTIVE : member.getStatus();
     List<String> providers =
         oauthAccounts.stream().map(OAuthAccount::getProvider).distinct().toList();
     LocalDateTime lastLoginAt =
@@ -44,8 +48,8 @@ public record AdminMemberDetailResponse(
         member.getId(),
         member.getEmail(),
         member.getNickname(),
-        member.getRole().name(),
-        member.getStatus().name(),
+        role.name(),
+        status.name(),
         member.isRandomReceiveAllowed(),
         !providers.isEmpty(),
         member.getCreateDate(),
