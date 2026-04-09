@@ -25,14 +25,18 @@ export function resolveRequestHostname(
     nextUrl: URL;
   },
 ): string {
-  const forwardedHost = parseHostname(request.headers.get("x-forwarded-host"));
-  if (forwardedHost) {
-    return forwardedHost;
-  }
-
   const host = parseHostname(request.headers.get("host"));
   if (host) {
     return host;
+  }
+
+  if (request.nextUrl.hostname) {
+    return request.nextUrl.hostname;
+  }
+
+  const forwardedHost = parseHostname(request.headers.get("x-forwarded-host"));
+  if (forwardedHost) {
+    return forwardedHost;
   }
 
   return request.nextUrl.hostname;
