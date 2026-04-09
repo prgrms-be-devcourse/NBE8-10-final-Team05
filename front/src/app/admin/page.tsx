@@ -148,7 +148,7 @@ function GrafanaFallbackCard({
               ? "패널은 Grafana 세션이 있어야 보입니다. 새 창에서 먼저 로그인한 뒤 이 화면으로 돌아오면 iframe 패널을 바로 확인할 수 있습니다."
               : isDisabled
                 ? "모니터링 프록시가 아직 구성되지 않았습니다. 운영에서는 monitor ingress나 내부 프록시 주소가 연결돼 있어야 Grafana 패널을 표시할 수 있습니다."
-              : "로컬 모니터링 스택이 응답하지 않습니다. docker compose로 Grafana, Prometheus, Nginx가 정상 기동했는지 먼저 확인해야 합니다."}
+                : "로컬 모니터링 스택이 응답하지 않습니다. docker compose로 Grafana, Prometheus, Nginx가 정상 기동했는지 먼저 확인해야 합니다."}
           </p>
         </div>
 
