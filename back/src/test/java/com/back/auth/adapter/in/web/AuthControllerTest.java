@@ -1,5 +1,6 @@
 package com.back.auth.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -29,6 +30,7 @@ import com.back.global.security.jwt.JwtTokenService;
 import com.back.member.domain.MemberRepository;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.mock.web.MockHttpSession;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -153,15 +155,20 @@ class AuthControllerTest {
   void logoutExpiresCookie() throws Exception {
     given(refreshTokenCookieService.resolveRefreshToken(any()))
         .willReturn(Optional.of("raw-refresh-token"));
+    MockHttpSession session = new MockHttpSession();
 
     mockMvc
-        .perform(post("/api/v1/auth/logout"))
+        .perform(post("/api/v1/auth/logout").session(session))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.resultCode").value("200-5"));
+        .andExpect(jsonPath("$.resultCode").value("200-5"))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+            .string(org.springframework.http.HttpHeaders.SET_COOKIE,
+                org.hamcrest.Matchers.containsString("JSESSIONID=; Path=/; Max-Age=0")));
 
     then(authService).should().logout("raw-refresh-token");
     then(refreshTokenCookieService).should().expireRefreshTokenCookie(any());
     then(authHintCookieService).should().expireAuthHintCookie(any());
+    assertThat(session.isInvalid()).isTrue();
   }
 
   @Test
