@@ -27,7 +27,7 @@ const AUTH_ME_PATH = "/api/v1/auth/me";
 const AUTH_SIGNUP_PATH = "/api/v1/auth/signup";
 const AUTH_LOGIN_PATH = "/api/v1/auth/login";
 const AUTH_LOGOUT_PATH = "/api/v1/auth/logout";
-const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
+const AUTH_SESSION_PATH = "/api/v1/auth/session";
 const AUTH_OIDC_AUTHORIZE_PATH = "/api/v1/auth/oidc/authorize";
 const LOGIN_PAGE_PATH = "/login";
 const LOGIN_CALLBACK_PAGE_PATH = "/login/callback";
@@ -86,7 +86,7 @@ export function initializeAuthRuntime(): void {
   bindHttpClientHandlers();
 }
 
-/** 앱 초기 진입 시 refresh 쿠키를 이용해 세션을 복원한다. */
+/** 앱 초기 진입 시 refresh 쿠키를 검증해 세션을 복원한다(토큰 회전 없음). */
 export async function restoreSession(
   options: RestoreSessionOptions = {},
 ): Promise<void> {
@@ -108,8 +108,8 @@ export async function restoreSession(
 
   restorePromise = (async () => {
     try {
-      const payload = await requestData<AuthTokenPayload>(AUTH_REFRESH_PATH, {
-        method: "POST",
+      const payload = await requestData<AuthTokenPayload>(AUTH_SESSION_PATH, {
+        method: "GET",
         skipAuth: true,
         retryOnAuthFailure: false,
         authFailureRedirect: false,
