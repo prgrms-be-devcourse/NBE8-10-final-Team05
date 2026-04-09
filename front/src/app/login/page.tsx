@@ -19,11 +19,12 @@ import { toErrorMessage } from "@/lib/api/rs-data";
 import {
   isOidcPopupMessage,
   login,
+  restoreSession,
   startOidcLogin,
   supportsOidcPopup,
   type OidcProvider,
 } from "@/lib/auth/auth-service";
-import { useAuthStore } from "@/lib/auth/auth-store";
+import { getAuthState, useAuthStore } from "@/lib/auth/auth-store";
 
 /** 로그인 페이지: 성공 시 next 파라미터 또는 대시보드로 이동한다. */
 export default function LoginPage() {
@@ -82,6 +83,8 @@ function LoginPageContent() {
       return;
     }
 
+    let cancelled = false;
+
     async function handlePopupMessage(event: MessageEvent): Promise<void> {
       if (event.origin !== window.location.origin || !isOidcPopupMessage(event.data)) {
         return;
@@ -97,6 +100,16 @@ function LoginPageContent() {
       }
 
       setSubmitError(null);
+      await restoreSession({ force: true });
+      if (cancelled) {
+        return;
+      }
+
+      if (!getAuthState().isAuthenticated) {
+        setSubmitError("로그인 세션 복원에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+
       router.replace(event.data.nextPath);
     }
 
@@ -106,6 +119,7 @@ function LoginPageContent() {
 
     window.addEventListener("message", onMessage);
     return () => {
+      cancelled = true;
       window.removeEventListener("message", onMessage);
     };
   }, [router]);
