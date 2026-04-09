@@ -43,6 +43,7 @@ services:
       GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROOT_URL: "http://localhost:3400/grafana/"
     volumes:
       - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro

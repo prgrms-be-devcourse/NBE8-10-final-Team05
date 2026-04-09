@@ -11,4 +11,5 @@ export type GrafanaSessionState =
   | "checking"
   | "ready"
   | "login-required"
+  | "disabled"
   | "unavailable";

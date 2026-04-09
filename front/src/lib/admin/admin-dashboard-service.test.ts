@@ -74,6 +74,38 @@ describe("admin-dashboard-service", () => {
     await expect(getGrafanaSessionState()).resolves.toBe("login-required");
   });
 
+  it("모니터링 프록시가 미구성 상태면 disabled를 반환한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("Monitoring proxy is not configured.", {
+        status: 503,
+        headers: {
+          "x-maum-on-monitoring-status": "disabled",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getGrafanaSessionState } = await import("./admin-dashboard-service");
+
+    await expect(getGrafanaSessionState()).resolves.toBe("disabled");
+  });
+
+  it("Grafana 프록시가 HTML 404를 반환하면 unavailable을 반환한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("<html><title>Grafana</title></html>", {
+        status: 404,
+        headers: {
+          "Content-Type": "text/html",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getGrafanaSessionState } = await import("./admin-dashboard-service");
+
+    await expect(getGrafanaSessionState()).resolves.toBe("unavailable");
+  });
+
   it("Grafana 프록시 연결이 실패하면 unavailable을 반환한다", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED"));
     vi.stubGlobal("fetch", fetchMock);
