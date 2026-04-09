@@ -17,8 +17,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -91,8 +94,11 @@ public class AuthController {
   public RsData<Void> logout(HttpServletRequest request, HttpServletResponse response) {
     String rawRefreshToken = refreshTokenCookieService.resolveRefreshToken(request).orElse(null);
     authService.logout(rawRefreshToken);
+    invalidateServerSession(request);
+    SecurityContextHolder.clearContext();
     refreshTokenCookieService.expireRefreshTokenCookie(response);
     authHintCookieService.expireAuthHintCookie(response);
+    expireSessionCookie(response, request.getContextPath());
     return new RsData<>(
         AuthSuccessCode.LOGOUT_SUCCESS.code(), AuthSuccessCode.LOGOUT_SUCCESS.message());
   }
@@ -192,6 +198,24 @@ public class AuthController {
 
   private void issueRefreshCookie(HttpServletResponse response, String refreshToken) {
     refreshTokenCookieService.issueRefreshTokenCookie(response, refreshToken);
+  }
+
+  private void invalidateServerSession(HttpServletRequest request) {
+    var session = request.getSession(false);
+    if (session != null) {
+      session.invalidate();
+    }
+  }
+
+  private void expireSessionCookie(HttpServletResponse response, String contextPath) {
+    String cookiePath = hasContextPath(contextPath) ? contextPath : "/";
+    ResponseCookie cookie =
+        ResponseCookie.from("JSESSIONID", "")
+            .path(cookiePath)
+            .httpOnly(true)
+            .maxAge(0)
+            .build();
+    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
   }
 
   private ResponseEntity<Void> redirectTo(String uri) {

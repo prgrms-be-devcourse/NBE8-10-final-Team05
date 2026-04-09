@@ -120,8 +120,33 @@ class JwtAuthenticationFilterTest {
   }
 
   @Test
-  @DisplayName("이미 인증이 설정되어 있으면 기존 SecurityContext를 유지하고 토큰을 다시 읽지 않는다")
-  void existingAuthenticationIsPreserved() throws Exception {
+  @DisplayName("이미 인증이 있어도 Bearer access 토큰이 있으면 현재 토큰 기준으로 다시 인증한다")
+  void existingAuthenticationIsOverriddenByBearerToken() throws Exception {
+    Authentication existingAuthentication =
+        new UsernamePasswordAuthenticationToken(
+            new AuthenticatedMember(99L, "existing@test.com", List.of("ROLE_USER")),
+            "existing-token",
+            List.of(new SimpleGrantedAuthority("ROLE_USER")));
+    SecurityContextHolder.getContext().setAuthentication(existingAuthentication);
+    Member currentMember =
+        memberWithIdAndPolicy(5L, "current@test.com", MemberRole.USER, MemberStatus.ACTIVE);
+    given(jwtTokenService.validate("current-access-token")).willReturn(true);
+    given(jwtTokenService.parseAccessToken("current-access-token"))
+        .willReturn(new JwtSubject(5L, "current@test.com", List.of("ROLE_USER")));
+    given(memberRepository.findById(5L)).willReturn(Optional.of(currentMember));
+
+    doFilter("Bearer current-access-token");
+
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    assertThat(authentication).isNotNull();
+    assertThat(authentication).isNotSameAs(existingAuthentication);
+    assertThat(authentication.getPrincipal())
+        .isEqualTo(new AuthenticatedMember(5L, "current@test.com", List.of("ROLE_USER")));
+  }
+
+  @Test
+  @DisplayName("Authorization 헤더가 없으면 기존 SecurityContext를 유지한다")
+  void existingAuthenticationIsPreservedWithoutBearerToken() throws Exception {
     Authentication existingAuthentication =
         new UsernamePasswordAuthenticationToken(
             new AuthenticatedMember(99L, "existing@test.com", List.of("ROLE_USER")),
@@ -129,11 +154,11 @@ class JwtAuthenticationFilterTest {
             List.of(new SimpleGrantedAuthority("ROLE_USER")));
     SecurityContextHolder.getContext().setAuthentication(existingAuthentication);
 
-    doFilter("Bearer ignored-token");
+    doFilter(null);
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(existingAuthentication);
-    then(jwtTokenService).should(never()).validate("ignored-token");
-    then(memberRepository).should(never()).findById(org.mockito.ArgumentMatchers.anyLong());
+    then(jwtTokenService).shouldHaveNoInteractions();
+    then(memberRepository).shouldHaveNoInteractions();
   }
 
   @Test
@@ -148,7 +173,9 @@ class JwtAuthenticationFilterTest {
 
   private void doFilter(String authorizationHeader) throws Exception {
     MockHttpServletRequest request = new MockHttpServletRequest();
-    request.addHeader(HttpHeaders.AUTHORIZATION, authorizationHeader);
+    if (authorizationHeader != null) {
+      request.addHeader(HttpHeaders.AUTHORIZATION, authorizationHeader);
+    }
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     jwtAuthenticationFilter.doFilter(request, response, new MockFilterChain());
