@@ -43,7 +43,7 @@ services:
       GF_AUTH_PROXY_HEADER_NAME: "X-WEBAUTH-USER"
       GF_AUTH_PROXY_HEADER_PROPERTY: "username"
       GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
-      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
+      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: ${GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN:-false}
       GF_SECURITY_ALLOW_EMBEDDING: "true"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-https://monitor.maum-on.parksuyeon.site/grafana/}
