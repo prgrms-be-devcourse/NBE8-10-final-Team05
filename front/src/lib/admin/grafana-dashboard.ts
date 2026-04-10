@@ -103,7 +103,7 @@ export function getGrafanaSessionBootstrapUrl(): string | null {
     return null;
   }
 
-  return getGrafanaHomeUrl();
+  return withBasePath(`${GRAFANA_BASE_PATH}/login`);
 }
 
 export function getK6GrafanaDashboardUrl(): string {
