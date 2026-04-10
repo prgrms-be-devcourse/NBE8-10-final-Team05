@@ -3,6 +3,7 @@ package com.back.member.adapter.in.web;
 import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.member.adapter.in.web.docs.MemberApiDocs;
 import com.back.member.adapter.in.web.dto.CreateMemberRequest;
 import com.back.member.adapter.in.web.dto.MemberResponse;
 import com.back.member.adapter.in.web.dto.UpdateMemberEmailRequest;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/members")
-public class MemberController {
+public class MemberController implements MemberApiDocs {
 
   private static final String CODE_MEMBER_CREATED = "201-1";
   private static final String CODE_MEMBER_FETCHED = "200-1";

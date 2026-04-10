@@ -27,4 +27,6 @@ perf/env/cloud.env
 **/logs/
 perf/k6/**/result/*.json
 docs
+!back/src/main/java/com/back/**/docs/
+!back/src/main/java/com/back/**/docs/*.java
 AGENTS.md

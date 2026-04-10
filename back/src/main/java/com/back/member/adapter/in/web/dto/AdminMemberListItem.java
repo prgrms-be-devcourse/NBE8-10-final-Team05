@@ -4,19 +4,21 @@ import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.member.domain.MemberRole;
 import com.back.member.domain.MemberStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
+@Schema(description = "운영자 회원 목록의 단건 정보")
 public record AdminMemberListItem(
-    Long id,
-    String email,
-    String nickname,
-    String role,
-    String status,
-    boolean randomReceiveAllowed,
-    boolean socialAccount,
-    LocalDateTime createdAt,
-    LocalDateTime lastLoginAt) {
+    @Schema(description = "회원 식별자", example = "17") Long id,
+    @Schema(description = "회원 이메일", example = "demo@example.com") String email,
+    @Schema(description = "회원 닉네임", example = "마음온데모") String nickname,
+    @Schema(description = "회원 권한", example = "USER") String role,
+    @Schema(description = "회원 상태", example = "ACTIVE") String status,
+    @Schema(description = "랜덤 편지 수신 허용 여부", example = "true") boolean randomReceiveAllowed,
+    @Schema(description = "소셜 로그인 연동 여부", example = "false") boolean socialAccount,
+    @Schema(description = "회원 생성 시각", example = "2026-04-10T09:30:00") LocalDateTime createdAt,
+    @Schema(description = "마지막 로그인 시각", example = "2026-04-10T11:20:00") LocalDateTime lastLoginAt) {
 
   public static AdminMemberListItem from(
       Member member, boolean socialAccount, LocalDateTime lastLoginAt) {

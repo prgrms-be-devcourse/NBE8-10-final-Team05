@@ -2,6 +2,7 @@ package com.back.comment.controller;
 
 
 import com.back.auth.application.AuthErrorCode;
+import com.back.comment.controller.docs.CommentApiDocs;
 import com.back.comment.dto.CommentCreateReq;
 import com.back.comment.dto.CommentInfoRes;
 import com.back.comment.dto.CommentUpdateReq;
@@ -22,7 +23,7 @@ import java.net.URI;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-public class CommentController {
+public class CommentController implements CommentApiDocs {
 
     private final CommentService commentService;
 

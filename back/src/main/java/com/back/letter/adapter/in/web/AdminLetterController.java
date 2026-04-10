@@ -2,6 +2,7 @@ package com.back.letter.adapter.in.web;
 
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.letter.adapter.in.web.docs.AdminLetterApiDocs;
 import com.back.letter.application.port.in.AdminLetterUseCase;
 import com.back.letter.application.port.in.dto.AdminLetterDetailRes;
 import com.back.letter.application.port.in.dto.AdminLetterHandleReq;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/letters")
 @PreAuthorize("hasRole('ADMIN')")
-public class AdminLetterController {
+public class AdminLetterController implements AdminLetterApiDocs {
 
   private final AdminLetterUseCase adminLetterUseCase;
 

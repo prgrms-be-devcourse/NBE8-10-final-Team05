@@ -2,6 +2,7 @@ package com.back.report.adapter.in.web;
 
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.report.adapter.in.web.docs.AdminReportApiDocs;
 import com.back.report.adapter.in.web.dto.ReportDetailResponse;
 import com.back.report.adapter.in.web.dto.ReportHandleRequest;
 import com.back.report.adapter.in.web.dto.ReportListResponse;
@@ -17,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/reports")
 @PreAuthorize("hasRole('ADMIN')")
-public class AdminReportController {
+public class AdminReportController implements AdminReportApiDocs {
 
     private final ReportService reportService;
 

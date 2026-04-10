@@ -3,6 +3,7 @@ package com.back.diary.adapter.in.web;
 import com.back.diary.adapter.application.port.in.DiaryUseCase; // 인터페이스 임포트
 import com.back.diary.adapter.application.port.in.dto.DiaryCreateReq;
 import com.back.diary.adapter.application.port.in.dto.DiaryRes;
+import com.back.diary.adapter.in.web.docs.DiaryApiDocs;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
 import jakarta.validation.Valid;
@@ -19,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/diaries")
 @RequiredArgsConstructor
-public class DiaryController {
+public class DiaryController implements DiaryApiDocs {
 
     private final DiaryUseCase diaryUseCase;
 
