@@ -14,6 +14,7 @@ import com.back.member.domain.Member;
 import com.back.member.domain.MemberRepository;
 import com.back.post.application.PostErrorCode;
 import com.back.post.entity.Post;
+import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -45,7 +46,7 @@ public class CommentService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(AuthErrorCode.MEMBER_NOT_FOUND::toException);
 
-        Post post = postRepository.findById(postId)
+        Post post = postRepository.findByIdAndStatusNot(postId, PostStatus.HIDDEN)
                 .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
 
         Comment parentComment = null;
@@ -86,7 +87,7 @@ public class CommentService {
      */
     @Transactional(readOnly = true)
     public Slice<CommentInfoRes> getComments(Long postId, Pageable pageable){
-        postRepository.findById(postId)
+        postRepository.findByIdAndStatusNot(postId, PostStatus.HIDDEN)
                 .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
 
         CommentPageCache cachedPage = commentCacheRepository.findPage(postId, pageable.getPageNumber(), pageable.getPageSize());

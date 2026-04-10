@@ -44,7 +44,7 @@ class CommentServiceTest {
     Member member = savedMember(1L, "member1@test.com", "member1");
     Post post = savedPost(10L, member);
     given(memberRepository.findById(1L)).willReturn(Optional.of(member));
-    given(postRepository.findById(10L)).willReturn(Optional.of(post));
+    given(postRepository.findByIdAndStatusNot(10L, PostStatus.HIDDEN)).willReturn(Optional.of(post));
     given(commentRepository.save(any(Comment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
     commentService.createComment(10L, 1L, new CommentCreateReq(" 댓글 내용 ", null, null));
@@ -67,7 +67,7 @@ class CommentServiceTest {
     setId(parent, 100L);
 
     given(memberRepository.findById(1L)).willReturn(Optional.of(member));
-    given(postRepository.findById(10L)).willReturn(Optional.of(requestPost));
+    given(postRepository.findByIdAndStatusNot(10L, PostStatus.HIDDEN)).willReturn(Optional.of(requestPost));
     given(commentRepository.findById(100L)).willReturn(Optional.of(parent));
 
     assertThatThrownBy(() -> commentService.createComment(10L, 1L, new CommentCreateReq("reply", null, 100L)))
@@ -120,6 +120,20 @@ class CommentServiceTest {
     commentService.deleteComment(31L, 1L);
 
     then(commentRepository).should().delete(comment);
+  }
+
+  @Test
+  @DisplayName("숨김 게시글에는 댓글을 작성할 수 없다")
+  void createCommentFailsWhenPostHidden() {
+    Member member = savedMember(1L, "member1@test.com", "member1");
+    given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+    given(postRepository.findByIdAndStatusNot(10L, PostStatus.HIDDEN)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> commentService.createComment(10L, 1L, new CommentCreateReq("댓글", null, null)))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("404-1"));
   }
 
   private Member savedMember(Long id, String email, String nickname) {
