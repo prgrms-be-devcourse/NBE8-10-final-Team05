@@ -98,6 +98,14 @@ export function getGrafanaHomeUrl(): string {
   return withBasePath(`${GRAFANA_BASE_PATH}/`);
 }
 
+export function getGrafanaSessionBootstrapUrl(): string | null {
+  if (!usesCrossOriginMonitoringEmbed()) {
+    return null;
+  }
+
+  return getGrafanaHomeUrl();
+}
+
 export function getK6GrafanaDashboardUrl(): string {
   return buildGrafanaDashboardUrl(K6_LOAD_TEST_DASHBOARD, "d");
 }
