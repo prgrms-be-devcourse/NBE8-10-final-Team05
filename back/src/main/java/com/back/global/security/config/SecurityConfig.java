@@ -46,7 +46,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
+@EnableMethodSecurity(proxyTargetClass = true)
 @EnableConfigurationProperties({JwtProperties.class, OidcAuthorizeProperties.class})
 public class SecurityConfig {
   private static final List<String> DEFAULT_ALLOWED_ORIGIN_PATTERNS =
