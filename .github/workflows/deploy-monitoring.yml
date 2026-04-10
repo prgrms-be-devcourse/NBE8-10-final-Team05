@@ -150,6 +150,11 @@ jobs:
           rm -rf "$WORKDIR"
           mkdir -p "$WORKDIR"
 
+          PREVIOUS_BACKEND_SCRAPE_TARGET=""
+          if [[ -f "${DEPLOY_PATH}/.env" ]]; then
+            PREVIOUS_BACKEND_SCRAPE_TARGET="$(grep -E '^BACKEND_SCRAPE_TARGET=' "${DEPLOY_PATH}/.env" | tail -n 1 | cut -d= -f2- || true)"
+          fi
+
           mkdir -p "${ROLLBACK_DIR}"
           if [[ -f "${DEPLOY_PATH}/docker-compose.monitoring.deploy.yml" ]]; then
             cp "${DEPLOY_PATH}/docker-compose.monitoring.deploy.yml" "${ROLLBACK_DIR}/docker-compose.monitoring.deploy.yml"
@@ -175,6 +180,14 @@ jobs:
           cp -R "$WORKDIR/infra/prometheus" "$DEPLOY_PATH/infra/prometheus"
           cp -R "$WORKDIR/infra/grafana" "$DEPLOY_PATH/infra/grafana"
           printf '%s' "$DOT_ENV_B64" | base64 -d > "$DEPLOY_PATH/.env"
+
+          if [[ -n "${PREVIOUS_BACKEND_SCRAPE_TARGET}" ]]; then
+            if grep -q '^BACKEND_SCRAPE_TARGET=' "$DEPLOY_PATH/.env"; then
+              sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${PREVIOUS_BACKEND_SCRAPE_TARGET}#" "$DEPLOY_PATH/.env"
+            else
+              printf '\nBACKEND_SCRAPE_TARGET=%s\n' "${PREVIOUS_BACKEND_SCRAPE_TARGET}" >> "$DEPLOY_PATH/.env"
+            fi
+          fi
 
           cd "$DEPLOY_PATH"
           RAW_GF_SERVER_ROOT_URL="$(grep -E '^GF_SERVER_ROOT_URL=' .env | tail -n 1 | cut -d= -f2- || true)"
@@ -212,10 +225,14 @@ jobs:
                 ACTIVE_HOST=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" | jq -r '.forward_host // empty')
                 ACTIVE_PORT=$(curl -sk -b "${COOKIE_JAR}" -X GET "${NPM_BASE_URL}/api/nginx/proxy-hosts/${PROXY_ID}" | jq -r '.forward_port // 8080')
                 if [[ -n "${ACTIVE_HOST}" ]]; then
-                  if grep -q '^BACKEND_SCRAPE_TARGET=' .env; then
-                    sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${ACTIVE_HOST}:${ACTIVE_PORT}#" .env
+                  if [[ "${ACTIVE_HOST}" =~ ^maum-on-1-[12]$ ]]; then
+                    if grep -q '^BACKEND_SCRAPE_TARGET=' .env; then
+                      sed -i -E "s#^BACKEND_SCRAPE_TARGET=.*#BACKEND_SCRAPE_TARGET=${ACTIVE_HOST}:${ACTIVE_PORT}#" .env
+                    else
+                      printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${ACTIVE_HOST}" "${ACTIVE_PORT}" >> .env
+                    fi
                   else
-                    printf '\nBACKEND_SCRAPE_TARGET=%s:%s\n' "${ACTIVE_HOST}" "${ACTIVE_PORT}" >> .env
+                    echo "skip monitoring target sync from proxy host: unsupported backend alias ${ACTIVE_HOST}:${ACTIVE_PORT}"
                   fi
                 fi
               fi
