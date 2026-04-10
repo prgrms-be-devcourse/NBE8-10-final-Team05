@@ -59,7 +59,7 @@ describe("grafana-dashboard", () => {
     expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
     expect(getProbeUrl()).toBe("/grafana/api/user");
     expect(getGrafanaSessionBootstrapUrl()).toBe(
-      "https://monitor.maum-on.parksuyeon.site/grafana/",
+      "https://monitor.maum-on.parksuyeon.site/grafana/login",
     );
     expect(usesCrossOriginEmbed()).toBe(true);
   });
@@ -80,7 +80,7 @@ describe("grafana-dashboard", () => {
     expect(getBaseUrl()).toBe("https://monitor.maum-on.parksuyeon.site");
     expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
     expect(getGrafanaSessionBootstrapUrl()).toBe(
-      "https://monitor.maum-on.parksuyeon.site/grafana/",
+      "https://monitor.maum-on.parksuyeon.site/grafana/login",
     );
     expect(usesCrossOriginEmbed()).toBe(true);
   });
