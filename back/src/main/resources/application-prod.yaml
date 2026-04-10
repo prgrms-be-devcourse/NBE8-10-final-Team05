@@ -16,6 +16,11 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 1
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 custom:
   jwt:
     secret-key: ${JWT_SECRET_KEY}
