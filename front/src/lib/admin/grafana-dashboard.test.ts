@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildGrafanaPanelUrl,
   getGrafanaHomeUrl,
+  getGrafanaSessionBootstrapUrl,
   getGrafanaSessionProbeUrl,
   getK6GrafanaDashboardUrl,
   getMonitoringProxyBaseUrl,
@@ -20,6 +21,7 @@ describe("grafana-dashboard", () => {
 
   it("Grafana 홈 URL은 grafana 서브패스를 사용한다", () => {
     expect(getGrafanaHomeUrl()).toBe("/grafana/");
+    expect(getGrafanaSessionBootstrapUrl()).toBeNull();
   });
 
   it("Prometheus 홈 URL은 prometheus 서브패스를 사용한다", () => {
@@ -56,6 +58,9 @@ describe("grafana-dashboard", () => {
     expect(getBaseUrl()).toBe("https://monitor.maum-on.parksuyeon.site");
     expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
     expect(getProbeUrl()).toBe("/grafana/api/user");
+    expect(getGrafanaSessionBootstrapUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site/grafana/",
+    );
     expect(usesCrossOriginEmbed()).toBe(true);
   });
 
@@ -74,6 +79,9 @@ describe("grafana-dashboard", () => {
 
     expect(getBaseUrl()).toBe("https://monitor.maum-on.parksuyeon.site");
     expect(getHomeUrl()).toBe("https://monitor.maum-on.parksuyeon.site/grafana/");
+    expect(getGrafanaSessionBootstrapUrl()).toBe(
+      "https://monitor.maum-on.parksuyeon.site/grafana/",
+    );
     expect(usesCrossOriginEmbed()).toBe(true);
   });
 });

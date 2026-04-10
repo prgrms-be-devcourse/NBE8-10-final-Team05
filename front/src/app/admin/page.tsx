@@ -25,6 +25,7 @@ import {
   buildGrafanaPanelUrl,
   GRAFANA_PANEL_DEFINITIONS,
   getGrafanaHomeUrl,
+  getGrafanaSessionBootstrapUrl,
   getK6GrafanaDashboardUrl,
   getPrometheusHomeUrl,
 } from "@/lib/admin/grafana-dashboard";
@@ -164,16 +165,24 @@ function GrafanaFallbackCard({
 }
 
 export default function AdminDashboardPage() {
+  const grafanaSessionBootstrapUrl = useMemo(
+    () => getGrafanaSessionBootstrapUrl(),
+    [],
+  );
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [grafanaState, setGrafanaState] =
     useState<GrafanaSessionState>("checking");
+  const [isGrafanaEmbedSessionReady, setIsGrafanaEmbedSessionReady] = useState(
+    grafanaSessionBootstrapUrl === null,
+  );
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage(null);
     setGrafanaState("checking");
+    setIsGrafanaEmbedSessionReady(grafanaSessionBootstrapUrl === null);
 
     const [statsResult, grafanaResult] = await Promise.allSettled([
       getAdminDashboardStats(),
@@ -194,7 +203,7 @@ export default function AdminDashboardPage() {
     }
 
     setIsLoading(false);
-  }, []);
+  }, [grafanaSessionBootstrapUrl]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -332,7 +341,32 @@ export default function AdminDashboardPage() {
         <GrafanaFallbackCard state={grafanaState} onRetry={() => void loadDashboard()} />
       ) : null}
 
-      {!isLoading && grafanaState === "ready" ? (
+      {!isLoading &&
+      grafanaState === "ready" &&
+      grafanaSessionBootstrapUrl !== null &&
+      !isGrafanaEmbedSessionReady ? (
+        <>
+          <iframe
+            title="Grafana 세션 초기화"
+            src={grafanaSessionBootstrapUrl}
+            loading="eager"
+            onLoad={() => setIsGrafanaEmbedSessionReady(true)}
+            className="hidden"
+          />
+          <section className="rounded-[30px] bg-white px-6 py-8 text-[#5f7598] shadow-[0_30px_60px_-52px_rgba(77,119,176,0.35)]">
+            <div className="flex items-center gap-3">
+              <Loader2 className="animate-spin text-[#4f8cf0]" size={18} />
+              <p className="text-sm font-semibold">
+                Grafana 세션을 준비하는 중
+              </p>
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {!isLoading &&
+      grafanaState === "ready" &&
+      isGrafanaEmbedSessionReady ? (
         <section className="grid gap-6 xl:grid-cols-2">
           {GRAFANA_PANEL_DEFINITIONS.map((panel) => (
             <GrafanaPanelCard
