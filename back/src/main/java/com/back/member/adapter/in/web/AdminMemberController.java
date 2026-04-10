@@ -2,9 +2,10 @@ package com.back.member.adapter.in.web;
 
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
-import com.back.member.adapter.in.web.dto.AdminRevokeMemberSessionsRequest;
+import com.back.member.adapter.in.web.docs.AdminMemberApiDocs;
 import com.back.member.adapter.in.web.dto.AdminMemberDetailResponse;
 import com.back.member.adapter.in.web.dto.AdminMemberListResponse;
+import com.back.member.adapter.in.web.dto.AdminRevokeMemberSessionsRequest;
 import com.back.member.adapter.in.web.dto.AdminUpdateMemberRoleRequest;
 import com.back.member.adapter.in.web.dto.AdminUpdateMemberStatusRequest;
 import com.back.member.adapter.in.web.dto.UpdateMemberProfileRequest;
@@ -25,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/members")
 @PreAuthorize("hasRole('ADMIN')")
-public class AdminMemberController {
+public class AdminMemberController implements AdminMemberApiDocs {
 
   private final MemberService memberService;
 

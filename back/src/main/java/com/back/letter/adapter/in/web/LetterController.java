@@ -4,6 +4,7 @@ import com.back.auth.application.AuthErrorCode;
 import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.letter.adapter.in.web.docs.LetterApiDocs;
 import com.back.letter.application.port.in.*; // DTO와 UseCase를 인터페이스 패키지에서 가져옴
 import com.back.letter.application.port.in.dto.*;
 import jakarta.validation.Valid;
@@ -18,7 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/v1/letters")
 @RequiredArgsConstructor
-public class LetterController {
+public class LetterController implements LetterApiDocs {
 
     private final SendLetterUseCase sendLetterUseCase;
     private final InquiryLetterUseCase inquiryLetterUseCase;

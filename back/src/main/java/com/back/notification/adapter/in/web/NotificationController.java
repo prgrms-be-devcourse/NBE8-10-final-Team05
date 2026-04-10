@@ -3,6 +3,7 @@ package com.back.notification.adapter.in.web;
 import com.back.auth.application.AuthErrorCode;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.notification.adapter.in.web.docs.NotificationApiDocs;
 import com.back.notification.adapter.in.web.dto.NotificationSubscriptionTicketResponse;
 import com.back.notification.application.service.NotificationService;
 import com.back.notification.domain.Notification;
@@ -20,7 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/notifications")
-public class NotificationController {
+public class NotificationController implements NotificationApiDocs {
   private final NotificationService notificationService;
   private final NotificationRepository notificationRepository;
 

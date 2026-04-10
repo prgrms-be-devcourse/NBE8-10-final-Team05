@@ -2,6 +2,7 @@ package com.back.censorship.adapter.in.web;
 
 import com.back.censorship.adapter.in.web.dto.AuditAiRequest;
 import com.back.censorship.adapter.in.web.dto.AuditAiResponse;
+import com.back.censorship.adapter.in.web.docs.AiApiDocs;
 import com.back.censorship.application.service.AiService;
 import com.back.global.rsData.RsData;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/ai")
-public class AiController {
+public class AiController implements AiApiDocs {
 
     private final AiService aiService;
 

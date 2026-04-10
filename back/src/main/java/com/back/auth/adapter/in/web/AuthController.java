@@ -4,6 +4,7 @@ import com.back.auth.adapter.in.web.dto.AuthLoginRequest;
 import com.back.auth.adapter.in.web.dto.AuthMemberResponse;
 import com.back.auth.adapter.in.web.dto.AuthSignupRequest;
 import com.back.auth.adapter.in.web.dto.AuthTokenResponse;
+import com.back.auth.adapter.in.web.docs.AuthApiDocs;
 import com.back.auth.application.AuthErrorCode;
 import com.back.auth.application.AuthService;
 import com.back.auth.application.AuthSuccessCode;
@@ -36,7 +37,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
-public class AuthController {
+public class AuthController implements AuthApiDocs {
 
   private static final String HTTP_SCHEME = "http";
   private static final String HTTPS_SCHEME = "https";

@@ -3,6 +3,7 @@ package com.back.post.controller;
 import com.back.global.rsData.RsData;
 import com.back.auth.application.AuthErrorCode;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.post.controller.docs.PostApiDocs;
 import com.back.post.dto.PostCreateReq;
 import com.back.post.dto.PostInfoRes;
 import com.back.post.dto.PostListRes;
@@ -23,7 +24,7 @@ import org.springframework.data.domain.Sort;
 @RestController
 @RequestMapping("/api/v1/posts")
 @RequiredArgsConstructor
-public class PostController {
+public class PostController implements PostApiDocs {
 
     private final PostService postService;
 

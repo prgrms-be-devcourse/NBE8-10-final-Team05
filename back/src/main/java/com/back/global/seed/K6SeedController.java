@@ -1,6 +1,7 @@
 package com.back.global.seed;
 
 import com.back.global.rsData.RsData;
+import com.back.global.seed.docs.K6SeedApiDocs;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile({"k6", "k6-cloud"})
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/loadtest")
-public class K6SeedController {
+public class K6SeedController implements K6SeedApiDocs {
 
   private final K6SeedService k6SeedService;
 

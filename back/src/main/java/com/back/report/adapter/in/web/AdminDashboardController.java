@@ -1,6 +1,7 @@
 package com.back.report.adapter.in.web;
 
 import com.back.global.rsData.RsData;
+import com.back.report.adapter.in.web.docs.AdminDashboardApiDocs;
 import com.back.report.adapter.in.web.dto.AdminDashboardStatsResponse;
 import com.back.report.application.service.ReportService;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/dashboard")
 @PreAuthorize("hasRole('ADMIN')")
-public class AdminDashboardController {
+public class AdminDashboardController implements AdminDashboardApiDocs {
 
     private final ReportService reportService;
 

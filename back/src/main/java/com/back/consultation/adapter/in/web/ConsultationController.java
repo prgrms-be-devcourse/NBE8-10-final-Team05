@@ -1,6 +1,7 @@
 package com.back.consultation.adapter.in.web;
 
 import com.back.auth.application.AuthErrorCode;
+import com.back.consultation.adapter.in.web.docs.ConsultationApiDocs;
 import com.back.consultation.adapter.in.web.dto.ConsultationRequest;
 import com.back.consultation.application.ConsultationService;
 import com.back.global.rsData.RsData;
@@ -15,7 +16,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/consultations")
-public class ConsultationController {
+public class ConsultationController implements ConsultationApiDocs {
 
     private final ConsultationService consultationService;
 

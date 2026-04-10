@@ -3,6 +3,7 @@ package com.back.report.adapter.in.web;
 import com.back.global.exception.ServiceException;
 import com.back.global.rsData.RsData;
 import com.back.global.security.adapter.in.AuthenticatedMember;
+import com.back.report.adapter.in.web.docs.ReportApiDocs;
 import com.back.report.adapter.in.web.dto.ReportCreateRequest;
 import com.back.report.application.service.ReportService;
 import jakarta.validation.Valid;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/reports")
-public class ReportController {
+public class ReportController implements ReportApiDocs {
 
     private final ReportService reportService;
 
