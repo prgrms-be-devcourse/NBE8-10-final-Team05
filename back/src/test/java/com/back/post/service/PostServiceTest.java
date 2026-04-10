@@ -15,7 +15,10 @@ import com.back.post.dto.PostUpdateReq;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostCategory;
 import com.back.post.entity.PostResolutionStatus;
+import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
+import com.back.post.repository.PostViewCountRedisRepository;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,12 +27,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.SliceImpl;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("게시글 서비스 멤버 연결 테스트")
 class PostServiceTest {
 
   @Mock private PostRepository postRepository;
+  @Mock private PostViewCountRedisRepository postViewCountRedisRepository;
   @Mock private MemberRepository memberRepository;
   @Mock private CommentRepository commentRepository;
 
@@ -145,10 +152,53 @@ class PostServiceTest {
     assertThat(post.getResolutionStatus()).isEqualTo(PostResolutionStatus.RESOLVED);
   }
 
+  @Test
+  @DisplayName("게시글 목록 조회 시 숨김 게시글은 제외한다")
+  void getPostsExcludesHiddenPosts() {
+    Pageable pageable = PageRequest.of(0, 10);
+    Member author = savedMember(1L, "member1@test.com", "member1");
+    Post visiblePost = savedPost(20L, author);
+
+    given(postRepository.findAllByStatusNot(PostStatus.HIDDEN, pageable))
+        .willReturn(new SliceImpl<>(List.of(visiblePost), pageable, false));
+
+    var result = postService.getPosts(null, null, pageable);
+
+    assertThat(result.getContent()).hasSize(1);
+    then(postRepository).should().findAllByStatusNot(PostStatus.HIDDEN, pageable);
+  }
+
+  @Test
+  @DisplayName("숨김 게시글 상세 조회는 존재하지 않는 게시글로 처리한다")
+  void getPostFailsWhenHidden() {
+    given(postRepository.findByIdAndStatusNot(21L, PostStatus.HIDDEN)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> postService.getPost(21L))
+        .isInstanceOf(ServiceException.class)
+        .satisfies(
+            exception ->
+                assertThat(((ServiceException) exception).getRsData().resultCode()).isEqualTo("404-1"));
+  }
+
   private Member savedMember(Long id, String email, String nickname) {
     Member member = Member.create(email, "$2a$10$stored", nickname);
     setId(member, id);
     return member;
+  }
+
+  private Post savedPost(Long id, Member member) {
+    Post post =
+        Post.builder()
+            .title("title")
+            .content("content")
+            .summary("content")
+            .thumbnail("thumbnail")
+            .member(member)
+            .category(PostCategory.DAILY)
+            .status(PostStatus.PUBLISHED)
+            .build();
+    setId(post, id);
+    return post;
   }
 
   private void setId(Object target, Long id) {

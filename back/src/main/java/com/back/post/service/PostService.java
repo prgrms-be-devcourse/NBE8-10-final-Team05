@@ -13,6 +13,7 @@ import com.back.post.dto.PostUpdateReq;
 import com.back.post.entity.Post;
 import com.back.post.entity.PostCategory;
 import com.back.post.entity.PostResolutionStatus;
+import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
 import com.back.post.repository.PostViewCountRedisRepository;
 import lombok.RequiredArgsConstructor;
@@ -81,13 +82,14 @@ public class PostService {
         boolean hasTitle = StringUtils.hasText(title);
 
         if (hasTitle && category != null) {
-            posts = postRepository.findByTitleContainingAndCategory(title, category, pageable);
+            posts = postRepository.findByTitleContainingAndCategoryAndStatusNot(
+                    title, category, PostStatus.HIDDEN, pageable);
         } else if (hasTitle) {
-            posts = postRepository.findByTitleContaining(title, pageable);
+            posts = postRepository.findByTitleContainingAndStatusNot(title, PostStatus.HIDDEN, pageable);
         } else if (category != null) {
-            posts = postRepository.findByCategory(category, pageable);
+            posts = postRepository.findByCategoryAndStatusNot(category, PostStatus.HIDDEN, pageable);
         } else {
-            posts = postRepository.findAllBy(pageable);
+            posts = postRepository.findAllByStatusNot(PostStatus.HIDDEN, pageable);
         }
 
         return posts.map(PostListRes::from);
@@ -106,7 +108,7 @@ public class PostService {
      */
     @Transactional
     public PostInfoRes getPost(Long id) {
-        Post post = postRepository.findById(id)
+        Post post = postRepository.findByIdAndStatusNot(id, PostStatus.HIDDEN)
                 .orElseThrow(PostErrorCode.POST_NOT_FOUND::toException);
 
         long pendingViewCount = postViewCountRedisRepository.incrementViewCount(id);

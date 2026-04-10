@@ -2,6 +2,7 @@ package com.back.post.repository;
 
 import com.back.post.entity.Post;
 import com.back.post.entity.PostCategory;
+import com.back.post.entity.PostStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,6 +26,21 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     long countByTitleStartingWith(String prefix);
 
     void deleteByTitleStartingWith(String prefix);
+
+    Slice<Post> findAllByStatusNot(PostStatus status, Pageable pageable);
+
+    Slice<Post> findByTitleContainingAndStatusNot(String title, PostStatus status, Pageable pageable);
+
+    Slice<Post> findByCategoryAndStatusNot(PostCategory category, PostStatus status, Pageable pageable);
+
+    Slice<Post> findByTitleContainingAndCategoryAndStatusNot(
+            String title,
+            PostCategory category,
+            PostStatus status,
+            Pageable pageable
+    );
+
+    java.util.Optional<Post> findByIdAndStatusNot(Long id, PostStatus status);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Post p set p.viewCount = p.viewCount + :delta where p.id = :postId")
