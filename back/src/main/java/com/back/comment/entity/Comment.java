@@ -14,6 +14,8 @@ import lombok.*;
 @AllArgsConstructor
 public class Comment extends BaseEntity {
 
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
