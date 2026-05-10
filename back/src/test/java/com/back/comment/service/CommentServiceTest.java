@@ -68,7 +68,7 @@ class CommentServiceTest {
 
     given(memberRepository.findById(1L)).willReturn(Optional.of(member));
     given(postRepository.findByIdAndStatusNot(10L, PostStatus.HIDDEN)).willReturn(Optional.of(requestPost));
-    given(commentRepository.findById(100L)).willReturn(Optional.of(parent));
+    given(commentRepository.findForReplyCreate(100L)).willReturn(Optional.of(parent));
 
     assertThatThrownBy(() -> commentService.createComment(10L, 1L, new CommentCreateReq("reply", null, 100L)))
         .isInstanceOf(ServiceException.class)
@@ -83,7 +83,7 @@ class CommentServiceTest {
     Member author = savedMember(1L, "member1@test.com", "member1");
     Comment comment = Comment.builder().author(author).post(savedPost(10L, author)).content("old").build();
     setId(comment, 20L);
-    given(commentRepository.findById(20L)).willReturn(Optional.of(comment));
+    given(commentRepository.findWithOptimisticLockById(20L)).willReturn(Optional.of(comment));
 
     assertThatThrownBy(() -> commentService.updateComment(20L, 2L, "new"))
         .isInstanceOf(ServiceException.class)
@@ -98,7 +98,7 @@ class CommentServiceTest {
     Member author = savedMember(1L, "member1@test.com", "member1");
     Comment comment = Comment.builder().author(author).post(savedPost(10L, author)).content("comment").build();
     setId(comment, 30L);
-    given(commentRepository.findById(30L)).willReturn(Optional.of(comment));
+    given(commentRepository.findWithOptimisticLockById(30L)).willReturn(Optional.of(comment));
     given(commentRepository.existsByParent(comment)).willReturn(true);
 
     commentService.deleteComment(30L, 1L);
@@ -114,7 +114,7 @@ class CommentServiceTest {
     Member author = savedMember(1L, "member1@test.com", "member1");
     Comment comment = Comment.builder().author(author).post(savedPost(10L, author)).content("comment").build();
     setId(comment, 31L);
-    given(commentRepository.findById(31L)).willReturn(Optional.of(comment));
+    given(commentRepository.findWithOptimisticLockById(31L)).willReturn(Optional.of(comment));
     given(commentRepository.existsByParent(comment)).willReturn(false);
 
     commentService.deleteComment(31L, 1L);

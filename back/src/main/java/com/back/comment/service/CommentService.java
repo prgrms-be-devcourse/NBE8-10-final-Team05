@@ -54,7 +54,7 @@ public class CommentService {
         Long parentCommentId = req.parentCommentId();
 
         if (parentCommentId != null) {
-            parentComment = commentRepository.findById(parentCommentId)
+            parentComment = commentRepository.findForReplyCreate(parentCommentId)
                     .orElseThrow(CommentErrorCode.COMMENT_NOT_FOUND::toException);
 
             if (!parentComment.getPost().getId().equals(postId)) {
@@ -120,7 +120,7 @@ public class CommentService {
     @Transactional
     public void updateComment(Long commentId, Long memberId, String content) {
 
-        Comment comment = commentRepository.findById(commentId)
+        Comment comment = commentRepository.findWithOptimisticLockById(commentId)
                 .orElseThrow(CommentErrorCode.COMMENT_NOT_FOUND::toException);
 
         if(!comment.getAuthor().getId().equals(memberId)){
@@ -147,7 +147,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId, Long memberId) {
 
-        Comment comment = commentRepository.findById(commentId)
+        Comment comment = commentRepository.findWithOptimisticLockById(commentId)
                 .orElseThrow(CommentErrorCode.COMMENT_NOT_FOUND::toException);
 
         if(!comment.getAuthor().getId().equals(memberId)){
