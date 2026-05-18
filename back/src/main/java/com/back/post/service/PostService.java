@@ -16,8 +16,11 @@ import com.back.post.entity.PostResolutionStatus;
 import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
 import com.back.post.repository.PostViewCountRedisRepository;
+import java.time.LocalDateTime;
+import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +30,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class PostService {
     private static final int SUMMARY_MAX_LENGTH = 100;
+    private static final int POPULAR_POST_LOOKBACK_DAYS = 7;
 
     private final PostRepository postRepository;
     private final PostViewCountRedisRepository postViewCountRedisRepository;
@@ -93,6 +97,40 @@ public class PostService {
         }
 
         return posts.map(PostListRes::from);
+    }
+
+    /**
+     * 최근 7일간 발행된 게시글 중 조회 수가 높은 순으로 인기 게시글을 조회합니다.
+     *
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @return 인기 게시글 Slice 응답
+     */
+    @Transactional(readOnly = true)
+    public Slice<PostListRes> getPopularPosts(PostCategory category, int page, int size) {
+        LocalDateTime from = LocalDateTime.now().minusDays(POPULAR_POST_LOOKBACK_DAYS);
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.desc("viewCount"),
+                        Sort.Order.desc("createDate"),
+                        Sort.Order.desc("id")
+                )
+        );
+
+        if (category == null) {
+            return postRepository.findPopularPublishedSince(PostStatus.PUBLISHED, from, pageable)
+                    .map(PostListRes::from);
+        }
+
+        return postRepository.findPopularPublishedSinceByCategory(
+                        PostStatus.PUBLISHED,
+                        category,
+                        from,
+                        pageable
+                )
+                .map(PostListRes::from);
     }
 
 

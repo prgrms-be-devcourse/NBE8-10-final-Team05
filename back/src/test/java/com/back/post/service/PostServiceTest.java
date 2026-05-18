@@ -18,6 +18,7 @@ import com.back.post.entity.PostResolutionStatus;
 import com.back.post.entity.PostStatus;
 import com.back.post.repository.PostRepository;
 import com.back.post.repository.PostViewCountRedisRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -166,6 +167,54 @@ class PostServiceTest {
 
     assertThat(result.getContent()).hasSize(1);
     then(postRepository).should().findAllByStatusNot(PostStatus.HIDDEN, pageable);
+  }
+
+  @Test
+  @DisplayName("인기 게시글 조회는 발행 상태와 최근 7일 조건으로 조회한다")
+  void getPopularPostsUsesPopularQuery() {
+    Member author = savedMember(1L, "member1@test.com", "member1");
+    Post popularPost = savedPost(30L, author);
+
+    given(postRepository.findPopularPublishedSince(
+            org.mockito.ArgumentMatchers.eq(PostStatus.PUBLISHED),
+            any(LocalDateTime.class),
+            any(Pageable.class)))
+        .willReturn(new SliceImpl<>(List.of(popularPost), PageRequest.of(0, 10), false));
+
+    var result = postService.getPopularPosts(null, 0, 10);
+
+    assertThat(result.getContent()).hasSize(1);
+    then(postRepository)
+        .should()
+        .findPopularPublishedSince(
+            org.mockito.ArgumentMatchers.eq(PostStatus.PUBLISHED),
+            any(LocalDateTime.class),
+            any(Pageable.class));
+  }
+
+  @Test
+  @DisplayName("카테고리별 인기 게시글 조회는 카테고리 조건을 포함한 쿼리를 사용한다")
+  void getPopularPostsByCategoryUsesCategoryQuery() {
+    Member author = savedMember(1L, "member1@test.com", "member1");
+    Post popularPost = savedPost(31L, author);
+
+    given(postRepository.findPopularPublishedSinceByCategory(
+            org.mockito.ArgumentMatchers.eq(PostStatus.PUBLISHED),
+            org.mockito.ArgumentMatchers.eq(PostCategory.WORRY),
+            any(LocalDateTime.class),
+            any(Pageable.class)))
+        .willReturn(new SliceImpl<>(List.of(popularPost), PageRequest.of(0, 10), false));
+
+    var result = postService.getPopularPosts(PostCategory.WORRY, 0, 10);
+
+    assertThat(result.getContent()).hasSize(1);
+    then(postRepository)
+        .should()
+        .findPopularPublishedSinceByCategory(
+            org.mockito.ArgumentMatchers.eq(PostStatus.PUBLISHED),
+            org.mockito.ArgumentMatchers.eq(PostCategory.WORRY),
+            any(LocalDateTime.class),
+            any(Pageable.class));
   }
 
   @Test

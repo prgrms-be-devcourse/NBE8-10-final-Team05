@@ -67,6 +67,16 @@ public class PostController implements PostApiDocs {
         return ResponseEntity.ok(new RsData<>("200-1", "Posts fetched.", data));
     }
 
+    @GetMapping("/popular")
+    public ResponseEntity<RsData<Slice<PostListRes>>> getPopularPosts(
+            @RequestParam(required = false) PostCategory category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Slice<PostListRes> data = postService.getPopularPosts(category, page, size);
+        return ResponseEntity.ok(new RsData<>("200-6", "Popular posts fetched.", data));
+    }
+
     /**
      * 게시글 상세 정보를 조회합니다.
      *

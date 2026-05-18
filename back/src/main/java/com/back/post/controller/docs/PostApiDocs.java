@@ -72,6 +72,19 @@ public interface PostApiDocs {
       @Parameter(description = "페이지 크기") int size);
 
   @Operation(
+      summary = "인기 게시글 조회",
+      description =
+          "최근 7일간 발행된 게시글 중 조회 수가 높은 순으로 인기 게시글 목록을 조회합니다.",
+      security = {})
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+  })
+  ResponseEntity<RsData<Slice<PostListRes>>> getPopularPosts(
+      @Parameter(description = "카테고리 필터. `DAILY`, `WORRY`, `QUESTION`") PostCategory category,
+      @Parameter(description = "페이지 번호, 0부터 시작") int page,
+      @Parameter(description = "페이지 크기") int size);
+
+  @Operation(
       summary = "게시글 상세 조회",
       description = "단일 게시글의 본문, 작성자, 댓글 수 등 상세 정보를 조회합니다.",
       security = {})
