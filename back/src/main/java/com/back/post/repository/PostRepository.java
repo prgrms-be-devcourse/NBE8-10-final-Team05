@@ -48,6 +48,36 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             Pageable pageable
     );
 
+    @Query("""
+        SELECT p
+        FROM Post p
+        JOIN FETCH p.member m
+        WHERE p.status = :status
+          AND p.createDate >= :from
+        ORDER BY p.viewCount DESC, p.createDate DESC, p.id DESC
+        """)
+    Slice<Post> findPopularPublishedSince(
+            @Param("status") PostStatus status,
+            @Param("from") LocalDateTime from,
+            Pageable pageable
+    );
+
+    @Query("""
+        SELECT p
+        FROM Post p
+        JOIN FETCH p.member m
+        WHERE p.status = :status
+          AND p.category = :category
+          AND p.createDate >= :from
+        ORDER BY p.viewCount DESC, p.createDate DESC, p.id DESC
+        """)
+    Slice<Post> findPopularPublishedSinceByCategory(
+            @Param("status") PostStatus status,
+            @Param("category") PostCategory category,
+            @Param("from") LocalDateTime from,
+            Pageable pageable
+    );
+
     java.util.Optional<Post> findByIdAndStatusNot(Long id, PostStatus status);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

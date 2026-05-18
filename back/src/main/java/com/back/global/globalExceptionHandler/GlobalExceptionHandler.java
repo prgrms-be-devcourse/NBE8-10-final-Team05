@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -55,6 +56,15 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(NoResourceFoundException.class)
   public ResponseEntity<RsData<Void>> handle(NoResourceFoundException exception) {
     return new ResponseEntity<>(new RsData<>("404-1", "Resource not found."), NOT_FOUND);
+  }
+
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ResponseEntity<RsData<Void>> handle(
+      ObjectOptimisticLockingFailureException exception, HttpServletRequest request) {
+    return buildResponse(
+        new RsData<>("409-3", "다른 요청이 먼저 반영되었습니다. 다시 시도해주세요."),
+        HttpStatus.CONFLICT,
+        request);
   }
 
   @ExceptionHandler(Exception.class)

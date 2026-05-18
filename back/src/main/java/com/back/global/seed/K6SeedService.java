@@ -163,6 +163,7 @@ public class K6SeedService implements ApplicationRunner {
               .title(title)
               .content(content)
               .summary(content)
+              .viewCount((int) ((postCount - i) % 500))
               .status(PostStatus.PUBLISHED)
               .member(writer)
               .category(category)
